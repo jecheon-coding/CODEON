@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ── react-resizable-panels Separator 스타일 ────────────────────────
+   [data-separator]: 라이브러리가 Separator 컴포넌트에 자동으로 추가하는 속성.
+   hover / focus / active 상태를 이 속성으로 타겟팅해 스타일 처리.
+   flex-grow / flex-shrink 는 라이브러리가 제어하므로 건드리지 않음.
+   cursor 는 Group의 disableCursor=false(기본)일 때 라이브러리가 자동 col-resize 설정.
+──────────────────────────────────────────────────────────────────── */
+
+/* 기본: 거의 보이지 않는 얇은 선 */
+[data-separator] {
+  position: relative;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+/* hover / focus: 인디고 blue-500 으로 빛남 */
+[data-separator]:hover,
+[data-separator]:focus {
+  background-color: #6366f1;  /* indigo-500 */
+  outline: none;
+}
+
+/* 드래그 중 active 상태 (라이브러리가 data-resize-handle-active 속성 추가) */
+[data-separator][data-resize-handle-active] {
+  background-color: #4f46e5;  /* indigo-600 */
+}
+
+/* 다크모드 컨테이너 (.dark-panels 클래스를 루트에 적용) */
+.dark-panels [data-separator] {
+  background-color: transparent;
+}
+.dark-panels [data-separator]:hover,
+.dark-panels [data-separator]:focus {
+  background-color: #6366f1;
+}
+.dark-panels [data-separator][data-resize-handle-active] {
+  background-color: #818cf8;  /* indigo-400 */
+}
+
+/* 평상시 미세한 선 힌트 (라이트/다크 공통) — pseudo element 로 처리 */
+[data-separator]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: #e2e8f0;   /* slate-200 */
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+[data-separator]:hover::after,
+[data-separator]:focus::after,
+[data-separator][data-resize-handle-active]::after {
+  opacity: 0;  /* hover 시 ::after 숨기고 배경색이 보임 */
+}
+.dark-panels [data-separator]::after {
+  background-color: #334155;   /* slate-700 */
+  opacity: 0.5;
+}
