@@ -1,2 +1,8 @@
-export const dynamic = 'force-dynamic'
-export { default } from './AdminPage'
+"use client"
+import dynamic from 'next/dynamic'
+
+const AdminPage = dynamic(() => import('./AdminPage'), { ssr: false })
+
+export default function Page() {
+  return <AdminPage />
+}
