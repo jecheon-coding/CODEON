@@ -1470,9 +1470,12 @@ function MonthlyReviewSection() {
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const { data: session } = useSession()
+  const [mounted, setMounted] = useState(false)
+  const session = useSession()?.data
   const router = useRouter()
   const [summary, setSummary] = useState<Summary | null>(null)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!session) return
@@ -1485,6 +1488,8 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => { loadSummary() }, [loadSummary])
+
+  if (!mounted) return null
 
   return (
     <div className="min-h-screen bg-slate-100">
