@@ -1,16 +1,15 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo, Fragment } from "react"
+import { supabase } from "@/lib/supabase"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
-  Plus, Search, Pencil, Trash2, Eye, ChevronDown, Save, AlertCircle,
+  Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock,
+  FileCheck, Clock, Upload,
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -195,13 +194,23 @@ function SummaryCards({ summary }: { summary: Summary | null }) {
 // ── 학생 관리 ────────────────────────────────────────────────────────────────
 
 function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) {
-  const [students, setStudents] = useState<Student[]>([])
-  const [search,   setSearch]   = useState("")
-  const [drawer,   setDrawer]   = useState<"add" | "edit" | null>(null)
-  const [editing,  setEditing]  = useState<Student | null>(null)
-  const [form,     setForm]     = useState({ name: "", grade: "", cls: "", loginId: "", password: "" })
-  const [saving,   setSaving]   = useState(false)
-  const [err,      setErr]      = useState("")
+  const [students,     setStudents]     = useState<Student[]>([])
+  const [search,       setSearch]       = useState("")
+  const [gradeFilter,  setGradeFilter]  = useState("전체")
+  const [clsFilter,    setClsFilter]    = useState("전체")
+  const [statusFilter, setStatusFilter] = useState("전체")
+  const [drawer,       setDrawer]       = useState<"add" | "edit" | null>(null)
+  const [editing,      setEditing]      = useState<Student | null>(null)
+  const [form,         setForm]         = useState({ name: "", grade: "", cls: "", loginId: "", password: "" })
+  const [saving,       setSaving]       = useState(false)
+  const [err,          setErr]          = useState("")
+  const [savedOk,      setSavedOk]      = useState(false)
+  const [showPw,       setShowPw]       = useState(false)
+  const [csvModal,     setCsvModal]     = useState(false)
+  const [csvRows,      setCsvRows]      = useState<{ name: string; grade: string; cls: string; loginId: string }[]>([])
+  const [csvError,     setCsvError]     = useState("")
+  const [csvSaving,    setCsvSaving]    = useState(false)
+  const [csvDone,      setCsvDone]      = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/students")
@@ -210,12 +219,51 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
   useEffect(() => { load() }, [load])
 
-  const filtered = useMemo(() =>
-    students.filter(s =>
-      !search.trim() ||
+  const gradeOptions = useMemo(() => {
+    const set = new Set(students.map(s => s.grade).filter(Boolean) as string[])
+    return ["전체", ...Array.from(set).sort()]
+  }, [students])
+
+  const clsOptions = useMemo(() => {
+    const set = new Set(students.map(s => s.class).filter(Boolean) as string[])
+    return ["전체", ...Array.from(set).sort()]
+  }, [students])
+
+  const filtered = useMemo(() => students.filter(s => {
+    const matchSearch  = !search.trim() ||
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.grade ?? "").includes(search)
-    ), [students, search])
+      (s.grade ?? "").includes(search) ||
+      (s.login_id ?? "").includes(search)
+    const matchGrade   = gradeFilter  === "전체" || s.grade  === gradeFilter
+    const matchCls     = clsFilter    === "전체" || s.class  === clsFilter
+    const matchStatus  = statusFilter === "전체" ||
+      (statusFilter === "활성"   && s.status === "active") ||
+      (statusFilter === "미연결" && !s.hasParentLink)
+    return matchSearch && matchGrade && matchCls && matchStatus
+  }), [students, search, gradeFilter, clsFilter, statusFilter])
+
+  const filterSummary = useMemo(() => {
+    const parts = [
+      gradeFilter  !== "전체" ? gradeFilter  : null,
+      clsFilter    !== "전체" ? clsFilter    : null,
+      statusFilter !== "전체" ? statusFilter : null,
+    ].filter(Boolean)
+    return parts.length > 0 ? `${parts.join(" · ")} (${filtered.length}명)` : null
+  }, [gradeFilter, clsFilter, statusFilter, filtered.length])
+
+  const hasFilter = search || gradeFilter !== "전체" || clsFilter !== "전체" || statusFilter !== "전체"
+
+  function generatePassword() {
+    const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    const pw = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
+    setForm(p => ({ ...p, password: pw }))
+    setShowPw(true)
+  }
+
+  function resetDrawer() {
+    setSavedOk(false); setShowPw(false); setErr("")
+    setForm({ name: "", grade: "", cls: "", loginId: "", password: "" })
+  }
 
   async function handleSave() {
     setSaving(true); setErr("")
@@ -225,20 +273,54 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
         body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls, loginId: form.loginId, password: form.password }),
       })
       if (!res.ok) { const d = await res.json(); setErr(d.error); setSaving(false); return }
+      setSavedOk(true)
     } else if (editing) {
       const res = await fetch(`/api/admin/students/${editing.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls }),
       })
       if (!res.ok) { const d = await res.json(); setErr(d.error); setSaving(false); return }
+      setDrawer(null)
     }
-    setSaving(false); setDrawer(null); setForm({ name: "", grade: "", cls: "", loginId: "", password: "" })
+    setSaving(false)
     load(); onRefreshSummary()
   }
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`"${name}" 학생을 비활성화 처리하시겠습니까?`)) return
     await fetch(`/api/admin/students/${id}`, { method: "DELETE" })
+    load(); onRefreshSummary()
+  }
+
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    setCsvError(""); setCsvRows([]); setCsvDone(false)
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const text = ev.target?.result as string
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) { setCsvError("데이터 행이 없습니다."); return }
+      const rows = lines.slice(1).map(line => {
+        const [name, grade, cls, loginId] = line.split(",").map(c => c.trim())
+        return { name: name ?? "", grade: grade ?? "", cls: cls ?? "", loginId: loginId ?? "" }
+      }).filter(r => r.name && r.loginId)
+      if (rows.length === 0) { setCsvError("유효한 데이터 행이 없습니다."); return }
+      setCsvRows(rows)
+    }
+    reader.readAsText(file, "UTF-8")
+  }
+
+  async function handleCsvSubmit() {
+    if (csvRows.length === 0) return
+    setCsvSaving(true); setCsvError("")
+    const res = await fetch("/api/admin/students/bulk", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ students: csvRows }),
+    })
+    const d = await res.json()
+    if (!res.ok) { setCsvError(d.error ?? "오류가 발생했습니다."); setCsvSaving(false); return }
+    setCsvSaving(false); setCsvDone(true)
     load(); onRefreshSummary()
   }
 
@@ -250,28 +332,64 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
         title="학생 관리"
         desc={`활성 ${activeCount}명 · 전체 ${students.length}명`}
         action={
-          <button className={Btn.primary} onClick={() => {
-            setForm({ name: "", grade: "", cls: "", loginId: "", password: "" })
-            setErr("")
-            setDrawer("add")
-          }}>
-            <Plus className="w-3.5 h-3.5" /> 학생 등록
-          </button>
+          <div className="flex items-center gap-2">
+            <button className={Btn.outline} onClick={() => { setCsvModal(true); setCsvRows([]); setCsvError(""); setCsvDone(false) }}>
+              <Upload className="w-3.5 h-3.5" /> 일괄 등록 (CSV)
+            </button>
+            <button className={Btn.primary} onClick={() => {
+              resetDrawer(); setDrawer("add")
+            }}>
+              <Plus className="w-3.5 h-3.5" /> 학생 등록
+            </button>
+          </div>
         }
       >
         {/* 검색창 */}
-        <div className="relative mb-3">
+        <div className="relative mb-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="이름 또는 학년 검색…"
+            placeholder="이름, 학년, 아이디 검색…"
             className="w-full pl-8 pr-3 py-2 h-9 text-sm border border-gray-200 rounded-lg
               focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
         </div>
 
+        {/* 필터 드롭다운 */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[
+            { value: gradeFilter, setter: setGradeFilter, options: gradeOptions, allLabel: "전체 학년" },
+            { value: clsFilter,   setter: setClsFilter,   options: clsOptions,   allLabel: "전체 과정" },
+          ].map(({ value, setter, options, allLabel }) => (
+            <div key={allLabel} className="relative">
+              <select value={value} onChange={e => setter(e.target.value)}
+                className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:border-indigo-400 cursor-pointer">
+                {options.map(o => <option key={o} value={o}>{o === "전체" ? allLabel : o}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+            </div>
+          ))}
+          <div className="relative">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+              className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:border-indigo-400 cursor-pointer">
+              {["전체", "활성", "미연결"].map(v => <option key={v} value={v}>{v === "전체" ? "전체 상태" : v}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+          </div>
+          {(gradeFilter !== "전체" || clsFilter !== "전체" || statusFilter !== "전체") && (
+            <button onClick={() => { setGradeFilter("전체"); setClsFilter("전체"); setStatusFilter("전체") }}
+              className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 transition-colors">
+              초기화
+            </button>
+          )}
+        </div>
+
+        {filterSummary && (
+          <p className="text-xs text-indigo-600 font-semibold mb-3">{filterSummary}</p>
+        )}
+
         {filtered.length === 0 ? (
           <EmptyState icon={Users}
-            title={search ? "검색 결과가 없습니다" : "등록된 학생이 없습니다"}
-            desc={search ? undefined : "학생 등록 버튼으로 첫 학생을 추가하세요"} />
+            title={hasFilter ? "검색 결과가 없습니다" : "등록된 학생이 없습니다"}
+            desc={hasFilter ? undefined : "학생 등록 버튼으로 첫 학생을 추가하세요"} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -306,20 +424,15 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        <button
-                          title="수정"
-                          className={Btn.ghost}
+                        <button title="수정" className={Btn.ghost}
                           onClick={() => {
-                            setEditing(s)
-                            setErr("")
+                            setEditing(s); resetDrawer()
                             setForm({ name: s.name, grade: s.grade ?? "", cls: s.class ?? "", loginId: s.login_id ?? "", password: "" })
                             setDrawer("edit")
                           }}>
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          title="비활성화"
-                          className={Btn.danger}
+                        <button title="비활성화" className={Btn.danger}
                           onClick={() => handleDelete(s.id, s.name)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -333,65 +446,185 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
         )}
       </SectionCard>
 
-      <Drawer open={!!drawer} onClose={() => setDrawer(null)}
+      {/* 학생 등록/수정 Drawer */}
+      <Drawer open={!!drawer} onClose={() => { resetDrawer(); setDrawer(null) }}
         title={drawer === "add" ? "학생 등록" : "학생 정보 수정"}>
-        <div className="flex flex-col gap-4">
-          {err && (
-            <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0" />{err}
+        {savedOk ? (
+          <div className="flex flex-col items-center gap-5 py-8">
+            <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="w-7 h-7 text-emerald-500" />
             </div>
-          )}
-          <div>
-            <label className={labelCls}>이름 <span className="text-red-500">*</span></label>
-            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              className={inputCls} placeholder="홍길동" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>학년</label>
-              <input value={form.grade} onChange={e => setForm(p => ({ ...p, grade: e.target.value }))}
-                className={inputCls} placeholder="초5" />
+            <div className="text-center">
+              <p className="text-sm font-extrabold text-gray-900 mb-1">등록 완료!</p>
+              <p className="text-xs text-gray-500">"{form.name}" 학생이 성공적으로 등록되었습니다.</p>
             </div>
-            <div>
-              <label className={labelCls}>반/과정</label>
-              <input value={form.cls} onChange={e => setForm(p => ({ ...p, cls: e.target.value }))}
-                className={inputCls} placeholder="파이썬기초A" />
+            <div className="flex gap-2 w-full">
+              <button onClick={() => { setSavedOk(false); setForm({ name: "", grade: "", cls: "", loginId: "", password: "" }); setShowPw(false); setErr("") }}
+                className={`${Btn.outline} flex-1 justify-center py-2.5`}>
+                계속 등록하기
+              </button>
+              <button onClick={() => { resetDrawer(); setDrawer(null) }}
+                className={`${Btn.primary} flex-1 justify-center py-2.5`}>
+                닫기
+              </button>
             </div>
           </div>
-          {drawer === "add" && (
-            <>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {err && (
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />{err}
+              </div>
+            )}
+            <div>
+              <label className={labelCls}>이름 <span className="text-red-500">*</span></label>
+              <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                className={inputCls} placeholder="홍길동" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>로그인 ID <span className="text-red-500">*</span></label>
-                <input value={form.loginId} onChange={e => setForm(p => ({ ...p, loginId: e.target.value }))}
-                  className={inputCls} placeholder="student01" />
+                <label className={labelCls}>학년</label>
+                <input value={form.grade} onChange={e => setForm(p => ({ ...p, grade: e.target.value }))}
+                  className={inputCls} placeholder="초5" />
               </div>
               <div>
-                <label className={labelCls}>초기 비밀번호 <span className="text-red-500">*</span></label>
-                <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                  className={inputCls} placeholder="••••••••" />
+                <label className={labelCls}>반/과정</label>
+                <input value={form.cls} onChange={e => setForm(p => ({ ...p, cls: e.target.value }))}
+                  className={inputCls} placeholder="파이썬기초A" />
               </div>
-            </>
-          )}
-          <button onClick={handleSave} disabled={saving}
-            className={`${Btn.primary} w-full justify-center py-2.5 mt-1`}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {drawer === "add" ? "등록하기" : "저장하기"}
-          </button>
-        </div>
+            </div>
+            {drawer === "add" && (
+              <>
+                <div>
+                  <label className={labelCls}>로그인 ID <span className="text-red-500">*</span></label>
+                  <input value={form.loginId} onChange={e => setForm(p => ({ ...p, loginId: e.target.value }))}
+                    className={inputCls} placeholder="student01" />
+                </div>
+                <div>
+                  <label className={labelCls}>초기 비밀번호 <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input type={showPw ? "text" : "password"} value={form.password}
+                        onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                        className={`${inputCls} pr-10`} placeholder="••••••••" />
+                      <button type="button" onClick={() => setShowPw(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <button type="button" onClick={generatePassword} className={`${Btn.outline} whitespace-nowrap`}>
+                      자동 생성
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            <button onClick={handleSave} disabled={saving}
+              className={`${Btn.primary} w-full justify-center py-2.5 mt-1`}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {drawer === "add" ? "등록하기" : "저장하기"}
+            </button>
+          </div>
+        )}
       </Drawer>
+
+      {/* CSV 일괄 등록 모달 */}
+      {csvModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setCsvModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 className="text-sm font-extrabold text-gray-900">CSV 일괄 등록</h3>
+                <button onClick={() => setCsvModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {csvDone ? (
+                  <div className="flex flex-col items-center gap-4 py-6">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-900">{csvRows.length}명 등록 완료!</p>
+                    <button onClick={() => setCsvModal(false)} className={`${Btn.primary} px-6 py-2.5`}>닫기</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                      <p className="text-xs font-bold text-gray-700 mb-2">CSV 형식 (헤더 포함)</p>
+                      <code className="text-xs text-gray-600 font-mono">이름,학년,반/과정,로그인ID</code>
+                      <br />
+                      <code className="text-xs text-gray-500 font-mono">홍길동,초5,파이썬기초A,hong01</code>
+                      <p className="text-[11px] text-gray-400 mt-2">※ 비밀번호는 자동으로 8자리 랜덤 생성됩니다.</p>
+                    </div>
+
+                    <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-6 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
+                      <Upload className="w-6 h-6 text-gray-400" />
+                      <span className="text-xs font-semibold text-gray-600">CSV 파일 업로드</span>
+                      <span className="text-[11px] text-gray-400">.csv 파일을 선택하세요</span>
+                      <input type="file" accept=".csv" className="hidden" onChange={handleCsvFile} />
+                    </label>
+
+                    {csvError && (
+                      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                        <AlertCircle className="w-4 h-4 shrink-0" />{csvError}
+                      </div>
+                    )}
+
+                    {csvRows.length > 0 && (
+                      <>
+                        <p className="text-xs font-bold text-gray-700">미리보기 ({csvRows.length}명)</p>
+                        <div className="overflow-auto max-h-48 border border-gray-200 rounded-xl">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-bold text-gray-600">이름</th>
+                                <th className="px-3 py-2 text-left font-bold text-gray-600">학년</th>
+                                <th className="px-3 py-2 text-left font-bold text-gray-600">반/과정</th>
+                                <th className="px-3 py-2 text-left font-bold text-gray-600">로그인ID</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {csvRows.map((row, i) => (
+                                <tr key={i} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-gray-800 font-medium">{row.name}</td>
+                                  <td className="px-3 py-2 text-gray-600">{row.grade || "—"}</td>
+                                  <td className="px-3 py-2 text-gray-600">{row.cls || "—"}</td>
+                                  <td className="px-3 py-2 text-gray-500 font-mono">{row.loginId}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <button onClick={handleCsvSubmit} disabled={csvSaving}
+                          className={`${Btn.primary} w-full justify-center py-2.5`}>
+                          {csvSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                          {csvRows.length}명 등록하기
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }
 
 // ── 공통 유틸 ────────────────────────────────────────────────────────────────
 
-const TOPICS = ["전체", "출력", "입력", "입출력", "조건문", "반복문", "중첩반복문", "문자열", "리스트", "함수", "알고리즘기초"]
-
-function assignmentStatus(dueDate: string | null): { label: string; variant: "blue" | "gray" | "green" } {
+function assignmentStatus(dueDate: string | null): { label: string; variant: "blue" | "gray" | "amber" } {
   if (!dueDate) return { label: "진행중", variant: "blue" }
+  const now = new Date()
   const due = new Date(dueDate)
-  if (due > new Date()) return { label: "진행중", variant: "blue" }
-  return { label: "마감", variant: "gray" }
+  if (due <= now) return { label: "마감", variant: "gray" }
+  const weekAhead = new Date(now); weekAhead.setDate(now.getDate() + 7)
+  if (due <= weekAhead) return { label: "예정", variant: "amber" }
+  return { label: "진행중", variant: "blue" }
 }
 
 function ProgressBar({ submitted, total }: { submitted: number; total: number }) {
@@ -409,27 +642,14 @@ function ProgressBar({ submitted, total }: { submitted: number; total: number })
 
 // ── 과제 관리 ────────────────────────────────────────────────────────────────
 
+const ASSIGNMENT_LIMIT = 10
+
 function AssignmentSection() {
-  const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [showModal,   setShowModal]   = useState(false)
-  const [step,        setStep]        = useState(1)
-  const [problems,    setProblems]    = useState<Problem[]>([])
-  const [students,    setStudents]    = useState<Student[]>([])
-  const [selProblems, setSelProblems] = useState<Set<string>>(new Set())
-  const [selStudents, setSelStudents] = useState<Set<string>>(new Set())
-  const [title,       setTitle]       = useState("")
-  const [dueDate,     setDueDate]     = useState("")
-  const [saving,      setSaving]      = useState(false)
-
-  // step 1 필터
-  const [pSearch, setPSearch] = useState("")
-  const [pTopic,  setPTopic]  = useState("전체")
-  const [pDiff,   setPDiff]   = useState<string[]>([])
-  const [pSort,   setPSort]   = useState<"title" | "difficulty">("title")
-  const [pView,   setPView]   = useState<"all" | "selected">("all")
-
-  // step 2 필터
-  const [sSearch, setSSearch] = useState("")
+  const router = useRouter()
+  const [assignments,  setAssignments]  = useState<Assignment[]>([])
+  const [statusFilter, setStatusFilter] = useState<"전체" | "진행중" | "마감" | "예정">("전체")
+  const [dateRange,    setDateRange]    = useState<"week" | "month" | "all">("all")
+  const [page,         setPage]         = useState(1)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/assignments")
@@ -437,32 +657,7 @@ function AssignmentSection() {
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  async function openCreate() {
-    const [pr, sr] = await Promise.all([
-      supabase.from("problems").select("id, title, category, difficulty, topic").eq("status", "published").order("title"),
-      fetch("/api/admin/students").then(r => r.json()),
-    ])
-    setProblems(pr.data ?? [])
-    setStudents(sr)
-    setSelProblems(new Set()); setSelStudents(new Set())
-    setTitle(""); setDueDate(""); setStep(1); setShowModal(true)
-    setPSearch(""); setPTopic("전체"); setPDiff([]); setPSort("title"); setPView("all")
-    setSSearch("")
-  }
-
-  async function handleCreate() {
-    if (!title.trim()) return
-    setSaving(true)
-    await fetch("/api/admin/assignments", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title, dueDate: dueDate || null,
-        problemIds: [...selProblems], studentIds: [...selStudents],
-      }),
-    })
-    setSaving(false); setShowModal(false); load()
-  }
+  useEffect(() => { setPage(1) }, [statusFilter, dateRange])
 
   async function handleDelete(id: string, t: string) {
     if (!confirm(`"${t}" 과제를 삭제하시겠습니까?`)) return
@@ -470,44 +665,85 @@ function AssignmentSection() {
     load()
   }
 
-  const filteredProblems = useMemo(() => {
-    let list = problems
-    if (pView === "selected") list = list.filter(p => selProblems.has(p.id))
-    if (pSearch.trim()) list = list.filter(p => p.title.includes(pSearch.trim()))
-    if (pTopic !== "전체") list = list.filter(p => p.topic === pTopic || p.category === pTopic)
-    if (pDiff.length > 0) list = list.filter(p => pDiff.includes(p.difficulty))
-    if (pSort === "difficulty") {
-      const order = { "하": 0, "중": 1, "상": 2 }
-      list = [...list].sort((a, b) => (order[a.difficulty as keyof typeof order] ?? 1) - (order[b.difficulty as keyof typeof order] ?? 1))
+  const filtered = useMemo(() => {
+    const now = new Date()
+    const weekAhead = new Date(now); weekAhead.setDate(now.getDate() + 7)
+
+    let list = assignments
+
+    if (statusFilter === "진행중") {
+      list = list.filter(a => !a.dueDate || new Date(a.dueDate) > weekAhead)
+    } else if (statusFilter === "마감") {
+      list = list.filter(a => a.dueDate && new Date(a.dueDate) <= now)
+    } else if (statusFilter === "예정") {
+      list = list.filter(a => a.dueDate && new Date(a.dueDate) > now && new Date(a.dueDate) <= weekAhead)
     }
+
+    if (dateRange !== "all") {
+      let start: Date, end: Date
+      if (dateRange === "week") {
+        const day = now.getDay()
+        start = new Date(now); start.setDate(now.getDate() - (day === 0 ? 6 : day - 1)); start.setHours(0, 0, 0, 0)
+        end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999)
+      } else {
+        start = new Date(now.getFullYear(), now.getMonth(), 1)
+        end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      }
+      list = list.filter(a => {
+        if (!a.dueDate) return false
+        const d = new Date(a.dueDate)
+        return d >= start && d <= end
+      })
+    }
+
     return list
-  }, [problems, pSearch, pTopic, pDiff, pSort, pView, selProblems])
+  }, [assignments, statusFilter, dateRange])
 
-  const filteredStudents = useMemo(() => {
-    let list = students.filter(s => s.status === "active")
-    if (sSearch.trim()) list = list.filter(s => s.name.includes(sSearch.trim()))
-    return list
-  }, [students, sSearch])
-
-  function toggleDiff(d: string) {
-    setPDiff(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
-  }
-
-  const diffCounts = useMemo(() => {
-    const sel = problems.filter(p => selProblems.has(p.id))
-    return { 하: sel.filter(p => p.difficulty === "하").length, 중: sel.filter(p => p.difficulty === "중").length, 상: sel.filter(p => p.difficulty === "상").length }
-  }, [problems, selProblems])
+  const pageCount = Math.ceil(filtered.length / ASSIGNMENT_LIMIT)
+  const paged     = filtered.slice((page - 1) * ASSIGNMENT_LIMIT, page * ASSIGNMENT_LIMIT)
 
   return (
-    <>
-      <SectionCard
-        title="과제 관리"
-        desc={`총 ${assignments.length}개 과제`}
-        action={<button className={Btn.primary} onClick={openCreate}><Plus className="w-3.5 h-3.5" /> 과제 생성</button>}
-      >
-        {assignments.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="등록된 과제가 없습니다" desc="과제 생성 버튼으로 첫 과제를 배정하세요" />
-        ) : (
+    <SectionCard
+      title="과제 관리"
+      desc={`총 ${assignments.length}개 과제`}
+      action={
+        <button className={Btn.primary} onClick={() => router.push("/admin/assignments/new")}>
+          <Plus className="w-3.5 h-3.5" /> 과제 생성
+        </button>
+      }
+    >
+      {/* 필터 */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          {(["전체", "진행중", "마감", "예정"] as const).map(v => (
+            <button key={v} onClick={() => setStatusFilter(v)}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                ${statusFilter === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              {v}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          {([
+            { key: "week",  label: "이번 주" },
+            { key: "month", label: "이번 달" },
+            { key: "all",   label: "전체" },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => setDateRange(key)}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+                ${dateRange === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={ClipboardList}
+          title={statusFilter !== "전체" || dateRange !== "all" ? "조건에 맞는 과제가 없습니다" : "등록된 과제가 없습니다"}
+          desc={statusFilter !== "전체" || dateRange !== "all" ? undefined : "과제 생성 버튼으로 첫 과제를 배정하세요"} />
+      ) : (
+        <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -521,7 +757,7 @@ function AssignmentSection() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {assignments.map(a => {
+                {paged.map(a => {
                   const st = assignmentStatus(a.dueDate)
                   return (
                     <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
@@ -530,14 +766,20 @@ function AssignmentSection() {
                       <td className={TD}><span className="text-gray-600">{a.studentCount}명</span></td>
                       <td className={TD}>
                         {a.dueDate
-                          ? <span className="text-gray-700">{new Date(a.dueDate).toLocaleDateString("ko-KR")}</span>
+                          ? <span className="text-gray-700">{new Date(a.dueDate).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                           : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td className="px-3 py-3 text-right">
-                        <button title="삭제" className={Btn.danger} onClick={() => handleDelete(a.id, a.title)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 justify-end">
+                          <button title="수정" className={Btn.ghost}
+                            onClick={() => router.push(`/admin/assignments/${a.id}/edit`)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button title="삭제" className={Btn.danger} onClick={() => handleDelete(a.id, a.title)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -545,252 +787,56 @@ function AssignmentSection() {
               </tbody>
             </table>
           </div>
-        )}
-      </SectionCard>
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-
-            {/* 스텝 헤더 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-3">
-                {([1,2,3] as const).map(n => (
-                  <div key={n} className="flex items-center gap-2">
-                    {n > 1 && <div className="w-8 h-px bg-gray-200" />}
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors
-                      ${step === n ? "bg-indigo-600 text-white" : step > n ? "bg-emerald-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-                      {step > n ? <CheckCircle2 className="w-3.5 h-3.5" /> : n}
-                    </div>
-                    <span className={`text-xs font-semibold ${step === n ? "text-gray-900" : "text-gray-400"}`}>
-                      {n === 1 ? "문제 선택" : n === 2 ? "학생 선택" : "마감일 설정"}
-                    </span>
-                  </div>
-                ))}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <span className="text-xs text-gray-400">
+                {filtered.length}개 중 {(page - 1) * ASSIGNMENT_LIMIT + 1}–{Math.min(page * ASSIGNMENT_LIMIT, filtered.length)}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+                {Array.from({ length: Math.min(5, pageCount) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, pageCount - 4))
+                  const p = start + i
+                  return (
+                    <button key={p} onClick={() => setPage(p)}
+                      className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors
+                        ${page === p ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                      {p}
+                    </button>
+                  )
+                })}
+                <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page === pageCount}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
             </div>
-
-            {/* Step 1: 문제 선택 */}
-            {step === 1 && (
-              <>
-                {/* sticky 필터바 */}
-                <div className="shrink-0 px-4 pt-3 pb-2.5 border-b border-gray-100 bg-white space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                      <input value={pSearch} onChange={e => setPSearch(e.target.value)} placeholder="문제 검색…"
-                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-white" />
-                    </div>
-                    <select value={pTopic} onChange={e => setPTopic(e.target.value)}
-                      className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-indigo-400 text-gray-700 shrink-0">
-                      {TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <select value={pSort} onChange={e => setPSort(e.target.value as "title" | "difficulty")}
-                      className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-indigo-400 text-gray-700 shrink-0">
-                      <option value="title">가나다순</option>
-                      <option value="difficulty">난이도순</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      {(["하","중","상"] as const).map(d => (
-                        <button key={d} onClick={() => toggleDiff(d)}
-                          className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full border transition-all
-                            ${pDiff.includes(d)
-                              ? d === "하" ? "bg-emerald-500 text-white border-emerald-500"
-                                : d === "중" ? "bg-amber-500 text-white border-amber-500"
-                                : "bg-red-500 text-white border-red-500"
-                              : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"}`}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-                      {(["all","selected"] as const).map(v => (
-                        <button key={v} onClick={() => setPView(v)}
-                          className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-md transition-all
-                            ${pView === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                          {v === "all" ? `전체 ${problems.length}` : `선택됨 ${selProblems.size}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 문제 목록 */}
-                <div className="flex-1 overflow-y-auto">
-                  {filteredProblems.length === 0 ? (
-                    <div className="flex items-center justify-center py-10 text-sm text-gray-400">검색 결과 없음</div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10">
-                        <tr>
-                          <th className={TH + " w-10"}></th>
-                          <th className={TH}>문제명</th>
-                          <th className={TH}>토픽</th>
-                          <th className={TH}>난이도</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {filteredProblems.map(p => (
-                          <tr key={p.id}
-                            onClick={() => setSelProblems(prev => { const next = new Set(prev); next.has(p.id) ? next.delete(p.id) : next.add(p.id); return next })}
-                            className={`cursor-pointer transition-colors ${selProblems.has(p.id) ? "bg-indigo-50 hover:bg-indigo-100/60" : "hover:bg-gray-50"}`}>
-                            <td className="px-3 py-2.5 text-center">
-                              <div className={`w-4 h-4 rounded border-2 inline-flex items-center justify-center transition-all
-                                ${selProblems.has(p.id) ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
-                                {selProblems.has(p.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className={`text-sm font-semibold ${selProblems.has(p.id) ? "text-indigo-700" : "text-gray-800"}`}>{p.title}</span>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className="text-[11px] text-gray-500">{p.topic ?? p.category ?? "—"}</span>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <Badge variant={p.difficulty === "하" ? "green" : p.difficulty === "중" ? "amber" : "red"} size="sm">{p.difficulty}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-
-                {/* 선택 요약 바 */}
-                {selProblems.size > 0 && (
-                  <div className="shrink-0 px-4 py-2 bg-indigo-50 border-t border-indigo-100 flex items-center gap-2 text-xs font-semibold text-indigo-700">
-                    <span>{selProblems.size}개 선택됨</span>
-                    <span className="text-indigo-300">|</span>
-                    <span className="font-normal text-indigo-500">
-                      {[diffCounts["하"] > 0 && `하 ${diffCounts["하"]}`, diffCounts["중"] > 0 && `중 ${diffCounts["중"]}`, diffCounts["상"] > 0 && `상 ${diffCounts["상"]}`].filter(Boolean).join(" · ")}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Step 2: 학생 선택 */}
-            {step === 2 && (
-              <>
-                <div className="shrink-0 px-4 pt-3 pb-2.5 border-b border-gray-100 bg-white">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                      <input value={sSearch} onChange={e => setSSearch(e.target.value)} placeholder="학생 검색…"
-                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-white" />
-                    </div>
-                    <button onClick={() => {
-                      const ids = filteredStudents.map(s => s.id)
-                      setSelStudents(prev => {
-                        const allSel = ids.every(id => prev.has(id))
-                        const next = new Set(prev)
-                        if (allSel) ids.forEach(id => next.delete(id))
-                        else ids.forEach(id => next.add(id))
-                        return next
-                      })
-                    }} className={Btn.outline}>전체 선택</button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  {filteredStudents.length === 0 ? (
-                    <div className="flex items-center justify-center py-10 text-sm text-gray-400">검색 결과 없음</div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10">
-                        <tr>
-                          <th className={TH + " w-10"}></th>
-                          <th className={TH}>이름</th>
-                          <th className={TH}>학년·반</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {filteredStudents.map(s => (
-                          <tr key={s.id}
-                            onClick={() => setSelStudents(prev => { const next = new Set(prev); next.has(s.id) ? next.delete(s.id) : next.add(s.id); return next })}
-                            className={`cursor-pointer transition-colors ${selStudents.has(s.id) ? "bg-indigo-50 hover:bg-indigo-100/60" : "hover:bg-gray-50"}`}>
-                            <td className="px-3 py-2.5 text-center">
-                              <div className={`w-4 h-4 rounded border-2 inline-flex items-center justify-center transition-all
-                                ${selStudents.has(s.id) ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
-                                {selStudents.has(s.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className={`text-sm font-bold ${selStudents.has(s.id) ? "text-indigo-700" : "text-gray-800"}`}>{s.name}</span>
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className="text-xs text-gray-500">{[s.grade, s.class].filter(Boolean).join(" ") || "—"}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-                {selStudents.size > 0 && (
-                  <div className="shrink-0 px-4 py-2 bg-indigo-50 border-t border-indigo-100 text-xs font-semibold text-indigo-700">
-                    {selStudents.size}명 선택됨
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Step 3: 마감일 설정 */}
-            {step === 3 && (
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <label className={labelCls}>과제명 <span className="text-red-500">*</span></label>
-                    <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls}
-                      placeholder="예: 1주차 파이썬 기초 과제" />
-                  </div>
-                  <div>
-                    <label className={labelCls}>마감일</label>
-                    <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
-                  </div>
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm space-y-1.5">
-                    <p className="text-xs font-bold text-indigo-700 mb-2">배정 요약</p>
-                    <p className="text-gray-700"><span className="font-semibold">문제:</span> {selProblems.size}개</p>
-                    <p className="text-gray-700"><span className="font-semibold">학생:</span> {selStudents.size}명</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 하단 네비게이션 */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 shrink-0">
-              <button onClick={() => setStep(s => s - 1)} disabled={step === 1}
-                className={`${Btn.outline} ${step === 1 ? "invisible" : ""}`}>
-                <ArrowLeft className="w-3.5 h-3.5" /> 이전
-              </button>
-              {step < 3
-                ? <button onClick={() => setStep(s => s + 1)}
-                    disabled={step === 1 && selProblems.size === 0}
-                    className={Btn.primary}>
-                    다음 <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                : <button onClick={handleCreate} disabled={saving || !title.trim()} className={Btn.green}>
-                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    과제 생성
-                  </button>
-              }
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
-    </>
+    </SectionCard>
   )
 }
 
 // ── 과제 제출 현황 ────────────────────────────────────────────────────────────
 
 type SubViewMode = "student" | "assignment" | "detail"
+
+const DETAIL_LIMIT = 10
+
+function getDDayBadge(dueDate: string | null) {
+  if (!dueDate) return null
+  const due = new Date(dueDate); due.setHours(23, 59, 59, 999)
+  const diffDays = Math.ceil((due.getTime() - Date.now()) / 86400000)
+  if (diffDays < 0)   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-gray-100 text-gray-500 border-gray-200">마감됨</span>
+  if (diffDays === 0) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-amber-100 text-amber-700 border-amber-200">D-day</span>
+  if (diffDays === 1) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200">D-1</span>
+  return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-200">D-{diffDays}</span>
+}
 
 function SubmissionSection() {
   const [rows,         setRows]         = useState<SubmissionRow[]>([])
@@ -799,6 +845,11 @@ function SubmissionSection() {
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set())
   const [detailSearch, setDetailSearch] = useState("")
   const [detailFilter, setDetailFilter] = useState<"all" | "unsubmitted" | "correct" | "wrong">("all")
+  const [detailPage,   setDetailPage]   = useState(1)
+  const [detailAssign, setDetailAssign] = useState("전체")
+  const [dateRange,    setDateRange]    = useState<"week" | "month" | "all" | "custom">("week")
+  const [customStart,  setCustomStart]  = useState("")
+  const [customEnd,    setCustomEnd]    = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -808,41 +859,88 @@ function SubmissionSection() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setDetailPage(1) }, [detailSearch, detailFilter, detailAssign, dateRange])
 
   function toggleExpand(key: string) {
     setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
   }
 
+  // 기간 필터
+  const filteredRows = useMemo(() => {
+    if (dateRange === "all") return rows
+    let start: Date | null = null
+    let end: Date | null   = null
+    const now = new Date()
+    if (dateRange === "week") {
+      const day = now.getDay()
+      start = new Date(now); start.setDate(now.getDate() - (day === 0 ? 6 : day - 1)); start.setHours(0, 0, 0, 0)
+      end   = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999)
+    } else if (dateRange === "month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    } else if (dateRange === "custom") {
+      start = customStart ? new Date(customStart) : null
+      end   = customEnd   ? new Date(customEnd + "T23:59:59") : null
+    }
+    return rows.filter(r => {
+      if (!r.dueDate) return false
+      const d = new Date(r.dueDate)
+      if (start && d < start) return false
+      if (end   && d > end)   return false
+      return true
+    })
+  }, [rows, dateRange, customStart, customEnd])
+
+  // 학생별: 미제출 많은 순, 0명 하단
   const studentSummaries = useMemo(() => {
     const map = new Map<string, { studentId: string; studentName: string; problems: SubmissionRow[] }>()
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (!map.has(r.studentId)) map.set(r.studentId, { studentId: r.studentId, studentName: r.studentName, problems: [] })
       map.get(r.studentId)!.problems.push(r)
     }
     return [...map.values()].sort((a, b) => {
-      const ra = a.problems.filter(p => p.isSubmitted).length / (a.problems.length || 1)
-      const rb = b.problems.filter(p => p.isSubmitted).length / (b.problems.length || 1)
-      return ra - rb
+      const ua = a.problems.filter(p => !p.isSubmitted).length
+      const ub = b.problems.filter(p => !p.isSubmitted).length
+      if (ua === 0 && ub === 0) return a.studentName.localeCompare(b.studentName)
+      if (ua === 0) return 1
+      if (ub === 0) return -1
+      return ub - ua
     })
-  }, [rows])
+  }, [filteredRows])
 
+  // 과제별: 임박순, 마감된 것 후순위
   const assignmentSummaries = useMemo(() => {
     const map = new Map<string, { assignmentId: string; assignmentTitle: string; dueDate: string | null; problems: SubmissionRow[] }>()
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (!map.has(r.assignmentId)) map.set(r.assignmentId, { assignmentId: r.assignmentId, assignmentTitle: r.assignmentTitle, dueDate: r.dueDate, problems: [] })
       map.get(r.assignmentId)!.problems.push(r)
     }
-    return [...map.values()].sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""))
-  }, [rows])
+    const now = Date.now()
+    return [...map.values()].sort((a, b) => {
+      const aExp = a.dueDate ? new Date(a.dueDate).setHours(23, 59, 59) < now : false
+      const bExp = b.dueDate ? new Date(b.dueDate).setHours(23, 59, 59) < now : false
+      if (aExp && !bExp) return 1
+      if (!aExp && bExp) return -1
+      return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
+    })
+  }, [filteredRows])
+
+  const assignmentOptions = useMemo(() =>
+    ["전체", ...[...new Set(filteredRows.map(r => r.assignmentTitle))]]
+  , [filteredRows])
 
   const detailRows = useMemo(() => {
-    let list = rows
+    let list = filteredRows
+    if (detailAssign !== "전체") list = list.filter(r => r.assignmentTitle === detailAssign)
     if (detailSearch.trim()) list = list.filter(r => r.studentName.includes(detailSearch.trim()) || r.problemTitle.includes(detailSearch.trim()))
     if (detailFilter === "unsubmitted") list = list.filter(r => !r.isSubmitted)
     else if (detailFilter === "correct") list = list.filter(r => r.isCorrect === true)
     else if (detailFilter === "wrong")   list = list.filter(r => r.isCorrect === false)
     return list
-  }, [rows, detailSearch, detailFilter])
+  }, [filteredRows, detailSearch, detailFilter, detailAssign])
+
+  const detailPageCount  = Math.ceil(detailRows.length / DETAIL_LIMIT)
+  const pagedDetailRows  = detailRows.slice((detailPage - 1) * DETAIL_LIMIT, detailPage * DETAIL_LIMIT)
 
   function submissionBadge(row: SubmissionRow) {
     if (!row.isSubmitted)        return <Badge variant="red"   size="sm">미제출</Badge>
@@ -851,12 +949,40 @@ function SubmissionSection() {
     return                              <Badge variant="green" size="sm">제출완료</Badge>
   }
 
-  const unsubCount = rows.filter(r => !r.isSubmitted).length
+  const unsubCount = filteredRows.filter(r => !r.isSubmitted).length
+
+  const DateRangeBar = (
+    <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-gray-100">
+      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+        {([
+          { key: "week",   label: "이번 주" },
+          { key: "month",  label: "이번 달" },
+          { key: "all",    label: "전체" },
+          { key: "custom", label: "직접 선택" },
+        ] as const).map(({ key, label }) => (
+          <button key={key} onClick={() => setDateRange(key)}
+            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
+              ${dateRange === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {dateRange === "custom" && (
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400" />
+          <span className="text-xs text-gray-400">~</span>
+          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400" />
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <SectionCard
       title="과제 제출 현황"
-      desc={`${unsubCount}건 미제출 · 전체 ${rows.length}건`}
+      desc={`${unsubCount}건 미제출 · ${filteredRows.length}건`}
       action={
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
           {(["student","assignment","detail"] as const).map(v => (
@@ -877,159 +1003,177 @@ function SubmissionSection() {
         <EmptyState icon={ClipboardList} title="배정된 과제가 없습니다" />
       ) : (
         <>
+          {DateRangeBar}
+
           {/* ─ 학생별 뷰 ─ */}
           {viewMode === "student" && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className={TH}>학생</th>
-                    <th className={TH}>전체</th>
-                    <th className={TH}>제출</th>
-                    <th className={TH}>미제출</th>
-                    <th className={TH + " min-w-[120px]"}>제출률</th>
-                    <th className={TH}>최근 제출</th>
-                    <th className={`${TH} w-8`}></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {studentSummaries.map(({ studentId, studentName, problems }) => {
-                    const submitted = problems.filter(p => p.isSubmitted).length
-                    const total = problems.length
-                    const unsub = total - submitted
-                    const lastSub = problems.filter(p => p.submittedAt).sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""))[0]
-                    const isExp = expanded.has(studentId)
-                    const isZero = submitted === 0
-                    return (
-                      <Fragment key={studentId}>
-                        <tr onClick={() => toggleExpand(studentId)}
-                          className={`cursor-pointer transition-colors ${isZero ? "bg-red-50/50 hover:bg-red-50/80" : "hover:bg-slate-50/60"}`}>
-                          <td className={TD}><span className={`font-bold ${isZero ? "text-red-700" : "text-gray-900"}`}>{studentName}</span></td>
-                          <td className={TD}><span className="text-gray-600">{total}</span></td>
-                          <td className={TD}><span className="text-emerald-600 font-semibold">{submitted}</span></td>
-                          <td className={TD}>
-                            {unsub > 0 ? <span className="text-red-500 font-semibold">{unsub}</span> : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
-                          <td className={TD}>
-                            {lastSub?.submittedAt
-                              ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                              : <span className="text-gray-300 text-xs">없음</span>}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
-                          </td>
-                        </tr>
-                        {isExp && problems.map((p, i) => (
-                          <tr key={`${studentId}-${p.problemId}-${i}`} className="bg-gray-50/80 border-l-2 border-indigo-200">
-                            <td className="px-3 py-2 pl-8"><span className="text-xs text-gray-500">{p.assignmentTitle}</span></td>
-                            <td className="px-3 py-2" colSpan={3}>
-                              <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{p.problemTitle}</span>
-                            </td>
-                            <td className="px-3 py-2">{submissionBadge(p)}</td>
-                            <td className="px-3 py-2" colSpan={2}>
-                              <span className="text-xs text-gray-500">
-                                {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            filteredRows.length === 0
+              ? <EmptyState icon={ClipboardList} title="해당 기간에 과제가 없습니다" />
+              : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className={TH}>학생</th>
+                        <th className={TH}>전체</th>
+                        <th className={TH}>제출</th>
+                        <th className={TH}>미제출</th>
+                        <th className={TH + " min-w-[120px]"}>제출률</th>
+                        <th className={TH}>최근 제출</th>
+                        <th className={`${TH} w-8`}></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {studentSummaries.map(({ studentId, studentName, problems }) => {
+                        const submitted = problems.filter(p => p.isSubmitted).length
+                        const total  = problems.length
+                        const unsub  = total - submitted
+                        const allDone = unsub === 0
+                        const lastSub = problems.filter(p => p.submittedAt).sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""))[0]
+                        const isExp  = expanded.has(studentId)
+                        return (
+                          <Fragment key={studentId}>
+                            <tr onClick={() => toggleExpand(studentId)}
+                              className={`cursor-pointer transition-colors
+                                ${allDone ? "bg-emerald-50/50 hover:bg-emerald-50/80"
+                                  : submitted === 0 ? "bg-red-50/40 hover:bg-red-50/60"
+                                  : "hover:bg-slate-50/60"}`}>
+                              <td className={TD}>
+                                <span className={`font-bold ${allDone ? "text-emerald-700" : submitted === 0 ? "text-red-700" : "text-gray-900"}`}>
+                                  {studentName}
+                                </span>
+                              </td>
+                              <td className={TD}><span className="text-gray-600">{total}</span></td>
+                              <td className={TD}><span className="text-emerald-600 font-semibold">{submitted}</span></td>
+                              <td className={TD}>
+                                {unsub > 0
+                                  ? <span className="text-red-500 font-semibold">{unsub}</span>
+                                  : <span className="text-emerald-500 font-bold text-sm">✓</span>}
+                              </td>
+                              <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
+                              <td className={TD}>
+                                {lastSub?.submittedAt
+                                  ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                  : <span className="text-gray-300 text-xs">없음</span>}
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
+                              </td>
+                            </tr>
+                            {isExp && problems.map((p, i) => (
+                              <tr key={`${studentId}-${p.problemId}-${i}`} className="bg-gray-50/80 border-l-2 border-indigo-200">
+                                <td className="px-3 py-2 pl-8"><span className="text-xs text-gray-500">{p.assignmentTitle}</span></td>
+                                <td className="px-3 py-2" colSpan={3}>
+                                  <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{p.problemTitle}</span>
+                                </td>
+                                <td className="px-3 py-2">{submissionBadge(p)}</td>
+                                <td className="px-3 py-2" colSpan={2}>
+                                  <span className="text-xs text-gray-500">
+                                    {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
           )}
 
           {/* ─ 과제별 뷰 ─ */}
           {viewMode === "assignment" && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className={TH}>과제명</th>
-                    <th className={TH}>학생</th>
-                    <th className={TH}>완료</th>
-                    <th className={TH}>미완료</th>
-                    <th className={TH + " min-w-[120px]"}>제출률</th>
-                    <th className={TH}>마감일</th>
-                    <th className={`${TH} w-8`}></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+            filteredRows.length === 0
+              ? <EmptyState icon={ClipboardList} title="해당 기간에 과제가 없습니다" />
+              : (
+                <div className="space-y-2">
                   {assignmentSummaries.map(({ assignmentId, assignmentTitle, dueDate, problems }) => {
-                    const studentIds = [...new Set(problems.map(p => p.studentId))]
-                    const doneStudents = studentIds.filter(sid => {
-                      const sprobs = problems.filter(p => p.studentId === sid)
-                      return sprobs.every(p => p.isSubmitted)
-                    }).length
-                    const submitted = problems.filter(p => p.isSubmitted).length
-                    const total = problems.length
-                    const isExp = expanded.has(assignmentId)
+                    const studentIds   = [...new Set(problems.map(p => p.studentId))]
+                    const doneStudents = studentIds.filter(sid => problems.filter(p => p.studentId === sid).every(p => p.isSubmitted)).length
+                    const submitted    = problems.filter(p => p.isSubmitted).length
+                    const total        = problems.length
+                    const isExpired    = dueDate ? new Date(dueDate).setHours(23, 59, 59) < Date.now() : false
+                    const isExp        = expanded.has(assignmentId)
                     return (
-                      <Fragment key={assignmentId}>
-                        <tr onClick={() => toggleExpand(assignmentId)}
-                          className="cursor-pointer hover:bg-slate-50/60 transition-colors">
-                          <td className={TD}><span className="font-bold text-gray-900">{assignmentTitle}</span></td>
-                          <td className={TD}><span className="text-gray-600">{studentIds.length}명</span></td>
-                          <td className={TD}><span className="text-emerald-600 font-semibold">{doneStudents}명</span></td>
-                          <td className={TD}>
-                            {studentIds.length - doneStudents > 0
-                              ? <span className="text-red-500 font-semibold">{studentIds.length - doneStudents}명</span>
-                              : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
-                          <td className={TD}>
-                            {dueDate
-                              ? <span className="text-xs text-gray-600">{new Date(dueDate).toLocaleDateString("ko-KR")}</span>
-                              : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
-                          </td>
-                        </tr>
-                        {isExp && studentIds.map(sid => {
-                          const sprobs = problems.filter(p => p.studentId === sid)
-                          const sname = sprobs[0]?.studentName ?? sid
-                          const subCount = sprobs.filter(p => p.isSubmitted).length
-                          return (
-                            <tr key={`${assignmentId}-${sid}`} className="bg-gray-50/80 border-l-2 border-indigo-200">
-                              <td className="px-3 py-2 pl-8">
-                                <span className={`text-xs font-semibold ${subCount === 0 ? "text-red-600" : "text-gray-700"}`}>{sname}</span>
-                              </td>
-                              <td className="px-3 py-2" colSpan={3}>
-                                <span className="text-xs text-gray-500">{subCount}/{sprobs.length} 제출</span>
-                              </td>
-                              <td className="px-3 py-2" colSpan={3}>
-                                <div className="flex flex-wrap gap-1">
-                                  {sprobs.map((p, pi) => (
-                                    <span key={pi} className={`text-[10px] px-1.5 py-0.5 rounded font-medium border
-                                      ${!p.isSubmitted ? "bg-red-50 text-red-600 border-red-100"
-                                        : p.isCorrect === true ? "bg-blue-50 text-blue-700 border-blue-100"
-                                        : p.isCorrect === false ? "bg-amber-50 text-amber-700 border-amber-100"
-                                        : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
-                                      {p.problemTitle}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </Fragment>
+                      <div key={assignmentId}
+                        className={`border rounded-xl overflow-hidden ${isExpired ? "border-gray-200 bg-gray-50/60 opacity-70" : "border-gray-200 bg-white"}`}>
+                        <button onClick={() => toggleExpand(assignmentId)} className="w-full text-left">
+                          <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className={`text-sm font-bold ${isExpired ? "text-gray-500" : "text-gray-900"}`}>{assignmentTitle}</span>
+                                {getDDayBadge(dueDate)}
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                                <span>{studentIds.length}명</span>
+                                <span className="text-emerald-600 font-semibold">완료 {doneStudents}명</span>
+                                {studentIds.length - doneStudents > 0 && (
+                                  <span className="text-red-500 font-semibold">미완료 {studentIds.length - doneStudents}명</span>
+                                )}
+                                {dueDate && <span>{new Date(dueDate).toLocaleDateString("ko-KR")} 마감</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <ProgressBar submitted={submitted} total={total} />
+                              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
+                            </div>
+                          </div>
+                        </button>
+                        {isExp && (
+                          <div className="border-t border-gray-100">
+                            <table className="w-full text-xs">
+                              <tbody className="divide-y divide-gray-50">
+                                {studentIds.map(sid => {
+                                  const sprobs   = problems.filter(p => p.studentId === sid)
+                                  const sname    = sprobs[0]?.studentName ?? sid
+                                  const subCount = sprobs.filter(p => p.isSubmitted).length
+                                  return (
+                                    <tr key={`${assignmentId}-${sid}`} className="hover:bg-gray-50/50">
+                                      <td className="px-4 py-2 pl-6 w-28">
+                                        <span className={`font-semibold ${subCount === 0 ? "text-red-600" : "text-gray-700"}`}>{sname}</span>
+                                      </td>
+                                      <td className="px-3 py-2 w-16 text-gray-500">{subCount}/{sprobs.length} 제출</td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex flex-wrap gap-1">
+                                          {sprobs.map((p, pi) => (
+                                            <span key={pi} className={`px-1.5 py-0.5 rounded font-medium border
+                                              ${!p.isSubmitted ? "bg-red-50 text-red-600 border-red-100"
+                                                : p.isCorrect === true ? "bg-blue-50 text-blue-700 border-blue-100"
+                                                : p.isCorrect === false ? "bg-amber-50 text-amber-700 border-amber-100"
+                                                : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
+                                              {p.problemTitle}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              )
           )}
 
           {/* ─ 상세 뷰 ─ */}
           {viewMode === "detail" && (
             <>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <div className="relative">
+                  <select value={detailAssign} onChange={e => setDetailAssign(e.target.value)}
+                    className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:border-indigo-400 cursor-pointer">
+                    {assignmentOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                </div>
+                <div className="relative flex-1 min-w-[160px]">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input value={detailSearch} onChange={e => setDetailSearch(e.target.value)}
                     placeholder="학생명 또는 문제명 검색…"
@@ -1050,6 +1194,7 @@ function SubmissionSection() {
                   ))}
                 </div>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1062,11 +1207,13 @@ function SubmissionSection() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {detailRows.length === 0 ? (
+                    {pagedDetailRows.length === 0 ? (
                       <tr><td colSpan={5} className="py-10 text-center text-sm text-gray-400">검색 결과 없음</td></tr>
-                    ) : detailRows.map((r, i) => (
-                      <tr key={i} className={`transition-colors ${!r.isSubmitted ? "bg-red-50/40 hover:bg-red-50/60" : "hover:bg-slate-50/60"}`}>
-                        <td className={TD}><span className="font-bold text-gray-900">{r.studentName}</span></td>
+                    ) : pagedDetailRows.map((r, i) => (
+                      <tr key={i} className={`transition-colors ${!r.isSubmitted ? "bg-red-50/60 hover:bg-red-50/80" : "hover:bg-slate-50/60"}`}>
+                        <td className={TD}>
+                          <span className={`font-bold ${!r.isSubmitted ? "text-red-700" : "text-gray-900"}`}>{r.studentName}</span>
+                        </td>
                         <td className="px-3 py-3"><span className="text-gray-600 text-sm">{r.assignmentTitle}</span></td>
                         <td className="px-3 py-3">
                           <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{r.problemTitle}</span>
@@ -1075,13 +1222,40 @@ function SubmissionSection() {
                         <td className={TD}>
                           {r.submittedAt
                             ? <span className="text-gray-700">{new Date(r.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                            : <span className="text-gray-300 font-medium">미제출</span>}
+                            : <span className="text-red-400 font-semibold">미제출</span>}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {detailPageCount > 1 && (
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                  <span className="text-xs text-gray-400">{detailRows.length}건 중 {(detailPage - 1) * DETAIL_LIMIT + 1}–{Math.min(detailPage * DETAIL_LIMIT, detailRows.length)}</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setDetailPage(p => Math.max(1, p - 1))} disabled={detailPage === 1}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                    {Array.from({ length: Math.min(5, detailPageCount) }, (_, i) => {
+                      const start = Math.max(1, Math.min(detailPage - 2, detailPageCount - 4))
+                      const p = start + i
+                      return (
+                        <button key={p} onClick={() => setDetailPage(p)}
+                          className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors
+                            ${detailPage === p ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                          {p}
+                        </button>
+                      )
+                    })}
+                    <button onClick={() => setDetailPage(p => Math.min(detailPageCount, p + 1))} disabled={detailPage === detailPageCount}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>
