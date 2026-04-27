@@ -6,10 +6,12 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   LayoutGrid, ChevronRight, Flame, Heart, Users, Plus,
-  Search, X, TrendingUp, Send, CheckCircle, AlertCircle,
+  Search, X, TrendingUp, Send, CheckCircle, AlertCircle, Target, Pencil,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Problem, MyCommunityStats } from "@/types/problem";
+import { ProblemListContainer } from "@/components/problem/ProblemListItem";
+import { PageLayout } from "@/components/ui/PageLayout";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 type ChallengeProb = Problem & {
@@ -83,9 +85,10 @@ function CommunityProblemCard({
   return (
     <div
       onClick={onClick}
-      className="group bg-white border border-gray-100 rounded-xl px-4 py-3 flex gap-3
-        cursor-pointer select-none shadow-sm transition-all duration-150
-        hover:border-orange-200 hover:shadow-md"
+      className="group flex gap-3 cursor-pointer select-none transition-colors duration-100"
+      style={{ padding: "10px 16px", borderBottom: "0.5px solid #E5E7EB" }}
+      onMouseEnter={e => (e.currentTarget.style.background = "#F9F9FB")}
+      onMouseLeave={e => (e.currentTarget.style.background = "")}
     >
       {/* 아바타 */}
       <div className="shrink-0 mt-0.5">
@@ -108,12 +111,6 @@ function CommunityProblemCard({
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded
               bg-amber-50 text-amber-600 border border-amber-100">공식</span>
           )}
-          {prob.is_community && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded
-              bg-orange-50 text-orange-500 border border-orange-100 flex items-center gap-0.5">
-              <Users className="w-2.5 h-2.5" />학생 제작
-            </span>
-          )}
           {isHot && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded
               bg-rose-50 text-rose-500 border border-rose-100 flex items-center gap-0.5">
@@ -135,70 +132,60 @@ function CommunityProblemCard({
           {excerpt}
         </p>
 
-        {/* 하단 메타 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {prob.topic && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full
-              bg-indigo-50 text-indigo-500 border border-indigo-100">
-              {prob.topic}
+        {/* 하단 메타 + 좋아요/풀이 수 */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+            {prob.topic && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full
+                bg-indigo-50 text-indigo-500 border border-indigo-100">
+                {prob.topic}
+              </span>
+            )}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${DIFF_CLS[prob.difficulty] ?? ""}`}>
+              {prob.difficulty}
             </span>
-          )}
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${DIFF_CLS[prob.difficulty] ?? ""}`}>
-            {prob.difficulty}
-          </span>
-          {diffLabel && (
-            <span className="text-[10px] text-gray-400">
-              친구 평가: <span className="font-semibold text-gray-600">{diffLabel}</span>
+            {diffLabel && (
+              <span className="text-[10px] text-gray-400">
+                친구 평가: <span className="font-semibold text-gray-600">{diffLabel}</span>
+              </span>
+            )}
+            {prob.is_community && prob.author_name && (
+              <span className="text-[10px] text-gray-400">by {maskName(prob.author_name)}</span>
+            )}
+            {prob.created_at && (
+              <span className="text-[10px] text-gray-300">{formatRelative(prob.created_at)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 text-[11px]">
+            <button
+              onClick={onLike}
+              className={`flex items-center gap-0.5 transition-colors
+                ${liked ? "text-rose-500" : "text-gray-400 hover:text-rose-400"}`}
+            >
+              <Heart className={`w-3 h-3 ${liked ? "fill-rose-500" : ""}`} />
+              {prob.like_count}
+            </button>
+            <span className="text-gray-300">·</span>
+            <span className="flex items-center gap-0.5 text-gray-400">
+              <Users className="w-3 h-3" />{prob.solve_count}
             </span>
-          )}
-          {prob.is_community && prob.author_name && (
-            <span className="text-[10px] text-gray-400">by {maskName(prob.author_name)}</span>
-          )}
-          {prob.created_at && (
-            <span className="text-[10px] text-gray-300">{formatRelative(prob.created_at)}</span>
-          )}
+          </div>
         </div>
-      </div>
-
-      {/* 좋아요 / 풀이 수 */}
-      <div className="shrink-0 flex flex-col items-end gap-1.5 min-w-[52px]">
-        <button
-          onClick={onLike}
-          className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full
-            transition-all
-            ${liked
-              ? "text-rose-500 bg-rose-50"
-              : "text-gray-400 hover:text-rose-400 hover:bg-rose-50"}`}
-        >
-          <Heart className={`w-3 h-3 ${liked ? "fill-rose-500" : ""}`} />
-          {prob.like_count}
-        </button>
-        <span className="flex items-center gap-1 text-[11px] text-gray-400">
-          <Users className="w-3 h-3" />
-          {prob.solve_count}
-        </span>
       </div>
     </div>
   );
 }
 
 // ── 사이드바 ─────────────────────────────────────────────────────────────────
-function CommunitySidebar({
-  stats, loading, onCreateClick,
-}: {
-  stats:         MyCommunityStats;
-  loading:       boolean;
-  onCreateClick: () => void;
-}) {
-  const statItems = [
-    { label: "내가 만든", value: stats.createdCount,  color: "text-orange-500" },
-    { label: "내가 푼",   value: stats.solvedCount,   color: "text-emerald-500" },
-    { label: "받은 ❤️",  value: stats.likesReceived, color: "text-rose-400"   },
-    { label: "이번 주 🔥",value: stats.weeklyHot,    color: "text-amber-500"  },
+function CommunitySidebar({ stats, loading }: { stats: MyCommunityStats; loading: boolean }) {
+  const countItems = [
+    { label: "내가 만든",   value: stats.createdCount,  color: "text-orange-500"  },
+    { label: "내가 푼",     value: stats.solvedCount,   color: "text-emerald-500" },
+    { label: "받은 좋아요", value: stats.likesReceived, color: "text-rose-400"    },
   ];
 
   return (
-    <aside className="w-64 shrink-0">
+    <aside className="w-56 shrink-0">
       <div className="sticky top-6 flex flex-col gap-3">
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
@@ -211,33 +198,30 @@ function CommunitySidebar({
             </div>
           </div>
           {loading ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 rounded-xl bg-gray-50 animate-pulse" />
+                <div key={i} className="h-12 rounded-xl bg-gray-50 animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {statItems.map(({ label, value, color }) => (
-                <div key={label} className="bg-gray-50 rounded-xl p-2.5 flex flex-col gap-0.5">
-                  <span className={`text-lg font-extrabold ${color}`}>{value}</span>
-                  <span className="text-[10px] text-gray-500">{label}</span>
-                </div>
-              ))}
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                {countItems.map(({ label, value, color }) => (
+                  <div key={label} className="bg-gray-50 rounded-xl p-2 flex flex-col items-center gap-0.5">
+                    <span className={`text-base font-extrabold ${color}`}>{value}</span>
+                    <span className="text-[9px] text-gray-500 text-center leading-tight">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-gray-50 rounded-xl px-3 py-2">
+                <p className="text-[9px] text-gray-400 mb-0.5">이번 주 인기</p>
+                <p className="text-xs font-bold text-amber-500 truncate">
+                  {stats.weeklyHotName ?? "없음"}
+                </p>
+              </div>
             </div>
           )}
         </div>
-
-        <button
-          onClick={onCreateClick}
-          className="w-full flex items-center justify-center gap-2
-            bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600
-            text-white text-sm font-bold py-3 rounded-2xl shadow-sm
-            transition-all duration-200 active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          문제 만들기
-        </button>
       </div>
     </aside>
   );
@@ -251,7 +235,7 @@ function EmptyState({ tab, onCreateClick, onTabChange }: {
 }) {
   if (tab === "내가 푼 문제") return (
     <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center">
-      <p className="text-3xl mb-2">🎯</p>
+      <div className="flex justify-center mb-3"><Target className="w-10 h-10 text-gray-300" /></div>
       <p className="text-sm font-bold text-gray-700 mb-1">아직 풀어본 도전 문제가 없어요</p>
       <p className="text-xs text-gray-400 mb-4">도전 문제를 풀어보세요!</p>
       <button onClick={() => onTabChange("전체")}
@@ -264,7 +248,7 @@ function EmptyState({ tab, onCreateClick, onTabChange }: {
 
   if (tab === "내 문제") return (
     <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center">
-      <p className="text-3xl mb-2">✏️</p>
+      <div className="flex justify-center mb-3"><Pencil className="w-10 h-10 text-gray-300" /></div>
       <p className="text-sm font-bold text-gray-700 mb-1">아직 만든 문제가 없어요</p>
       <p className="text-xs text-gray-400 mb-4">첫 번째 문제를 만들어보세요!</p>
       <button onClick={onCreateClick}
@@ -641,7 +625,7 @@ export default function ChallengeHubPage() {
   const [searchQuery,  setSearchQuery]  = useState("");
   const [showCreate,   setShowCreate]   = useState(false);
   const [stats,        setStats]        = useState<MyCommunityStats>({
-    createdCount: 0, solvedCount: 0, likesReceived: 0, weeklyHot: 0,
+    createdCount: 0, solvedCount: 0, likesReceived: 0, weeklyHotName: null,
   });
 
   async function loadData() {
@@ -682,8 +666,22 @@ export default function ChallengeHubPage() {
               .in("problem_id", enriched.map(p => p.id))
           : Promise.resolve({ data: [] }),
       ]);
-      setLikedSet(new Set((likesRes.data ?? []).map(l => l.problem_id)));
-      setSolvedSet(new Set(((subsRes as { data: { problem_id: string }[] | null }).data ?? []).map(s => s.problem_id)));
+      const likedIds  = new Set((likesRes.data ?? []).map((l: { problem_id: string }) => l.problem_id));
+      const solvedIds = new Set(((subsRes as { data: { problem_id: string }[] | null }).data ?? []).map(s => s.problem_id));
+      setLikedSet(likedIds);
+      setSolvedSet(solvedIds);
+
+      const weekAgo      = Date.now() - 7 * 86_400_000;
+      const myProbs      = enriched.filter(p => p.author_user_id === userId);
+      const weeklyHotProb = myProbs
+        .filter(p => p.created_at != null && new Date(p.created_at).getTime() >= weekAgo)
+        .sort((a, b) => (b.like_count ?? 0) - (a.like_count ?? 0))[0];
+      setStats({
+        createdCount:  myProbs.length,
+        solvedCount:   solvedIds.size,
+        likesReceived: myProbs.reduce((s, p) => s + (p.like_count ?? 0), 0),
+        weeklyHotName: weeklyHotProb?.title ?? null,
+      });
     }
 
     setLoading(false);
@@ -696,22 +694,11 @@ export default function ChallengeHubPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, userId]);
 
-  // 통계
   useEffect(() => {
-    if (!userId || problems.length === 0) return;
-    const weekAgo    = Date.now() - 7 * 86_400_000;
-    const myProblems = problems.filter(p => p.author_user_id === userId);
-    setStats({
-      createdCount:  myProblems.length,
-      solvedCount:   solvedSet.size,
-      likesReceived: myProblems.reduce((s, p) => s + (p.like_count ?? 0), 0),
-      weeklyHot:     myProblems.filter(p =>
-        (p.like_count ?? 0) >= 1 &&
-        p.created_at != null &&
-        new Date(p.created_at as string).getTime() >= weekAgo
-      ).length,
-    });
-  }, [problems, solvedSet, userId]);
+    window.addEventListener("focus", loadData);
+    return () => window.removeEventListener("focus", loadData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   // 탭 필터링
   const displayProblems = useMemo(() => {
@@ -773,8 +760,8 @@ export default function ChallengeHubPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <PageLayout>
 
         {/* 브레드크럼 */}
         <nav className="flex items-center gap-1.5 mb-6">
@@ -812,11 +799,7 @@ export default function ChallengeHubPage() {
 
         {/* 본문 */}
         <div className="flex gap-6 items-start">
-          <CommunitySidebar
-            stats={stats}
-            loading={loading}
-            onCreateClick={() => setShowCreate(true)}
-          />
+          <CommunitySidebar stats={stats} loading={loading} />
 
           <div className="flex-1 min-w-0">
             {/* 탭 */}
@@ -877,15 +860,15 @@ export default function ChallengeHubPage() {
             <p className="text-xs text-gray-400 mb-2">총 {displayProblems.length}개의 문제</p>
 
             {loading && (
-              <div className="flex flex-col gap-2">
+              <ProblemListContainer>
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-24 bg-white border border-gray-100 rounded-xl animate-pulse" />
+                  <div key={i} className="h-16 animate-pulse bg-gray-50" style={{ borderBottom: "0.5px solid #E5E7EB" }} />
                 ))}
-              </div>
+              </ProblemListContainer>
             )}
 
             {!loading && displayProblems.length > 0 && (
-              <div className="flex flex-col gap-2">
+              <ProblemListContainer>
                 {displayProblems.map((prob, idx) => (
                   <CommunityProblemCard
                     key={prob.id}
@@ -897,7 +880,7 @@ export default function ChallengeHubPage() {
                     onLike={e => handleLike(e, prob.id)}
                   />
                 ))}
-              </div>
+              </ProblemListContainer>
             )}
 
             {!loading && displayProblems.length === 0 && (
@@ -909,7 +892,7 @@ export default function ChallengeHubPage() {
             )}
           </div>
         </div>
-      </div>
+      </PageLayout>
     </div>
 
     {showCreate && (

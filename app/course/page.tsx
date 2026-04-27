@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Sprout, Lightbulb, Trophy, Rocket, Flame, Check } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const STAGES = [
   { id: "basic", label: "기초" },
@@ -10,34 +12,44 @@ const STAGES = [
   { id: "challenge", label: "도전" },
 ];
 
-const COURSES = [
+const COURSES: { id: string; Icon: LucideIcon; iconColor: string; iconBg: string; title: string; description: string }[] = [
   {
     id: "basic",
-    emoji: "🌱",
+    Icon: Sprout,
+    iconColor: "text-green-600",
+    iconBg: "bg-green-50",
     title: "기초 과정",
     description: "파이썬의 기본 문법과 코딩의 기초를 다집니다.",
   },
   {
     id: "algorithm",
-    emoji: "💡",
+    Icon: Lightbulb,
+    iconColor: "text-yellow-500",
+    iconBg: "bg-yellow-50",
     title: "알고리즘 과정",
     description: "효율적인 코딩을 위한 핵심 알고리즘을 배웁니다.",
   },
   {
     id: "certificate",
-    emoji: "🏆",
+    Icon: Trophy,
+    iconColor: "text-amber-500",
+    iconBg: "bg-amber-50",
     title: "자격증 과정",
     description: "코딩 자격증 취득을 준비합니다.",
   },
   {
     id: "practical",
-    emoji: "🚀",
+    Icon: Rocket,
+    iconColor: "text-blue-500",
+    iconBg: "bg-blue-50",
     title: "실전 문제",
     description: "실제 코딩 테스트 유형의 문제로 실력을 검증합니다.",
   },
   {
     id: "challenge",
-    emoji: "🔥",
+    Icon: Flame,
+    iconColor: "text-orange-500",
+    iconBg: "bg-orange-50",
     title: "도전 문제",
     description: "최고난도 문제에 도전하며 한계를 뛰어넘으세요.",
   },
@@ -73,7 +85,7 @@ export default function ProblemsPage() {
                     ${!isActive && !isPast ? "bg-gray-200 text-gray-400" : ""}
                   `}
                 >
-                  {isPast ? "✓" : index + 1}
+                  {isPast ? <Check className="w-4 h-4" /> : index + 1}
                 </div>
                 <span
                   className={`mt-2 text-xs font-medium ${
@@ -109,7 +121,9 @@ export default function ProblemsPage() {
             className="bg-white rounded-2xl shadow-md p-8 w-64 flex flex-col items-center text-center
               cursor-pointer transition-transform duration-200 hover:scale-105 hover:shadow-xl"
           >
-            <span className="text-5xl mb-4">{course.emoji}</span>
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${course.iconBg}`}>
+              <course.Icon className={`w-8 h-8 ${course.iconColor}`} strokeWidth={1.75} />
+            </div>
             <h2 className="text-lg font-bold text-gray-800 mb-2">{course.title}</h2>
             <p className="text-sm text-gray-500 leading-relaxed">{course.description}</p>
             <div className="mt-6 w-full">
