@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Play, Send, Terminal, ChevronDown, Loader2,
-  CheckCircle2, XCircle, AlertCircle, ArrowRight,
+  CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles, Lightbulb,
 } from "lucide-react";
 import { Problem, SubmissionStatus } from "@/types/problem";
 import { useCodeExecution } from "@/hooks/useCodeExecution";
@@ -332,9 +332,10 @@ export default function CodeEditor({
 
           {activeTab === "output" && (
             pyFailed
-              ? <p className="text-xs text-red-400 leading-relaxed">
-                  ✗ Python 실행 엔진을 불러오지 못했습니다.<br />
-                  인터넷 연결을 확인한 뒤 페이지를 새로고침하세요.
+              ? <p className="text-xs text-red-400 leading-relaxed flex items-start gap-1">
+                  <XCircle size={11} className="mt-0.5 shrink-0" />
+                  <span>Python 실행 엔진을 불러오지 못했습니다.<br />
+                  인터넷 연결을 확인한 뒤 페이지를 새로고침하세요.</span>
                 </p>
               : pyLoading
               ? <p className="text-xs text-indigo-400 leading-relaxed flex items-center gap-1.5">
@@ -410,7 +411,7 @@ function ResultView({
   const CONFIG: Record<string, {
     Icon: any; color: string; bar: string; msg: string;
   }> = {
-    correct:     { Icon: CheckCircle2, color: "text-emerald-400", bar: "border-emerald-500", msg: "정답입니다! 훌륭해요 🎉"          },
+    correct:     { Icon: CheckCircle2, color: "text-emerald-400", bar: "border-emerald-500", msg: "정답입니다! 훌륭해요"              },
     wrong:       { Icon: XCircle,      color: "text-red-400",     bar: "border-red-500",     msg: "오답입니다. 다시 시도해보세요."    },
     error:       { Icon: AlertCircle,  color: "text-yellow-400",  bar: "border-yellow-500",  msg: "실행 중 오류가 발생했습니다."      },
     no_criteria: { Icon: AlertCircle,  color: "text-slate-400",   bar: "border-slate-500",   msg: "채점 기준이 등록되지 않은 문제입니다." },
@@ -435,6 +436,7 @@ function ResultView({
       <div className={`flex items-center gap-2 border-l-2 pl-3 ${c.bar}`}>
         <c.Icon size={14} className={c.color} />
         <span className={`text-sm font-semibold ${c.color}`}>{c.msg}</span>
+        {status === "correct" && <Sparkles size={13} className="text-emerald-400" />}
       </div>
 
       {/* 정답: 다음 문제 유도 */}
@@ -450,9 +452,10 @@ function ResultView({
 
       {/* 오답/오류: 후속 행동 안내 */}
       {(status === "wrong" || status === "error") && (
-        <p className="text-[11px] text-gray-500 leading-relaxed">
-          💡 아래 <span className="text-indigo-400 font-medium">AI 코치</span>에서 단계별 힌트를 받거나,
-          코드를 수정하고 다시 제출해보세요.
+        <p className="text-[11px] text-gray-500 leading-relaxed flex items-start gap-1">
+          <Lightbulb size={11} className="text-indigo-400 mt-0.5 shrink-0" />
+          <span>아래 <span className="text-indigo-400 font-medium">AI 코치</span>에서 단계별 힌트를 받거나,
+          코드를 수정하고 다시 제출해보세요.</span>
         </p>
       )}
 

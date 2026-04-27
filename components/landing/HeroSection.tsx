@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { Lock, ThumbsUp } from "lucide-react"
 
 export default function HeroSection() {
   const router = useRouter()
@@ -75,7 +76,7 @@ export default function HeroSection() {
 
         {/* 보조 문구 — 대비 조정 */}
         <p className="text-xs text-gray-500 mb-14">
-          🔒 수강생 전용 플랫폼 · 초대받은 학생만 이용 가능합니다
+          <Lock className="inline w-3 h-3 mr-1 -mt-0.5" /> 수강생 전용 플랫폼 · 초대받은 학생만 이용 가능합니다
         </p>
 
         {/* 에디터 목업 */}
@@ -154,7 +155,7 @@ export default function HeroSection() {
               <span className="text-xs" style={{ color: "#e5e7eb" }}>
                 반복문 대신{" "}
                 <code className="px-1 rounded" style={{ background: "#1e3a5f", color: "#93c5fd" }}>max()</code>
-                {" "}내장함수를 쓰면 더 간결해요! 👍
+                {" "}내장함수를 쓰면 더 간결해요! <ThumbsUp className="inline w-3 h-3 ml-0.5 -mt-0.5" />
               </span>
             </div>
           </div>

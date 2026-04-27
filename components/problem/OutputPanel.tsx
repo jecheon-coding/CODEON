@@ -1,3 +1,4 @@
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { SubmissionStatus } from "@/types/problem";
 
 interface Props {
@@ -7,18 +8,18 @@ interface Props {
 
 const STATUS_CONFIG = {
   correct: {
-    bar: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    icon: "✓",
+    bar:   "bg-emerald-50 border-emerald-200 text-emerald-700",
+    Icon:  CheckCircle2,
     label: "정답입니다! 잘했어요.",
   },
   wrong: {
-    bar: "bg-red-50 border-red-200 text-red-600",
-    icon: "✗",
+    bar:   "bg-red-50 border-red-200 text-red-600",
+    Icon:  XCircle,
     label: "틀렸습니다. 다시 시도해 보세요.",
   },
   error: {
-    bar: "bg-yellow-50 border-yellow-200 text-yellow-700",
-    icon: "!",
+    bar:   "bg-yellow-50 border-yellow-200 text-yellow-700",
+    Icon:  AlertCircle,
     label: "코드 실행 중 오류가 발생했습니다.",
   },
 } as const;
@@ -44,7 +45,7 @@ export default function OutputPanel({ output, status }: Props) {
           className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium
             ${STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].bar}`}
         >
-          <span>{STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].icon}</span>
+          {(() => { const { Icon } = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]; return <Icon size={15} />; })()}
           <span>{STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].label}</span>
         </div>
       )}

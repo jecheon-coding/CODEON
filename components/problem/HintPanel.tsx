@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lightbulb, Sparkles, RotateCcw, ChevronDown, ChevronRight, CheckSquare } from "lucide-react";
+import { Lightbulb, Sparkles, RotateCcw, ChevronRight, CheckSquare, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Problem, SubmissionStatus } from "@/types/problem";
 
 interface Props {
@@ -11,44 +11,53 @@ interface Props {
   isDark:           boolean;
 }
 
-const STATUS_LABEL: Record<string, { light: string; dark: string; text: string }> = {
+const STATUS_LABEL: Record<string, { light: string; dark: string; text: string; Icon: any }> = {
   correct: {
     light: "text-emerald-600 bg-emerald-50 border-emerald-200",
     dark:  "text-emerald-300 bg-emerald-900/30 border-emerald-700",
-    text:  "✓ 정답 — 훌륭해요!",
+    text:  "정답 — 훌륭해요!",
+    Icon:  CheckCircle2,
   },
   wrong: {
     light: "text-red-600 bg-red-50 border-red-200",
     dark:  "text-red-300 bg-red-900/30 border-red-700",
-    text:  "✗ 오답 — 힌트를 확인해보세요.",
+    text:  "오답 — 힌트를 확인해보세요.",
+    Icon:  XCircle,
   },
   error: {
     light: "text-yellow-600 bg-yellow-50 border-yellow-200",
     dark:  "text-yellow-300 bg-yellow-900/30 border-yellow-700",
-    text:  "! 오류 — 코드를 점검해보세요.",
+    text:  "오류 — 코드를 점검해보세요.",
+    Icon:  AlertCircle,
   },
 };
 
 function parseSteps(text: string): string[] {
+  // "N단계:" 또는 "**N단계**" 마커를 인식하고 접두사를 제거
+  const MARKER = /^(\*\*)?([1-3])단계[:.]\**\s*/;
   const steps: string[] = [];
   let cur = "";
-  for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
-    if (/^[1-3]단계[:.]/.test(line) || /^\*\*[1-3]단계/.test(line)) {
-      if (cur) steps.push(cur.trim());
-      cur = line.replace(/\*\*/g, "");
-    } else {
+  let inSteps = false;
+
+  for (const line of text.split("\n").map(l => l.trim()).filter(Boolean)) {
+    const m = MARKER.exec(line);
+    if (m) {
+      if (inSteps && cur) steps.push(cur.trim());
+      inSteps = true;
+      cur = line.slice(m[0].length).replace(/\*\*/g, "").trim();
+    } else if (inSteps) {
       cur += (cur ? " " : "") + line.replace(/\*\*/g, "");
     }
+    // 첫 마커 이전 인사말/서론은 무시
   }
-  if (cur) steps.push(cur.trim());
-  return steps.length >= 2 ? steps : [text.trim()];
+  if (inSteps && cur) steps.push(cur.trim());
+  return steps.length >= 2 ? steps : [text.replace(/\*\*/g, "").trim()];
 }
 
 export default function HintPanel({ problem, code, submissionStatus, isDark }: Props) {
-  const [rawHint,   setRawHint]   = useState("");
-  const [loading,   setLoading]   = useState(false);
-  const [revealed,  setRevealed]  = useState(0);
-  const [collapsed, setCollapsed] = useState(true); // 기본 접힘 → 에디터 공간 우선 확보
+  const [rawHint,  setRawHint]  = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [revealed, setRevealed] = useState(0);
 
   const steps      = rawHint ? parseSteps(rawHint) : [];
   const statusMeta = STATUS_LABEL[submissionStatus];
@@ -67,7 +76,8 @@ export default function HintPanel({ problem, code, submissionStatus, isDark }: P
 ${code || "(작성 없음)"}
 
 정답은 절대 알려주지 말고, 힌트를 정확히 3단계로 나눠 제공해라.
-각 단계는 "1단계:", "2단계:", "3단계:" 로 시작하고, 각 단계는 2~3문장 이내로 짧게 작성해.
+인사말이나 서론 없이 바로 1단계부터 시작해.
+각 단계는 반드시 "1단계:", "2단계:", "3단계:" 로 시작하고, 각 단계는 2~3문장 이내로 짧게 작성해.
 `;
 
     try {
@@ -92,40 +102,8 @@ ${code || "(작성 없음)"}
   };
 
   return (
-    <div className={`border rounded-xl overflow-hidden shadow-sm
-      ${D("border-slate-700 bg-slate-800", "border-gray-200 bg-white")}`}>
-
-      {/* 패널 헤더 */}
-      <button
-        onClick={() => setCollapsed((v) => !v)}
-        className={`w-full flex items-center justify-between px-4 py-3
-          transition-colors border-b
-          ${D("bg-slate-800 hover:bg-slate-700 border-white/10",
-              "bg-white hover:bg-gray-50 border-gray-100")}`}
-      >
-        <div className="flex items-center gap-2">
-          <Lightbulb size={14} className="text-indigo-400" />
-          <span className={`text-sm font-bold ${D("text-slate-100", "text-gray-800")}`}>
-            AI 코치
-          </span>
-          {statusMeta && (
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border
-              ${isDark ? statusMeta.dark : statusMeta.light}`}>
-              {statusMeta.text}
-            </span>
-          )}
-        </div>
-        <ChevronDown
-          size={14}
-          className={`transition-transform ${collapsed ? "" : "rotate-180"}
-            ${D("text-slate-500", "text-gray-400")}`}
-        />
-      </button>
-
-      {/* 패널 본문 */}
-      {!collapsed && (
-        <div className={`px-4 py-4 flex flex-col gap-3
-          ${D("bg-slate-800", "bg-white")}`}>
+    <div className={`${D("bg-slate-800", "bg-white")}`}>
+      <div className={`px-4 py-4 flex flex-col gap-3`}>
 
           {/* 안내 텍스트 */}
           {!rawHint && !loading && (
@@ -228,8 +206,7 @@ ${code || "(작성 없음)"}
             </div>
           )}
 
-        </div>
-      )}
+      </div>
     </div>
   );
 }
