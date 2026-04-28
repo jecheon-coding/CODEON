@@ -1,45 +1,45 @@
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { NextResponse }     from "next/server"
-import { authOptions }      from "@/lib/authOptions"
-import { supabaseServer }   from "@/lib/supabaseServer"
+import { authOptions } from "@/lib/authOptions"
+import { supabaseServer } from "@/lib/supabaseServer"
 
-async function guardAdmin() {
+async function isAdmin() {
   const session = await getServerSession(authOptions)
-  if ((session?.user as any)?.role !== "admin") return null
-  return session
+  return (session?.user as any)?.role === "admin"
 }
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
-
+// PATCH /api/admin/students/[id] — 학생 정보 수정
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { id } = await params
-  const { name, grade, cls, status } = await req.json()
-  const update: Record<string, unknown> = {}
-  if (name   !== undefined) update.name   = name?.trim()  || null
-  if (grade  !== undefined) update.grade  = grade?.trim() || null
-  if (cls    !== undefined) update.class  = cls?.trim()   || null
-  if (status !== undefined) update.status = status
+  const { name, grade, cls } = await req.json()
 
-  const { data, error } = await supabaseServer
-    .from("users")
-    .update(update)
-    .eq("id", id)
-    .select("id, name, grade, class, status, login_id")
-    .single()
+  const { error } = await supabaseServer.from("users").update({
+    name:  name?.trim()  || undefined,
+    grade: grade?.trim() || null,
+    class: cls?.trim()   || null,
+  }).eq("id", id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ success: true })
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
-
+// DELETE /api/admin/students/[id] — 학생 비활성화
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { id } = await params
-  const { error } = await supabaseServer
-    .from("users")
-    .update({ status: "inactive" })
-    .eq("id", id)
+
+  const { error } = await supabaseServer.from("users").update({
+    is_active: false,
+    status:    "inactive",
+  }).eq("id", id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ success: true })
 }

@@ -1,80 +1,82 @@
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { NextResponse }     from "next/server"
-import { authOptions }      from "@/lib/authOptions"
-import { supabaseServer }   from "@/lib/supabaseServer"
+import { authOptions } from "@/lib/authOptions"
+import { supabaseServer } from "@/lib/supabaseServer"
 
-async function guardAdmin() {
+async function isAdmin() {
   const session = await getServerSession(authOptions)
-  if ((session?.user as any)?.role !== "admin") return null
-  return session
+  return (session?.user as any)?.role === "admin"
 }
 
+// GET /api/admin/assignments
 export async function GET() {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { data: assignments, error } = await supabaseServer
+  const { data: assignments } = await supabaseServer
     .from("assignments")
-    .select(`
-      id, title, description, due_date, created_at,
-      assignment_problems (problem_id),
-      assignment_students (student_user_id)
-    `)
+    .select("id, title, description, due_date, created_at")
     .order("created_at", { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!assignments || assignments.length === 0) return NextResponse.json([])
+
+  const ids = assignments.map((a: any) => a.id)
+
+  const [{ data: problems }, { data: students }] = await Promise.all([
+    supabaseServer.from("assignment_problems")
+      .select("assignment_id")
+      .in("assignment_id", ids),
+    supabaseServer.from("assignment_students")
+      .select("assignment_id")
+      .in("assignment_id", ids),
+  ])
+
+  const problemCount: Record<string, number> = {}
+  const studentCount: Record<string, number> = {}
+  for (const p of problems ?? []) problemCount[(p as any).assignment_id] = (problemCount[(p as any).assignment_id] ?? 0) + 1
+  for (const s of students ?? []) studentCount[(s as any).assignment_id] = (studentCount[(s as any).assignment_id] ?? 0) + 1
 
   return NextResponse.json(
-    (assignments ?? []).map(a => ({
+    assignments.map((a: any) => ({
       id:           a.id,
       title:        a.title,
       description:  a.description,
       dueDate:      a.due_date,
-      createdAt:    a.created_at,
-      problemCount: (a.assignment_problems as unknown[]).length,
-      studentCount: (a.assignment_students as unknown[]).length,
+      problemCount: problemCount[a.id] ?? 0,
+      studentCount: studentCount[a.id] ?? 0,
     }))
   )
 }
 
+// POST /api/admin/assignments — 과제 생성
 export async function POST(req: Request) {
-  const session = await guardAdmin()
-  if (!session) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const adminId = (session.user as { id?: string }).id
-  const { title, description, dueDate, problemIds, studentIds } = await req.json()
+  const session = await getServerSession(authOptions)
+  const adminId = (session?.user as any)?.id
 
-  if (!title?.trim() || !Array.isArray(problemIds) || problemIds.length === 0)
-    return NextResponse.json({ error: "제목과 문제는 필수입니다" }, { status: 400 })
+  const { title, dueDate, problemIds, studentIds } = await req.json()
+  if (!title?.trim()) return NextResponse.json({ error: "과제 제목을 입력해주세요." }, { status: 400 })
 
   const { data: assignment, error } = await supabaseServer
     .from("assignments")
-    .insert({
-      title:       title.trim(),
-      description: description?.trim() || null,
-      due_date:    dueDate || null,
-      created_by:  adminId,
-    })
+    .insert({ title: title.trim(), due_date: dueDate || null, created_by: adminId })
     .select("id")
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error || !assignment) return NextResponse.json({ error: error?.message }, { status: 500 })
 
   const aId = assignment.id
 
-  await Promise.all([
-    supabaseServer.from("assignment_problems").insert(
-      problemIds.map((pid: string, i: number) => ({
-        assignment_id: aId, problem_id: pid, display_order: i,
-      }))
-    ),
-    studentIds?.length > 0
-      ? supabaseServer.from("assignment_students").insert(
-          studentIds.map((sid: string) => ({
-            assignment_id: aId, student_user_id: sid,
-          }))
-        )
-      : Promise.resolve(),
-  ])
+  if (problemIds?.length > 0) {
+    await supabaseServer.from("assignment_problems").insert(
+      problemIds.map((pid: string, i: number) => ({ assignment_id: aId, problem_id: pid, display_order: i }))
+    )
+  }
+  if (studentIds?.length > 0) {
+    await supabaseServer.from("assignment_students").insert(
+      studentIds.map((sid: string) => ({ assignment_id: aId, student_user_id: sid }))
+    )
+  }
 
-  return NextResponse.json({ id: aId }, { status: 201 })
+  return NextResponse.json({ success: true, id: aId })
 }

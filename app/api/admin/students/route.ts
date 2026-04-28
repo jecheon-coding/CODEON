@@ -1,74 +1,72 @@
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { NextResponse }     from "next/server"
-import { authOptions }      from "@/lib/authOptions"
-import { supabaseServer }   from "@/lib/supabaseServer"
+import { authOptions } from "@/lib/authOptions"
+import { supabaseServer } from "@/lib/supabaseServer"
+import { hashPassword } from "@/lib/password"
 
-async function guardAdmin() {
+async function isAdmin() {
   const session = await getServerSession(authOptions)
-  if ((session?.user as any)?.role !== "admin") return null
-  return session
+  return (session?.user as any)?.role === "admin"
 }
 
+// GET /api/admin/students
 export async function GET() {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { data: students, error } = await supabaseServer
-    .from("users")
-    .select("id, name, email, grade, class, status, login_id, student_code, created_at")
-    .eq("role", "student")
-    .in("status", ["pending", "active", "inactive"])
-    .order("name")
+  const [{ data: users }, { data: links }] = await Promise.all([
+    supabaseServer.from("users")
+      .select("id, name, grade, class, status, login_id, is_active")
+      .eq("role", "student")
+      .order("name"),
+    supabaseServer.from("parent_student_links").select("student_user_id"),
+  ])
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // 학부모 연결 여부 확인
-  const ids = (students ?? []).map(s => s.id)
-  const { data: links } = ids.length > 0
-    ? await supabaseServer
-        .from("parent_student_links")
-        .select("student_user_id")
-        .in("student_user_id", ids)
-    : { data: [] }
-
-  const linkedSet = new Set((links ?? []).map(l => l.student_user_id))
+  const linkedIds = new Set((links ?? []).map((l: any) => l.student_user_id))
 
   return NextResponse.json(
-    (students ?? []).map(s => ({ ...s, hasParentLink: linkedSet.has(s.id) }))
+    (users ?? []).map((s: any) => ({
+      id:            s.id,
+      name:          s.name,
+      grade:         s.grade ?? null,
+      class:         s.class ?? null,
+      status:        s.status,
+      login_id:      s.login_id ?? null,
+      hasParentLink: linkedIds.has(s.id),
+    }))
   )
 }
 
+// POST /api/admin/students — 학생 등록
 export async function POST(req: Request) {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { name, grade, cls, loginId, password } = await req.json()
   if (!name?.trim() || !loginId?.trim() || !password?.trim())
-    return NextResponse.json({ error: "이름, 로그인 ID, 비밀번호는 필수입니다" }, { status: 400 })
+    return NextResponse.json({ error: "이름, 아이디, 비밀번호는 필수입니다." }, { status: 400 })
 
-  // 비밀번호 해시 (bcrypt)
-  const bcrypt = await import("bcryptjs")
-  const passwordHash = await bcrypt.hash(password, 10)
+  // 아이디 중복 확인
+  const { data: existing } = await supabaseServer
+    .from("users").select("id").eq("login_id", loginId.trim()).maybeSingle()
+  if (existing)
+    return NextResponse.json({ error: "이미 사용 중인 아이디입니다." }, { status: 409 })
 
-  const { data, error } = await supabaseServer
-    .from("users")
-    .insert({
-      name:           name.trim(),
-      grade:          grade?.trim() || null,
-      class:          cls?.trim()   || null,
-      login_id:       loginId.trim(),
-      password_hash:  passwordHash,
-      role:           "student",
-      status:         "active",
-      auth_provider:  "credentials",
-      must_change_password: false,
-    })
-    .select("id, name, grade, class, status, login_id")
-    .single()
+  const passwordHash = await hashPassword(password)
+  const studentCode  = Math.floor(100000 + Math.random() * 900000).toString()
 
-  if (error) {
-    if (error.code === "23505")
-      return NextResponse.json({ error: "이미 사용 중인 로그인 ID입니다" }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  const { error } = await supabaseServer.from("users").insert({
+    name:                 name.trim(),
+    grade:                grade?.trim() || null,
+    class:                cls?.trim()   || null,
+    login_id:             loginId.trim(),
+    password_hash:        passwordHash,
+    role:                 "student",
+    status:               "active",
+    is_active:            true,
+    student_code:         studentCode,
+    must_change_password: false,
+    auth_provider:        "credentials",
+  })
 
-  return NextResponse.json(data, { status: 201 })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
 }
