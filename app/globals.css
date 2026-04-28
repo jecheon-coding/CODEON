@@ -25,6 +25,8 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
 /* ── react-resizable-panels Separator 스타일 ────────────────────────
    [data-separator]: 라이브러리가 Separator 컴포넌트에 자동으로 추가하는 속성.
    hover / focus / active 상태를 이 속성으로 타겟팅해 스타일 처리.
