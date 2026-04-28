@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { LayoutGrid, ChevronRight, ClipboardList, CheckCircle2, Circle } from "lucide-react"
+import { LayoutGrid, ChevronRight, ClipboardList, CheckCircle2, Circle, FolderOpen, FileText } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
@@ -286,7 +286,9 @@ export default function WrongNotePage() {
             <div className="flex justify-center mb-3">
               {activeTab === "복습 필요"
                 ? <Image src="/error_note.png" alt="오답 없음" width={52} height={52} />
-                : <p className="text-3xl">{activeTab === "복습 완료" ? "📂" : "📝"}</p>
+                : activeTab === "복습 완료"
+                  ? <FolderOpen className="w-10 h-10 text-gray-300" />
+                  : <FileText className="w-10 h-10 text-gray-300" />
               }
             </div>
             <p className="text-sm font-bold text-gray-800 mb-1.5">

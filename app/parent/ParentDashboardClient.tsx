@@ -201,9 +201,7 @@ export default function ParentDashboardClient({
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <nav className="fixed top-0 inset-x-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-8 h-14 flex items-center justify-between">
-            <Link href="/" className="opacity-90 hover:opacity-100 transition-opacity">
-              <CodeOnLogo />
-            </Link>
+            <CodeOnLogo />
             <button onClick={() => signOut()} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700">
               <LogOut className="w-4 h-4" /> 로그아웃
             </button>
@@ -344,9 +342,7 @@ export default function ParentDashboardClient({
       {/* ═══ NAVBAR ═══ */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-slate-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-8 h-14 flex items-center justify-between">
-          <Link href="/" className="opacity-90 hover:opacity-100 transition-opacity">
-            <CodeOnLogo />
-          </Link>
+          <CodeOnLogo />
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
               <GraduationCap className="w-3.5 h-3.5" />
