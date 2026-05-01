@@ -15,7 +15,7 @@ export async function GET() {
 
   const [{ data: users }, { data: links }] = await Promise.all([
     supabaseServer.from("users")
-      .select("id, name, grade, class, status, login_id, is_active")
+      .select("id, name, grade, class, status, login_id, is_active, last_login_at")
       .eq("role", "student")
       .order("name"),
     supabaseServer.from("parent_student_links").select("student_user_id"),
@@ -32,6 +32,7 @@ export async function GET() {
       status:        s.status,
       login_id:      s.login_id ?? null,
       hasParentLink: linkedIds.has(s.id),
+      last_login_at: s.last_login_at ?? null,
     }))
   )
 }

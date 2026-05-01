@@ -35,12 +35,21 @@ export async function POST(req: Request) {
   if (!studentId || !month)
     return NextResponse.json({ error: "studentId와 month는 필수입니다." }, { status: 400 })
 
-  const { error } = await supabaseServer
+  const now = new Date().toISOString()
+
+  // partial unique index는 ON CONFLICT가 인식하지 못하므로 수동 upsert
+  const { data: existing } = await supabaseServer
     .from("teacher_feedback")
-    .upsert(
-      { student_id: studentId, month, summary, tip1, tip2, next_plan: nextPlan, updated_at: new Date().toISOString() },
-      { onConflict: "student_id,month" }
-    )
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("month", month)
+    .maybeSingle()
+
+  const payload = { summary, tip1, tip2, next_plan: nextPlan, updated_at: now }
+
+  const { error } = existing
+    ? await supabaseServer.from("teacher_feedback").update(payload).eq("id", existing.id)
+    : await supabaseServer.from("teacher_feedback").insert({ student_id: studentId, month, ...payload })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
