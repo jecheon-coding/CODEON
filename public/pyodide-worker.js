@@ -16,20 +16,29 @@ const initPromise = loadPyodide({ indexURL: PYODIDE_CDN }).then((py) => {
 });
 
 const WRAPPER = `
-import sys
+import sys, builtins
 from io import StringIO
 
-sys.stdin  = StringIO(_stdin_data)
+_stdin_io  = StringIO(_stdin_data)
+sys.stdin  = _stdin_io
 _out       = StringIO()
 sys.stdout = _out
 
+# sys.stdin.readline 패턴 지원:
+# Pyodide exec 환경에서 import sys 후 sys.stdin이 재초기화되는 문제를
+# builtins.input 패치 + exec globals에 sys 주입으로 해결
+_orig_input = builtins.input
+builtins.input = lambda prompt='': _stdin_io.readline().rstrip('\\n')
+
 try:
-    exec(_user_code, {})
+    exec(_user_code, {"__builtins__": builtins, "sys": sys})
 except SystemExit:
     pass
 except Exception:
     sys.stdout = sys.__stdout__
     raise
+finally:
+    builtins.input = _orig_input
 
 _result = _out.getvalue()
 `;

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer as supabase } from "@/lib/supabaseServer";
 import { Problem, AdjacentProblem, TestCase } from "@/types/problem";
 
 /** 문제 단건 조회 */

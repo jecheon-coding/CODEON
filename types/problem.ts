@@ -25,6 +25,7 @@ export type Problem = {
   hint: string | null;           // 선생님 정적 힌트
   example_input:  string | null;
   example_output: string | null;
+  image_url:      string | null; // 문제 본문 이미지 URL
   time_limit_ms:  number | null; // 실행 시간 제한 (ms). NULL = 제한 없음
   test_cases?: TestCase[];
   // 커뮤니티 도전 문제 전용 (nullable — 기존 문제는 이 필드 없음)
@@ -48,6 +49,18 @@ export type SubmissionStatus =
   | "error"        // 런타임/문법 에러
   | "no_criteria"  // 채점 기준 데이터 없음
   | "";            // 미제출
+
+export type CaseResultStatus = "passed" | "wrong" | "timeout" | "error"
+
+export interface CaseResult {
+  caseNum:   number
+  isHidden:  boolean
+  status:    CaseResultStatus
+  input?:    string | null  // 공개 케이스만
+  expected?: string          // 공개 케이스만
+  actual?:   string          // 공개 케이스만
+  errorMsg?: string          // 공개 케이스 런타임 오류 시 마지막 줄만
+}
 
 export type ReactionType = '재밌어요' | '설명이 좋아요' | '창의적이에요' | '헷갈려요';
 export type ReactionCount = Record<ReactionType, number>;
