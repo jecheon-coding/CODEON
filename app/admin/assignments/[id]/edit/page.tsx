@@ -62,7 +62,11 @@ export default function EditAssignmentPage() {
           <AssignmentWizard
             assignmentId={id}
             initialTitle={data.title}
-            initialDueDate={data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 16) : undefined}
+            initialDueDate={data.dueDate ? (() => {
+              const utcStr = /Z|[+-]\d{2}:?\d{2}$/.test(data.dueDate!) ? data.dueDate! : data.dueDate! + "Z"
+              const kst = new Date(new Date(utcStr).getTime() + 9 * 60 * 60 * 1000)
+              return kst.toISOString().slice(0, 16)
+            })() : undefined}
             initialProblemIds={data.problemIds}
             initialStudentIds={data.studentIds}
           />

@@ -8,7 +8,7 @@ import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock, Upload,
+  FileCheck, Clock, Upload, ListChecks, Bell, UserCog,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ import {
 type Student = {
   id: string; name: string; grade: string | null; class: string | null
   status: string; login_id: string | null; hasParentLink: boolean
+  last_login_at: string | null
 }
 
 type Assignment = {
@@ -112,7 +113,7 @@ function Badge({ variant, size = "sm", children }: {
   }[variant]
   const sz = size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]"
   return (
-    <span className={`inline-flex items-center font-semibold rounded-full border ${cls} ${sz}`}>
+    <span className={`inline-flex items-center font-semibold rounded-full border whitespace-nowrap ${cls} ${sz}`}>
       {children}
     </span>
   )
@@ -144,7 +145,14 @@ const labelCls = "block text-xs font-bold text-gray-700 mb-1.5"
 
 // ── 요약 카드 ────────────────────────────────────────────────────────────────
 
-function SummaryCards({ summary }: { summary: Summary | null }) {
+function SummaryCards({ summary, liveUnsub }: {
+  summary: Summary | null
+  liveUnsub?: { count: number; tab: string } | null
+}) {
+  const tabLabel = liveUnsub?.tab === "week" ? "이번 주"
+    : liveUnsub?.tab === "month" ? "이번 달"
+    : liveUnsub?.tab === "custom" ? "직접 선택"
+    : "전체"
   const cards = [
     {
       label: "전체 학생", value: summary?.totalStudents ?? "…",
@@ -152,9 +160,10 @@ function SummaryCards({ summary }: { summary: Summary | null }) {
       icon: Users, sub: summary ? `대기 ${summary.pendingStudents}명` : "",
     },
     {
-      label: "미제출 학생", value: summary?.unsubmittedCount ?? "…",
+      label: "미제출 학생",
+      value: liveUnsub != null ? liveUnsub.count : (summary?.unsubmittedCount ?? "…"),
       color: "text-red-600", bg: "bg-red-50", border: "border-l-red-500",
-      icon: ClipboardList, sub: "과제 미완료",
+      icon: ClipboardList, sub: liveUnsub != null ? `${tabLabel} · 과제 미완료` : "과제 미완료",
     },
     {
       label: "승인 대기", value: summary?.pendingProblems ?? "…",
@@ -211,6 +220,8 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
   const [csvError,     setCsvError]     = useState("")
   const [csvSaving,    setCsvSaving]    = useState(false)
   const [csvDone,      setCsvDone]      = useState(false)
+  const [page,         setPage]         = useState(1)
+  const [pageSize,     setPageSize]     = useState(10)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/students")
@@ -253,6 +264,23 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
   const hasFilter = search || gradeFilter !== "전체" || clsFilter !== "전체" || statusFilter !== "전체"
 
+  // 필터/검색 변경 시 1페이지로
+  useEffect(() => { setPage(1) }, [search, gradeFilter, clsFilter, statusFilter, pageSize])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage   = Math.min(page, totalPages)
+  const paged      = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  function formatLastLogin(val: string | null): string {
+    if (!val) return "—"
+    const d = new Date(/Z|[+-]\d{2}:?\d{2}$/.test(val) ? val : val + "Z")
+    const now = new Date()
+    const isToday = d.toDateString() === now.toDateString()
+    if (isToday) return "오늘 " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })
+    return d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" }) +
+      " " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })
+  }
+
   function generatePassword() {
     const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
     const pw = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
@@ -289,6 +317,10 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`"${name}" 학생을 비활성화 처리하시겠습니까?`)) return
     await fetch(`/api/admin/students/${id}`, { method: "DELETE" })
+    // 마지막 페이지 유일 항목 삭제 시 이전 페이지로
+    const nextFiltered = filtered.filter(s => s.id !== id)
+    const nextTotal = Math.max(1, Math.ceil(nextFiltered.length / pageSize))
+    if (page > nextTotal) setPage(nextTotal)
     load(); onRefreshSummary()
   }
 
@@ -391,58 +423,117 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
             title={hasFilter ? "검색 결과가 없습니다" : "등록된 학생이 없습니다"}
             desc={hasFilter ? undefined : "학생 등록 버튼으로 첫 학생을 추가하세요"} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className={TH}>이름</th>
-                  <th className={TH}>학년·반</th>
-                  <th className={TH}>상태</th>
-                  <th className={TH}>학부모</th>
-                  <th className={`${TH} text-right`}>관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className={TD}>
-                      <span className="font-bold text-gray-900">{s.name}</span>
-                      {s.login_id && <span className="ml-1.5 text-[11px] text-gray-400">{s.login_id}</span>}
-                    </td>
-                    <td className={TD}>
-                      <span className="text-gray-700">{[s.grade, s.class].filter(Boolean).join(" ") || <span className="text-gray-300">—</span>}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      {s.status === "active"  ? <Badge variant="green">활성</Badge>
-                     : s.status === "pending" ? <Badge variant="amber">대기</Badge>
-                     : <Badge variant="gray">비활성</Badge>}
-                    </td>
-                    <td className="px-3 py-3">
-                      {s.hasParentLink
-                        ? <Badge variant="sky">연결됨</Badge>
-                        : <span className="text-[11px] text-gray-400 font-medium">미연결</span>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button title="수정" className={Btn.ghost}
-                          onClick={() => {
-                            setEditing(s); resetDrawer()
-                            setForm({ name: s.name, grade: s.grade ?? "", cls: s.class ?? "", loginId: s.login_id ?? "", password: "" })
-                            setDrawer("edit")
-                          }}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button title="비활성화" className={Btn.danger}
-                          onClick={() => handleDelete(s.id, s.name)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className={TH}>이름</th>
+                    <th className={TH}>학년·반</th>
+                    <th className={TH}>상태</th>
+                    <th className={TH}>학부모</th>
+                    <th className={TH}>마지막 접속</th>
+                    <th className={`${TH} text-right`}>관리</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paged.map(s => (
+                    <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className={TD}>
+                        <span className="font-bold text-gray-900">{s.name}</span>
+                        {s.login_id && <span className="ml-1.5 text-[11px] text-gray-400">{s.login_id}</span>}
+                      </td>
+                      <td className={TD}>
+                        <span className="text-gray-700">{[s.grade, s.class].filter(Boolean).join(" ") || <span className="text-gray-300">—</span>}</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {s.status === "active"  ? <Badge variant="green">활성</Badge>
+                       : s.status === "pending" ? <Badge variant="amber">대기</Badge>
+                       : <Badge variant="gray">비활성</Badge>}
+                      </td>
+                      <td className="px-3 py-3">
+                        {s.hasParentLink
+                          ? <Badge variant="sky">연결됨</Badge>
+                          : <span className="text-[11px] text-gray-400 font-medium">미연결</span>}
+                      </td>
+                      <td className={TD}>
+                        <span className={s.last_login_at ? "text-gray-600" : "text-gray-300"}>
+                          {formatLastLogin(s.last_login_at)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button title="수정" className={Btn.ghost}
+                            onClick={() => {
+                              setEditing(s); resetDrawer()
+                              setForm({ name: s.name, grade: s.grade ?? "", cls: s.class ?? "", loginId: s.login_id ?? "", password: "" })
+                              setDrawer("edit")
+                            }}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button title="비활성화" className={Btn.danger}
+                            onClick={() => handleDelete(s.id, s.name)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 페이지네이션 바 */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2 flex-wrap">
+              {/* 표시 정보 */}
+              <span className="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                총 {filtered.length}명 중 {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)}명 표시
+              </span>
+
+              {/* 페이지 번호 + 이전/다음 */}
+              <div className="flex items-center gap-1">
+                <button disabled={safePage === 1} onClick={() => setPage(p => p - 1)}
+                  className="px-2 py-1 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600
+                    hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  이전
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(n => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                  .reduce<(number | "…")[]>((acc, n, i, arr) => {
+                    if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("…")
+                    acc.push(n)
+                    return acc
+                  }, [])
+                  .map((n, i) =>
+                    n === "…" ? (
+                      <span key={`e${i}`} className="px-1 text-gray-400 text-xs">…</span>
+                    ) : (
+                      <button key={n} onClick={() => setPage(n as number)}
+                        className={`w-7 h-7 text-xs font-semibold rounded-lg border transition-colors
+                          ${safePage === n
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                        {n}
+                      </button>
+                    )
+                  )}
+                <button disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}
+                  className="px-2 py-1 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600
+                    hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                  다음
+                </button>
+              </div>
+
+              {/* 페이지 크기 선택 */}
+              <div className="relative">
+                <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
+                  className="appearance-none pl-3 pr-7 py-1 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:border-indigo-400 cursor-pointer">
+                  {[10, 20, 50].map(n => <option key={n} value={n}>{n}명씩</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+              </div>
+            </div>
+          </>
         )}
       </SectionCard>
 
@@ -617,14 +708,38 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
 // ── 공통 유틸 ────────────────────────────────────────────────────────────────
 
+function toUTC(s: string) {
+  return /Z|[+-]\d{2}:?\d{2}$/.test(s) ? s : s + "Z"
+}
+
 function assignmentStatus(dueDate: string | null): { label: string; variant: "blue" | "gray" | "amber" } {
   if (!dueDate) return { label: "진행중", variant: "blue" }
   const now = new Date()
-  const due = new Date(dueDate)
+  const due = new Date(toUTC(dueDate))
   if (due <= now) return { label: "마감", variant: "gray" }
-  const weekAhead = new Date(now); weekAhead.setDate(now.getDate() + 7)
-  if (due <= weekAhead) return { label: "예정", variant: "amber" }
+  const threeDaysAhead = new Date(now); threeDaysAhead.setDate(now.getDate() + 3)
+  if (due <= threeDaysAhead) return { label: "마감 임박", variant: "amber" }
   return { label: "진행중", variant: "blue" }
+}
+
+function getWeekMonday(dateStr: string | null): string {
+  if (!dateStr) return "no-due"
+  const d = new Date(toUTC(dateStr))
+  const day = d.getDay()
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  return monday.toISOString()
+}
+
+function weekLabel(mondayIso: string): string {
+  if (mondayIso === "no-due") return "마감일 없음"
+  const monday = new Date(mondayIso)
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+  const weekNum = Math.ceil(monday.getDate() / 7)
+  const m1 = monday.getMonth() + 1, d1 = monday.getDate()
+  const m2 = sunday.getMonth() + 1, d2 = sunday.getDate()
+  return `${monday.getFullYear()}년 ${m1}월 ${weekNum}주차 (${m1}.${String(d1).padStart(2,"0")} ~ ${m2}.${String(d2).padStart(2,"0")})`
 }
 
 function ProgressBar({ submitted, total }: { submitted: number; total: number }) {
@@ -646,10 +761,12 @@ const ASSIGNMENT_LIMIT = 10
 
 function AssignmentSection() {
   const router = useRouter()
-  const [assignments,  setAssignments]  = useState<Assignment[]>([])
-  const [statusFilter, setStatusFilter] = useState<"전체" | "진행중" | "마감" | "예정">("전체")
-  const [dateRange,    setDateRange]    = useState<"week" | "month" | "all">("all")
-  const [page,         setPage]         = useState(1)
+  const [assignments,     setAssignments]     = useState<Assignment[]>([])
+  const [statusFilter,    setStatusFilter]    = useState<"전체" | "진행중" | "마감 임박" | "마감">("전체")
+  const [dateRange,       setDateRange]       = useState<"week" | "month" | "all">("week")
+  const [page,            setPage]            = useState(1)
+  const [weekToggles,     setWeekToggles]     = useState<Set<string>>(new Set())
+  const [hideExpired,     setHideExpired]     = useState(true)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/assignments")
@@ -657,7 +774,7 @@ function AssignmentSection() {
   }, [])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [statusFilter, dateRange])
+  useEffect(() => { setPage(1); setWeekToggles(new Set()) }, [statusFilter, dateRange])
 
   async function handleDelete(id: string, t: string) {
     if (!confirm(`"${t}" 과제를 삭제하시겠습니까?`)) return
@@ -669,14 +786,17 @@ function AssignmentSection() {
     const now = new Date()
     const weekAhead = new Date(now); weekAhead.setDate(now.getDate() + 7)
 
-    let list = assignments
+    let list = hideExpired
+      ? assignments.filter(a => !a.dueDate || new Date(toUTC(a.dueDate)) > now)
+      : assignments
 
+    const threeDaysAhead = new Date(now); threeDaysAhead.setDate(now.getDate() + 3)
     if (statusFilter === "진행중") {
-      list = list.filter(a => !a.dueDate || new Date(a.dueDate) > weekAhead)
+      list = list.filter(a => !a.dueDate || new Date(toUTC(a.dueDate)) > threeDaysAhead)
     } else if (statusFilter === "마감") {
-      list = list.filter(a => a.dueDate && new Date(a.dueDate) <= now)
-    } else if (statusFilter === "예정") {
-      list = list.filter(a => a.dueDate && new Date(a.dueDate) > now && new Date(a.dueDate) <= weekAhead)
+      list = list.filter(a => a.dueDate && new Date(toUTC(a.dueDate)) <= now)
+    } else if (statusFilter === "마감 임박") {
+      list = list.filter(a => a.dueDate && new Date(toUTC(a.dueDate)) > now && new Date(toUTC(a.dueDate)) <= threeDaysAhead)
     }
 
     if (dateRange !== "all") {
@@ -691,13 +811,13 @@ function AssignmentSection() {
       }
       list = list.filter(a => {
         if (!a.dueDate) return false
-        const d = new Date(a.dueDate)
+        const d = new Date(toUTC(a.dueDate))
         return d >= start && d <= end
       })
     }
 
     return list
-  }, [assignments, statusFilter, dateRange])
+  }, [assignments, statusFilter, dateRange, hideExpired])
 
   const pageCount = Math.ceil(filtered.length / ASSIGNMENT_LIMIT)
   const paged     = filtered.slice((page - 1) * ASSIGNMENT_LIMIT, page * ASSIGNMENT_LIMIT)
@@ -715,8 +835,8 @@ function AssignmentSection() {
       {/* 필터 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-          {(["전체", "진행중", "마감", "예정"] as const).map(v => (
-            <button key={v} onClick={() => setStatusFilter(v)}
+          {(["전체", "진행중", "마감 임박", "마감"] as const).map(v => (
+            <button key={v} onClick={() => { setStatusFilter(v); setPage(1) }}
               className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
                 ${statusFilter === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
               {v}
@@ -727,22 +847,118 @@ function AssignmentSection() {
           {([
             { key: "week",  label: "이번 주" },
             { key: "month", label: "이번 달" },
-            { key: "all",   label: "전체" },
+            { key: "all",   label: "전체 기록" },
           ] as const).map(({ key, label }) => (
-            <button key={key} onClick={() => setDateRange(key)}
+            <button key={key} onClick={() => { setDateRange(key); setPage(1) }}
               className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all
                 ${dateRange === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
               {label}
             </button>
           ))}
         </div>
+        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none ml-1">
+          <input type="checkbox" checked={hideExpired} onChange={e => { setHideExpired(e.target.checked); setPage(1) }}
+            className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer" />
+          마감 과제 숨기기
+        </label>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={ClipboardList}
-          title={statusFilter !== "전체" || dateRange !== "all" ? "조건에 맞는 과제가 없습니다" : "등록된 과제가 없습니다"}
-          desc={statusFilter !== "전체" || dateRange !== "all" ? undefined : "과제 생성 버튼으로 첫 과제를 배정하세요"} />
+          title={statusFilter !== "전체" || dateRange !== "week" ? "조건에 맞는 과제가 없습니다" : "이번 주 과제가 없습니다"}
+          desc={statusFilter !== "전체" || dateRange !== "week" ? undefined : "과제 생성 버튼으로 첫 과제를 배정하세요"} />
+      ) : dateRange === "all" ? (
+        /* ── 전체 기록: 주차별 그룹핑 ── */
+        (() => {
+          // 마감일 기준 주 단위로 그룹핑, 최신 주 → 오래된 주 순
+          const grouped = new Map<string, Assignment[]>()
+          for (const a of filtered) {
+            const key = getWeekMonday(a.dueDate)
+            if (!grouped.has(key)) grouped.set(key, [])
+            grouped.get(key)!.push(a)
+          }
+          const sortedKeys = [...grouped.keys()].sort((a, b) => {
+            if (a === "no-due") return 1
+            if (b === "no-due") return -1
+            return b.localeCompare(a) // 최신 주 먼저
+          })
+          return (
+            <div className="flex flex-col gap-2">
+              {sortedKeys.map(key => {
+                const weekAssignments = grouped.get(key)!
+                const now = new Date()
+                const monday = key !== "no-due" ? new Date(key) : null
+                const sunday = monday ? new Date(monday.getTime() + 6 * 86400000) : null
+                const isCurrentWeek = monday && sunday ? now >= monday && now <= sunday : false
+                const isThisWeekDue = key !== "no-due" && monday
+                  ? monday.getTime() <= now.getTime() && now.getTime() <= monday.getTime() + 7 * 86400000
+                  : false
+                const isPastWeek = sunday ? sunday.getTime() < now.getTime() : false
+                const defaultCollapsed = isPastWeek && !isCurrentWeek
+                const isCollapsed = weekToggles.has(key) ? !defaultCollapsed : defaultCollapsed
+                const toggleWeek = () => setWeekToggles(prev => {
+                  const next = new Set(prev)
+                  next.has(key) ? next.delete(key) : next.add(key)
+                  return next
+                })
+                return (
+                  <div key={key} className={`border rounded-xl overflow-hidden ${isCurrentWeek || isThisWeekDue ? "border-indigo-200" : "border-gray-100"}`}>
+                    {/* 주차 헤더 */}
+                    <button onClick={toggleWeek}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors
+                        ${isCurrentWeek || isThisWeekDue ? "bg-indigo-50 hover:bg-indigo-100/60" : "bg-gray-50 hover:bg-gray-100"}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-extrabold ${isCurrentWeek || isThisWeekDue ? "text-indigo-700" : "text-gray-600"}`}>
+                          {weekLabel(key)}
+                        </span>
+                        {(isCurrentWeek || isThisWeekDue) && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-indigo-600 text-white rounded-full">이번 주</span>
+                        )}
+                        <span className="text-[11px] text-gray-400">{weekAssignments.length}개</span>
+                      </div>
+                      <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    </button>
+                    {/* 주차 내 과제 테이블 */}
+                    {!isCollapsed && (
+                      <table className="w-full text-sm">
+                        <tbody className="divide-y divide-gray-50">
+                          {weekAssignments.map(a => {
+                            const st = assignmentStatus(a.dueDate)
+                            return (
+                              <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className={TD}><span className="font-bold text-gray-900">{a.title}</span></td>
+                                <td className={TD}><span className="text-gray-500 text-xs">{a.problemCount}문제</span></td>
+                                <td className={TD}><span className="text-gray-500 text-xs">{a.studentCount}명</span></td>
+                                <td className={TD}>
+                                  {a.dueDate
+                                    ? <span className="text-gray-700 text-xs">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                    : <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2.5"><Badge variant={st.variant}>{st.label}</Badge></td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <button title="수정" className={Btn.ghost} onClick={() => router.push(`/admin/assignments/${a.id}/edit`)}>
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button title="삭제" className={Btn.danger} onClick={() => handleDelete(a.id, a.title)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()
       ) : (
+        /* ── 이번 주 / 이번 달: 기존 플랫 테이블 + 페이지네이션 ── */
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -766,7 +982,7 @@ function AssignmentSection() {
                       <td className={TD}><span className="text-gray-600">{a.studentCount}명</span></td>
                       <td className={TD}>
                         {a.dueDate
-                          ? <span className="text-gray-700">{new Date(a.dueDate).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                          ? <span className="text-gray-700">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                           : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
@@ -830,7 +1046,7 @@ const DETAIL_LIMIT = 10
 
 function getDDayBadge(dueDate: string | null) {
   if (!dueDate) return null
-  const due = new Date(dueDate); due.setHours(23, 59, 59, 999)
+  const due = new Date(toUTC(dueDate)); due.setHours(23, 59, 59, 999)
   const diffDays = Math.ceil((due.getTime() - Date.now()) / 86400000)
   if (diffDays < 0)   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-gray-100 text-gray-500 border-gray-200">마감됨</span>
   if (diffDays === 0) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-amber-100 text-amber-700 border-amber-200">D-day</span>
@@ -838,18 +1054,24 @@ function getDDayBadge(dueDate: string | null) {
   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-200">D-{diffDays}</span>
 }
 
-function SubmissionSection() {
-  const [rows,         setRows]         = useState<SubmissionRow[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [viewMode,     setViewMode]     = useState<SubViewMode>("student")
-  const [expanded,     setExpanded]     = useState<Set<string>>(new Set())
-  const [detailSearch, setDetailSearch] = useState("")
-  const [detailFilter, setDetailFilter] = useState<"all" | "unsubmitted" | "correct" | "wrong">("all")
-  const [detailPage,   setDetailPage]   = useState(1)
-  const [detailAssign, setDetailAssign] = useState("전체")
-  const [dateRange,    setDateRange]    = useState<"week" | "month" | "all" | "custom">("week")
-  const [customStart,  setCustomStart]  = useState("")
-  const [customEnd,    setCustomEnd]    = useState("")
+function SubmissionSection({ onUnsubChange }: {
+  onUnsubChange?: (count: number, tab: string) => void
+}) {
+  const [rows,          setRows]          = useState<SubmissionRow[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [viewMode,      setViewMode]      = useState<SubViewMode>("student")
+  const [expanded,      setExpanded]      = useState<Set<string>>(new Set())
+  const [unsubOnly,     setUnsubOnly]     = useState<Set<string>>(new Set()) // 과제별: 미제출만 보기
+  const [detailSearch,  setDetailSearch]  = useState("")
+  const [detailFilter,  setDetailFilter]  = useState<"all" | "unsubmitted" | "correct" | "wrong">("all")
+  const [detailPage,    setDetailPage]    = useState(1)
+  const [detailAssign,  setDetailAssign]  = useState("전체")
+  const [dateRange,     setDateRange]     = useState<"week" | "month" | "all" | "custom">("week")
+  const [customStart,   setCustomStart]   = useState("")
+  const [customEnd,     setCustomEnd]     = useState("")
+  const [studentPage,        setStudentPage]        = useState(1)
+  const [hideExpiredAssigns, setHideExpiredAssigns] = useState(true)
+  const STUDENT_PAGE_SIZE = 10
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -860,6 +1082,7 @@ function SubmissionSection() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setDetailPage(1) }, [detailSearch, detailFilter, detailAssign, dateRange])
+  useEffect(() => { setStudentPage(1) }, [dateRange])
 
   function toggleExpand(key: string) {
     setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
@@ -916,14 +1139,18 @@ function SubmissionSection() {
       map.get(r.assignmentId)!.problems.push(r)
     }
     const now = Date.now()
-    return [...map.values()].sort((a, b) => {
-      const aExp = a.dueDate ? new Date(a.dueDate).setHours(23, 59, 59) < now : false
-      const bExp = b.dueDate ? new Date(b.dueDate).setHours(23, 59, 59) < now : false
+    let list = [...map.values()]
+    if (hideExpiredAssigns) {
+      list = list.filter(a => !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > now)
+    }
+    return list.sort((a, b) => {
+      const aExp = a.dueDate ? new Date(toUTC(a.dueDate)).setHours(23, 59, 59) < now : false
+      const bExp = b.dueDate ? new Date(toUTC(b.dueDate)).setHours(23, 59, 59) < now : false
       if (aExp && !bExp) return 1
       if (!aExp && bExp) return -1
       return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
     })
-  }, [filteredRows])
+  }, [filteredRows, hideExpiredAssigns])
 
   const assignmentOptions = useMemo(() =>
     ["전체", ...[...new Set(filteredRows.map(r => r.assignmentTitle))]]
@@ -951,6 +1178,15 @@ function SubmissionSection() {
 
   const unsubCount = filteredRows.filter(r => !r.isSubmitted).length
 
+  const unsubStudentCount = useMemo(
+    () => new Set(filteredRows.filter(r => !r.isSubmitted).map(r => r.studentId)).size,
+    [filteredRows]
+  )
+
+  useEffect(() => {
+    onUnsubChange?.(unsubStudentCount, dateRange)
+  }, [unsubStudentCount, dateRange, onUnsubChange])
+
   const DateRangeBar = (
     <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-gray-100">
       <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -976,6 +1212,11 @@ function SubmissionSection() {
             className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400" />
         </div>
       )}
+      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none ml-auto">
+        <input type="checkbox" checked={hideExpiredAssigns} onChange={e => setHideExpiredAssigns(e.target.checked)}
+          className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer" />
+        마감 과제 숨기기
+      </label>
     </div>
   )
 
@@ -1009,78 +1250,116 @@ function SubmissionSection() {
           {viewMode === "student" && (
             filteredRows.length === 0
               ? <EmptyState icon={ClipboardList} title="해당 기간에 과제가 없습니다" />
-              : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        <th className={TH}>학생</th>
-                        <th className={TH}>전체</th>
-                        <th className={TH}>제출</th>
-                        <th className={TH}>미제출</th>
-                        <th className={TH + " min-w-[120px]"}>제출률</th>
-                        <th className={TH}>최근 제출</th>
-                        <th className={`${TH} w-8`}></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {studentSummaries.map(({ studentId, studentName, problems }) => {
-                        const submitted = problems.filter(p => p.isSubmitted).length
-                        const total  = problems.length
-                        const unsub  = total - submitted
-                        const allDone = unsub === 0
-                        const lastSub = problems.filter(p => p.submittedAt).sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""))[0]
-                        const isExp  = expanded.has(studentId)
-                        return (
-                          <Fragment key={studentId}>
-                            <tr onClick={() => toggleExpand(studentId)}
-                              className={`cursor-pointer transition-colors
-                                ${allDone ? "bg-emerald-50/50 hover:bg-emerald-50/80"
-                                  : submitted === 0 ? "bg-red-50/40 hover:bg-red-50/60"
-                                  : "hover:bg-slate-50/60"}`}>
-                              <td className={TD}>
-                                <span className={`font-bold ${allDone ? "text-emerald-700" : submitted === 0 ? "text-red-700" : "text-gray-900"}`}>
-                                  {studentName}
-                                </span>
-                              </td>
-                              <td className={TD}><span className="text-gray-600">{total}</span></td>
-                              <td className={TD}><span className="text-emerald-600 font-semibold">{submitted}</span></td>
-                              <td className={TD}>
-                                {unsub > 0
-                                  ? <span className="text-red-500 font-semibold">{unsub}</span>
-                                  : <span className="text-emerald-500 font-bold text-sm">✓</span>}
-                              </td>
-                              <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
-                              <td className={TD}>
-                                {lastSub?.submittedAt
-                                  ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                                  : <span className="text-gray-300 text-xs">없음</span>}
-                              </td>
-                              <td className="px-3 py-3 text-center">
-                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
-                              </td>
+              : (() => {
+                  const totalStudentPages = Math.ceil(studentSummaries.length / STUDENT_PAGE_SIZE)
+                  const pagedStudents = studentSummaries.slice(
+                    (studentPage - 1) * STUDENT_PAGE_SIZE,
+                    studentPage * STUDENT_PAGE_SIZE
+                  )
+                  return (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr>
+                              <th className={TH}>학생</th>
+                              <th className={TH}>전체</th>
+                              <th className={TH}>제출</th>
+                              <th className={TH}>미제출</th>
+                              <th className={TH + " min-w-[120px]"}>제출률</th>
+                              <th className={TH}>최근 제출</th>
+                              <th className={`${TH} w-8`}></th>
                             </tr>
-                            {isExp && problems.map((p, i) => (
-                              <tr key={`${studentId}-${p.problemId}-${i}`} className="bg-gray-50/80 border-l-2 border-indigo-200">
-                                <td className="px-3 py-2 pl-8"><span className="text-xs text-gray-500">{p.assignmentTitle}</span></td>
-                                <td className="px-3 py-2" colSpan={3}>
-                                  <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{p.problemTitle}</span>
-                                </td>
-                                <td className="px-3 py-2">{submissionBadge(p)}</td>
-                                <td className="px-3 py-2" colSpan={2}>
-                                  <span className="text-xs text-gray-500">
-                                    {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {pagedStudents.map(({ studentId, studentName, problems }) => {
+                              const submitted = problems.filter(p => p.isSubmitted).length
+                              const total   = problems.length
+                              const unsub   = total - submitted
+                              const allDone = unsub === 0
+                              const lastSub = problems.filter(p => p.submittedAt).sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""))[0]
+                              const isExp   = expanded.has(studentId)
+                              return (
+                                <Fragment key={studentId}>
+                                  <tr onClick={() => toggleExpand(studentId)}
+                                    className={`cursor-pointer transition-colors
+                                      ${allDone ? "bg-emerald-50/50 hover:bg-emerald-50/80"
+                                        : submitted === 0 ? "bg-red-50/40 hover:bg-red-50/60"
+                                        : "hover:bg-slate-50/60"}`}>
+                                    <td className={TD}>
+                                      <span className={`font-bold ${allDone ? "text-emerald-700" : submitted === 0 ? "text-red-700" : "text-gray-900"}`}>
+                                        {studentName}
+                                      </span>
+                                    </td>
+                                    <td className={TD}><span className="text-gray-600">{total}</span></td>
+                                    <td className={TD}><span className="text-emerald-600 font-semibold">{submitted}</span></td>
+                                    <td className={TD}>
+                                      {unsub > 0
+                                        ? <span className="text-red-500 font-semibold">{unsub}</span>
+                                        : <span className="text-emerald-500 font-bold text-sm">✓</span>}
+                                    </td>
+                                    <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
+                                    <td className={TD}>
+                                      {lastSub?.submittedAt
+                                        ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                        : <span className="text-gray-300 text-xs">없음</span>}
+                                    </td>
+                                    <td className="px-3 py-3 text-center">
+                                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExp ? "rotate-180" : ""}`} />
+                                    </td>
+                                  </tr>
+                                  {isExp && problems.map((p, i) => (
+                                    <tr key={`${studentId}-${p.problemId}-${i}`} className="bg-gray-50/80 border-l-2 border-indigo-200">
+                                      <td className="px-3 py-2 pl-8"><span className="text-xs text-gray-500">{p.assignmentTitle}</span></td>
+                                      <td className="px-3 py-2" colSpan={3}>
+                                        <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{p.problemTitle}</span>
+                                      </td>
+                                      <td className="px-3 py-2">{submissionBadge(p)}</td>
+                                      <td className="px-3 py-2" colSpan={2}>
+                                        <span className="text-xs text-gray-500">
+                                          {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </Fragment>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* 학생별 페이지네이션 */}
+                      {totalStudentPages > 1 && (
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-400">
+                            {studentSummaries.length}명 중 {(studentPage - 1) * STUDENT_PAGE_SIZE + 1}–{Math.min(studentPage * STUDENT_PAGE_SIZE, studentSummaries.length)}명
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setStudentPage(p => Math.max(1, p - 1))} disabled={studentPage === 1}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                              <ArrowLeft className="w-3.5 h-3.5" />
+                            </button>
+                            {Array.from({ length: Math.min(5, totalStudentPages) }, (_, i) => {
+                              const start = Math.max(1, Math.min(studentPage - 2, totalStudentPages - 4))
+                              const p = start + i
+                              return (
+                                <button key={p} onClick={() => setStudentPage(p)}
+                                  className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors
+                                    ${studentPage === p ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                                  {p}
+                                </button>
+                              )
+                            })}
+                            <button onClick={() => setStudentPage(p => Math.min(totalStudentPages, p + 1))} disabled={studentPage === totalStudentPages}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors">
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()
           )}
 
           {/* ─ 과제별 뷰 ─ */}
@@ -1094,7 +1373,7 @@ function SubmissionSection() {
                     const doneStudents = studentIds.filter(sid => problems.filter(p => p.studentId === sid).every(p => p.isSubmitted)).length
                     const submitted    = problems.filter(p => p.isSubmitted).length
                     const total        = problems.length
-                    const isExpired    = dueDate ? new Date(dueDate).setHours(23, 59, 59) < Date.now() : false
+                    const isExpired    = dueDate ? new Date(toUTC(dueDate)).setHours(23, 59, 59) < Date.now() : false
                     const isExp        = expanded.has(assignmentId)
                     return (
                       <div key={assignmentId}
@@ -1112,7 +1391,7 @@ function SubmissionSection() {
                                 {studentIds.length - doneStudents > 0 && (
                                   <span className="text-red-500 font-semibold">미완료 {studentIds.length - doneStudents}명</span>
                                 )}
-                                {dueDate && <span>{new Date(dueDate).toLocaleDateString("ko-KR")} 마감</span>}
+                                {dueDate && <span>{new Date(dueDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} 마감</span>}
                               </div>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
@@ -1536,8 +1815,10 @@ function MonthlyReviewSection() {
   }
 
   const months = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - i)
-    return d.toISOString().slice(0, 7)
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - i)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
   })
 
   const fields = [
@@ -1647,7 +1928,12 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false)
   const session = useSession()?.data
   const router = useRouter()
-  const [summary, setSummary] = useState<Summary | null>(null)
+  const [summary,   setSummary]   = useState<Summary | null>(null)
+  const [liveUnsub, setLiveUnsub] = useState<{ count: number; tab: string } | null>(null)
+
+  const handleUnsubChange = useCallback((count: number, tab: string) => {
+    setLiveUnsub({ count, tab })
+  }, [])
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -1678,16 +1964,42 @@ export default function AdminPage() {
             <p className="text-[11px] text-gray-400 mt-0.5">원장 전용 운영 관리</p>
           </div>
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium"
-        >
-          <LogOut className="w-4 h-4" /> 로그아웃
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/admin/notices")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <Bell className="w-4 h-4" /> 공지 관리
+          </button>
+          <button
+            onClick={() => router.push("/admin/problems")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <BookOpen className="w-4 h-4" /> 문제 관리
+          </button>
+          <button
+            onClick={() => router.push("/admin/testcases")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <ListChecks className="w-4 h-4" /> 테스트케이스
+          </button>
+          <button
+            onClick={() => router.push("/admin/parents")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <UserCog className="w-4 h-4" /> 학부모 관리
+          </button>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium"
+          >
+            <LogOut className="w-4 h-4" /> 로그아웃
+          </button>
+        </div>
       </div>
 
       <div className="max-w-[1400px] mx-auto px-8 py-8">
-        <SummaryCards summary={summary} />
+        <SummaryCards summary={summary} liveUnsub={liveUnsub} />
 
         <div className="grid grid-cols-2 gap-6 items-start">
           {/* 좌측 */}
@@ -1699,7 +2011,7 @@ export default function AdminPage() {
 
           {/* 우측 */}
           <div className="flex flex-col gap-6">
-            <SubmissionSection />
+            <SubmissionSection onUnsubChange={handleUnsubChange} />
             <ProblemApprovalSection onRefreshSummary={loadSummary} />
             <MonthlyReviewSection />
           </div>
