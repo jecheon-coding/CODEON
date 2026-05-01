@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
 import { SubmissionStatus } from "@/types/problem";
 
 interface Props {
@@ -16,6 +16,11 @@ const STATUS_CONFIG = {
     bar:   "bg-red-50 border-red-200 text-red-600",
     Icon:  XCircle,
     label: "틀렸습니다. 다시 시도해 보세요.",
+  },
+  timeout: {
+    bar:   "bg-amber-50 border-amber-200 text-amber-700",
+    Icon:  Clock,
+    label: "시간 초과입니다. 더 효율적인 알고리즘을 사용해 보세요.",
   },
   error: {
     bar:   "bg-yellow-50 border-yellow-200 text-yellow-700",
@@ -45,7 +50,10 @@ export default function OutputPanel({ output, status }: Props) {
           className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium
             ${STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].bar}`}
         >
-          {(() => { const { Icon } = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]; return <Icon size={15} />; })()}
+          {(() => {
+            const { Icon } = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
+            return <Icon size={15} />;
+          })()}
           <span>{STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].label}</span>
         </div>
       )}

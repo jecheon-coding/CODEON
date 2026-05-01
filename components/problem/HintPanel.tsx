@@ -105,13 +105,6 @@ ${code || "(작성 없음)"}
     <div className={`${D("bg-slate-800", "bg-white")}`}>
       <div className={`px-4 py-4 flex flex-col gap-3`}>
 
-          {/* 안내 텍스트 */}
-          {!rawHint && !loading && (
-            <p className={`text-xs leading-relaxed ${D("text-slate-400", "text-gray-500")}`}>
-              막히는 부분이 있으면 AI 코치에게 3단계 힌트를 받아보세요.
-              정답은 알려주지 않고 방향만 안내합니다.
-            </p>
-          )}
 
           {/* 로딩 */}
           {loading && (

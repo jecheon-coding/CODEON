@@ -19,6 +19,7 @@ const DIFF_BADGE: Record<string, string> = {
 const STATUS_BADGE: Record<string, { style: string; label: string }> = {
   correct: { style: "bg-emerald-500 text-white",  label: "정답" },
   wrong:   { style: "bg-red-500    text-white",   label: "오답" },
+  timeout: { style: "bg-amber-500  text-white",   label: "시간초과" },
   error:   { style: "bg-yellow-500 text-white",   label: "오류" },
   "":      { style: "bg-gray-100   text-gray-400", label: "미제출" },
 };

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Sparkles, Menu, X,
@@ -13,13 +13,9 @@ import {
 } from "lucide-react"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 
-// ── 데이터 ──────────────────────────────────────────────────────────────────
+// ── 타입 ────────────────────────────────────────────────────────────────────
 
-const NOTICES = [
-  { date: "2026.04", title: "4월 과제 업로드 완료 — 기초 과정 22~28번" },
-  { date: "2026.03", title: "알고리즘 과정 신규 문제 15개 추가" },
-  { date: "2026.03", title: "학부모 리포트 화면 업데이트 안내" },
-]
+type Notice = { id: string; date: string; content: string }
 
 const GRADE_CARDS = [
   {
@@ -101,6 +97,14 @@ const KEY_FEATURES = [
 export default function Landing() {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [notices, setNotices] = useState<Notice[]>([])
+
+  useEffect(() => {
+    fetch("/api/notices")
+      .then(r => r.ok ? r.json() : [])
+      .then(setNotices)
+      .catch(() => {})
+  }, [])
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })
@@ -185,7 +189,7 @@ export default function Landing() {
           <div className="inline-flex items-center gap-2 bg-white/15 border border-white/20
             text-white text-xs font-semibold px-4 py-1.5 rounded-full mb-8 select-none">
             <Sparkles className="w-3.5 h-3.5" />
-            AI 튜터 코딩 학습 플랫폼
+            제천코딩학원 학생 전용 코딩 플랫폼
           </div>
 
           <h1 className="text-5xl lg:text-7xl font-black leading-tight tracking-tight mb-8">
@@ -204,7 +208,7 @@ export default function Landing() {
 
           <div className="flex flex-wrap gap-4">
             <button
-              onClick={() => router.push("/contact/academy")}
+              onClick={() => scrollTo("contact-section")}
               className="px-7 py-3.5 bg-white text-gray-900 rounded-xl text-sm font-bold
                 hover:bg-white/90 active:scale-95 transition-all duration-200 shadow-lg shadow-black/20"
             >
@@ -542,7 +546,7 @@ export default function Landing() {
 
           <div className="flex flex-wrap justify-center gap-4">
             <button
-              onClick={() => router.push("/contact/academy")}
+              onClick={() => scrollTo("contact-section")}
               className="flex items-center gap-2 px-8 py-4 bg-white text-gray-900
                 rounded-xl text-sm font-bold hover:bg-white/90 active:scale-95
                 transition-all duration-200 shadow-lg shadow-black/20"
@@ -580,12 +584,14 @@ export default function Landing() {
             <div>
               <p className="text-sm font-bold text-slate-400 mb-5">최근 공지</p>
               <div className="space-y-4">
-                {NOTICES.map((n, i) => (
-                  <div key={i} className="flex items-baseline gap-3">
+                {notices.length > 0 ? notices.map(n => (
+                  <div key={n.id} className="flex items-baseline gap-3">
                     <span className="text-[11px] font-bold text-slate-600 shrink-0 tabular-nums">{n.date}</span>
-                    <p className="text-xs text-slate-500 leading-relaxed">{n.title}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{n.content}</p>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-xs text-slate-500">등록된 공지가 없습니다</p>
+                )}
               </div>
             </div>
 
@@ -601,13 +607,6 @@ export default function Landing() {
                   충북 제천시 죽하로 15길 34 (장락동)
                 </div>
               </div>
-              <button
-                onClick={() => router.push("/contact/academy")}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#534AB7] text-white
-                  text-xs font-bold rounded-lg hover:bg-[#443DA0] transition-colors"
-              >
-                상담 예약하기 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
             </div>
 
           </div>
