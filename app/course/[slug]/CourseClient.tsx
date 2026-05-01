@@ -7,8 +7,8 @@ import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 import type { LucideIcon } from "lucide-react"
 import {
-  LogOut, Search, Calendar, MapPin, Lock, ArrowRight,
-  CheckCircle2, Circle, Play, Code2, BarChart2,
+  LogOut, Search, MapPin, Lock, ArrowRight,
+  CheckCircle2, Circle, Code2, BarChart2,
   Award, Trophy, Star, Zap, ChevronLeft, ChevronRight, BookOpen,
   Layers,
 } from "lucide-react"
@@ -66,6 +66,15 @@ function parseCertMeta(p: CourseProblem) {
   }
 }
 
+// ── 대회 과정 메타 파서 ("2019_초등부" → { year, division }) ──────────────────
+const DIVISION_ORDER = ["초등부", "중등부", "고등부"]
+function parseCompMeta(p: CourseProblem) {
+  const parts    = (p.topic ?? "").split("_")
+  const year     = parts[0] ? parseInt(parts[0]) : null
+  const division = parts[1] ?? null
+  return { year: year && !isNaN(year) ? year : null, division }
+}
+
 // ── 탭 스크롤 컨테이너 ────────────────────────────────────────────────────────
 function TabScrollContainer({ children }: { children: React.ReactNode }) {
   const ref   = useRef<HTMLDivElement>(null)
@@ -99,7 +108,10 @@ function TabScrollContainer({ children }: { children: React.ReactNode }) {
       {left && (
         <button
           onClick={() => scrollBy("left")}
-          className="absolute left-1.5 top-1/2 -translate-y-1/2 z-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all"
+          className="absolute left-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center transition-colors"
+          style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: "6px", padding: "4px 8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+          onMouseLeave={e => (e.currentTarget.style.background = "white")}
         >
           <ChevronLeft className="w-3 h-3 text-gray-500" />
         </button>
@@ -107,7 +119,10 @@ function TabScrollContainer({ children }: { children: React.ReactNode }) {
       {right && (
         <button
           onClick={() => scrollBy("right")}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 z-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center transition-colors"
+          style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: "6px", padding: "4px 8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+          onMouseLeave={e => (e.currentTarget.style.background = "white")}
         >
           <ChevronRight className="w-3 h-3 text-gray-500" />
         </button>
@@ -149,6 +164,10 @@ export default function CourseClient({
   const [certTypeMap, setCertTypeMap] = useState<Record<number, "exam" | "mock">>({ 1: "exam", 2: "exam", 3: "exam" })
   const [certRound,   setCertRound]   = useState<number | null>(null)
   const certType = certTypeMap[certGrade]
+
+  // ── 대회 과정 전용 필터 상태 ────────────────────────────────────────────────
+  const [compYear,     setCompYear]     = useState<number | null>(null)
+  const [compDivision, setCompDivision] = useState<string | null>(null)
 
   // ── 집계 ──────────────────────────────────────────────────────────────────
   const completedCount  = useMemo(() => problems.filter(p => statusMap[p.id]?.status === "정답").length,   [problems, statusMap])
@@ -223,7 +242,7 @@ export default function CourseClient({
   }, [availableRounds])
 
   // 탭/필터 변경 시 페이지 초기화
-  useEffect(() => { setPage(1) }, [activeTab, searchQuery, difficultyFilter, certGrade, certType, certRound])
+  useEffect(() => { setPage(1) }, [activeTab, searchQuery, difficultyFilter, certGrade, certType, certRound, compYear, compDivision])
 
   const certFilteredProblems = useMemo(() =>
     slug !== "certificate" ? [] :
@@ -238,7 +257,74 @@ export default function CourseClient({
     [problems, certGrade, certType, certRound, searchQuery, difficultyFilter, slug],
   )
 
-  const displayProblems = slug === "certificate" ? certFilteredProblems : filteredProblems
+  // ── 대회 전용: 연도 목록 & 집계 ────────────────────────────────────────────
+  const availableYears = useMemo(() => {
+    if (slug !== "competition") return []
+    const s = new Set<number>()
+    for (const p of problems) { const { year } = parseCompMeta(p); if (year !== null) s.add(year) }
+    return [...s].sort((a, b) => a - b)
+  }, [problems, slug])
+
+  const compYearStats = useMemo(() => {
+    if (slug !== "competition") return {} as Record<number, { total: number; completed: number }>
+    const stats: Record<number, { total: number; completed: number }> = {}
+    for (const p of problems) {
+      const { year } = parseCompMeta(p); if (year === null) continue
+      if (!stats[year]) stats[year] = { total: 0, completed: 0 }
+      stats[year].total++
+      if (statusMap[p.id]?.status === "정답") stats[year].completed++
+    }
+    return stats
+  }, [problems, statusMap, slug])
+
+  const availableDivisions = useMemo(() => {
+    if (slug !== "competition" || compYear === null) return []
+    const s = new Set<string>()
+    for (const p of problems) { const { year, division } = parseCompMeta(p); if (year === compYear && division) s.add(division) }
+    return DIVISION_ORDER.filter(d => s.has(d))
+  }, [problems, compYear, slug])
+
+  const compDivisionStats = useMemo(() => {
+    if (slug !== "competition" || compYear === null) return {} as Record<string, { total: number; completed: number }>
+    const stats: Record<string, { total: number; completed: number }> = {}
+    for (const p of problems) {
+      const { year, division } = parseCompMeta(p); if (year !== compYear || !division) continue
+      if (!stats[division]) stats[division] = { total: 0, completed: 0 }
+      stats[division].total++
+      if (statusMap[p.id]?.status === "정답") stats[division].completed++
+    }
+    return stats
+  }, [problems, statusMap, compYear, slug])
+
+  const compFilteredProblems = useMemo(() =>
+    slug !== "competition" ? [] :
+    problems.filter(p => {
+      const { year, division } = parseCompMeta(p)
+      return year === compYear
+        && division === compDivision
+        && (!searchQuery || (p.title ?? "").includes(searchQuery))
+        && (difficultyFilter === "전체" || p.difficulty === difficultyFilter)
+    }),
+    [problems, compYear, compDivision, searchQuery, difficultyFilter, slug],
+  )
+
+  // 연도 변경 시 부문 자동 선택
+  useEffect(() => {
+    if (availableDivisions.length > 0 && (compDivision === null || !availableDivisions.includes(compDivision))) {
+      setCompDivision(availableDivisions[0])
+    }
+  }, [availableDivisions])
+
+  // 첫 진입 시 첫 번째 연도 자동 선택
+  useEffect(() => {
+    if (availableYears.length > 0 && (compYear === null || !availableYears.includes(compYear))) {
+      setCompYear(availableYears[0])
+    }
+  }, [availableYears])
+
+  const displayProblems = slug === "certificate" ? certFilteredProblems :
+                          slug === "competition"  ? compFilteredProblems :
+                          filteredProblems
   const totalPages      = Math.ceil(displayProblems.length / LIMIT)
   const pagedProblems   = displayProblems.slice((page - 1) * LIMIT, page * LIMIT)
 
@@ -344,10 +430,9 @@ export default function CourseClient({
                       {nextProblem.topic && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 text-gray-500 font-medium">{nextProblem.topic}</span>
                       )}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 text-gray-500 font-medium">예상 2분</span>
                       {nextProblem.difficulty && (
                         <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-md font-bold"
+                          className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                           style={{ background: DIFF_STYLE[nextProblem.difficulty]?.bg, color: DIFF_STYLE[nextProblem.difficulty]?.text }}
                         >{nextProblem.difficulty}</span>
                       )}
@@ -356,15 +441,6 @@ export default function CourseClient({
                 </div>
               )}
 
-              {/* 예상 완료 */}
-              {problems.length > completedCount && (
-                <div className="px-5 py-3.5 border-b border-gray-100">
-                  <div className="flex items-center gap-2 text-[12px] text-gray-500">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" strokeWidth={1.75} />
-                    <span>예상 완료: <span className="font-semibold text-gray-700">{estimatedWeeks}</span></span>
-                  </div>
-                </div>
-              )}
 
               {/* 이어하기 버튼 */}
               <div className="px-5 py-4">
@@ -432,7 +508,54 @@ export default function CourseClient({
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
 
               {/* 카테고리 탭바 */}
-              {slug === "certificate" ? (
+              {slug === "competition" ? (
+                <div className="border-b border-gray-100">
+                  {/* 1단계: 연도 탭 */}
+                  <div className="flex items-center border-b border-gray-100 px-4">
+                    {availableYears.map(y => {
+                      const stat       = compYearStats[y] ?? { total: 0, completed: 0 }
+                      const isActive   = compYear === y
+                      const hasDone    = stat.completed > 0
+                      return (
+                        <button key={y}
+                          onClick={() => { setCompYear(y); setCompDivision(null) }}
+                          className="flex items-center gap-1 px-5 py-3.5 border-b-2 transition-all font-semibold"
+                          style={{ fontSize: "15px", color: isActive ? "#BA7517" : "#9ca3af", borderColor: isActive ? "#BA7517" : "transparent" }}
+                        >
+                          {y}
+                          {hasDone ? (
+                            <span className="text-[12px] font-bold text-[#639922]">{stat.total} /{stat.completed}완료</span>
+                          ) : (
+                            <span className="text-[12px] text-gray-300">{stat.total}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* 2단계: 부문 서브탭 */}
+                  <div className="flex items-center px-4">
+                    {availableDivisions.map(div => {
+                      const stat     = compDivisionStats[div] ?? { total: 0, completed: 0 }
+                      const isActive = compDivision === div
+                      const hasDone  = stat.completed > 0
+                      return (
+                        <button key={div}
+                          onClick={() => setCompDivision(div)}
+                          className="flex items-center gap-1 px-4 py-2.5 text-sm border-b-2 transition-all font-medium"
+                          style={{ color: isActive ? "#BA7517" : "#9ca3af", borderColor: isActive ? "#BA7517" : "transparent" }}
+                        >
+                          {div}
+                          {hasDone ? (
+                            <span className="text-[11px] font-bold text-[#639922]">{stat.total} /{stat.completed}완료</span>
+                          ) : (
+                            <span className="text-[11px] text-gray-300">{stat.total}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : slug === "certificate" ? (
                 <div className="border-b border-gray-100">
                   {/* 1단계: 급수 탭 (16px, 600) */}
                   <div className="flex items-center border-b border-gray-100 px-4 mb-1">
@@ -465,7 +588,7 @@ export default function CourseClient({
                       ))}
                     </div>
                     {availableRounds.length > 0 && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-[6px]">
                         <span className="text-[11px] text-gray-400 mr-0.5">회차</span>
                         {availableRounds.map(r => (
                           <button
@@ -481,25 +604,30 @@ export default function CourseClient({
                 </div>
               ) : (
                 <TabScrollContainer>
-                  <div className="flex items-center min-w-max px-2">
+                  <div className="flex items-center min-w-max px-2 gap-1">
                     {allTabs.map(tab => {
-                      const stat     = tabStats[tab] ?? { total: 0, completed: 0 }
-                      const isActive = activeTab === tab
+                      const stat        = tabStats[tab] ?? { total: 0, completed: 0 }
+                      const isActive    = activeTab === tab
+                      const hasComplete = stat.completed > 0
                       return (
                         <button
                           key={tab}
                           onClick={() => setActiveTab(tab)}
-                          className={`flex items-center gap-1.5 px-4 py-4 text-[13px] font-semibold border-b-2 transition-all whitespace-nowrap
+                          className={`flex items-center gap-1 text-[13px] font-semibold border-b-2 transition-all whitespace-nowrap
                             ${isActive
                               ? "border-[#534AB7] text-[#534AB7]"
                               : "border-transparent text-gray-400 hover:text-gray-600"}`}
+                          style={{ padding: "6px 12px" }}
                         >
                           {tab}
-                          <span className={`text-[11px] tabular-nums ${isActive ? "text-[#534AB7]/70" : "text-gray-300"}`}>
-                            {stat.total}
-                          </span>
-                          {stat.completed > 0 && (
-                            <span className="text-[10px] font-bold text-[#639922] tabular-nums">/{stat.completed}완료</span>
+                          {hasComplete ? (
+                            <span className="text-[12px] tabular-nums font-bold text-[#639922]">
+                              {stat.total} /{stat.completed}완료
+                            </span>
+                          ) : (
+                            <span className={`text-[12px] tabular-nums ${isActive ? "text-[#534AB7]/70" : "text-gray-300"}`}>
+                              {stat.total}
+                            </span>
                           )}
                         </button>
                       )
@@ -546,14 +674,15 @@ export default function CourseClient({
                 </div>
               ) : (
                 <div>
-                  {pagedProblems.map(problem => {
+                  {pagedProblems.map((problem, i) => {
+                    const rowNum = (page - 1) * LIMIT + i + 1
                     const state     = statusMap[problem.id]
                     const status    = state?.status ?? "미제출"
                     const isCorrect = status === "정답"
                     const isNext    = !isCorrect && problem.id === nextProblem?.id
                     const diff      = problem.difficulty
                     const diffStyle = diff ? DIFF_STYLE[diff] : null
-                    const titleCl   = isCorrect ? "text-[#639922]" : isNext ? "text-[#534AB7]" : "text-gray-800"
+                    const titleCl   = isNext ? "text-[#534AB7]" : "text-[#1a1a2e]"
 
                     const baseBg  = isCorrect ? "#F6FFFD" : isNext ? "#FAFAFE" : undefined
                     const hoverBg = isCorrect ? "#EDFCF8" : isNext ? "#F3F2FD" : "#F9F9FB"
@@ -562,6 +691,10 @@ export default function CourseClient({
                       ? problem.content.replace(/[*#`]/g, "").split("\n").find(l => l.trim().length > 10)?.trim() ?? ""
                       : ""
 
+                    const gs      = globalStats[problem.id]
+                    const rateStr = gs?.successRate ? `${gs.successRate.toFixed(1)}%` : "-"
+                    const hasStats = !!(gs && gs.submissions > 0)
+
                     return (
                       <ProblemListItem
                         key={problem.id}
@@ -569,42 +702,42 @@ export default function CourseClient({
                         baseBackground={baseBg}
                         hoverBackground={hoverBg}
                         borderLeft={isNext ? "3px solid #534AB7" : "3px solid transparent"}
+                        className="min-h-[56px]"
                       >
+                        {/* 문제 번호 */}
+                        <span
+                          className="shrink-0 text-right tabular-nums"
+                          style={{ fontSize: "14px", color: "#534AB7", fontWeight: 500, minWidth: "32px" }}
+                        >{rowNum}</span>
+
                         {/* 상태 아이콘 */}
-                        <div className="shrink-0">
+                        <div className="shrink-0 mx-2">
                           {isCorrect ? (
                             <CheckCircle2 className="w-4 h-4" style={{ color: "#639922" }} fill="#D1EDBB" stroke="#639922" />
-                          ) : isNext ? (
-                            <Play className="w-4 h-4" style={{ color: "#534AB7" }} fill="#DDD9F8" stroke="#534AB7" />
                           ) : (
                             <Circle className="w-4 h-4 text-gray-300" />
                           )}
                         </div>
 
                         {/* 문제 정보 */}
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 overflow-hidden">
                           <p className={`text-sm font-bold truncate ${titleCl}`}>
                             {problem.title ?? problem.id}
                           </p>
                           {excerpt && (
-                            <p className="text-[11px] text-gray-400 leading-relaxed overflow-hidden whitespace-nowrap text-ellipsis max-w-[600px]">
+                            <p className="text-[13px] leading-relaxed overflow-hidden whitespace-nowrap text-ellipsis" style={{ color: "#4a5568" }}>
                               {excerpt}
                             </p>
                           )}
-                          {(() => {
-                            const gs = globalStats[problem.id]
-                            if (!gs || gs.submissions === 0) return null
-                            const rateStr = gs.successRate !== null ? `${gs.successRate.toFixed(1)}%` : "-%"
-                            return (
-                              <p className="text-[11px] text-gray-400">
-                                정답자 {gs.solvers}명
-                                <span className="mx-1 text-gray-300">·</span>
-                                제출 {gs.submissions}회
-                                <span className="mx-1 text-gray-300">·</span>
-                                성공률 {rateStr}
-                              </p>
-                            )
-                          })()}
+                          {hasStats && (
+                            <p className="text-[12px] text-gray-400 truncate">
+                              정답자 {gs!.solvers}명
+                              <span className="mx-1 text-gray-300">·</span>
+                              제출 {gs!.submissions}회
+                              <span className="mx-1 text-gray-300">·</span>
+                              성공률 {rateStr}
+                            </p>
+                          )}
                         </div>
 
                         {/* 우측: 난이도 + 상태 배지 */}
@@ -615,7 +748,9 @@ export default function CourseClient({
                               style={{ background: diffStyle.bg, color: diffStyle.text }}
                             >{diff}</span>
                           )}
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${USER_STATUS_BADGE[status].cls}`}>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status === "미제출" ? "bg-[#f1f0fe] text-[#534AB7] border border-[#d4d0fa]" : USER_STATUS_BADGE[status].cls}`}
+                          >
                             {USER_STATUS_BADGE[status].label}
                           </span>
                           {(state?.count ?? 0) > 0 && (

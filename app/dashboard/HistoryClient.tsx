@@ -8,27 +8,25 @@ import {
   CheckCircle, XCircle, ArrowLeft,
   LogOut, Search, BookOpen, Clock, RotateCcw, History
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { ProblemListContainer, ProblemListItem } from "@/components/problem/ProblemListItem"
 import { PageLayout } from "@/components/ui/PageLayout"
-
-type Submission = {
-  id: string
-  problem_id: string
-  is_correct: boolean
-  created_at: string
-  problem: {
-    title: string
-    category: string
-    difficulty: string
-  } | null
-}
+import type { HistorySubmission } from "@/app/api/history/route"
 
 type WrongEntry = {
-  problem_id: string
-  problem: Submission["problem"]
-  latest_at: string
-  wrong_count: number
+  problem_id:    string
+  problem_title: string
+  category:      string | null
+  topic:         string | null
+  latest_at:     string
+  wrong_count:   number
+}
+
+const CATEGORY_BADGE: Record<string, string> = {
+  "기초 파이썬":  "기초",
+  "알고리즘":     "알고리즘",
+  "자료구조":     "자료구조",
+  "문자열":       "문자열",
+  "수학":         "수학",
 }
 
 export default function HistoryClient() {
@@ -39,62 +37,47 @@ export default function HistoryClient() {
   const initialFilter = searchParams.get("filter") === "wrong" ? "wrong" : "all"
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">(initialFilter)
   const [search, setSearch] = useState("")
-  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [submissions, setSubmissions] = useState<HistorySubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
 
   const LIMIT = 20
 
-  const userId   = (session?.user as any)?.id
   const userName = session?.user?.name ?? "학생"
 
   // 필터/검색 변경 시 페이지 초기화
   useEffect(() => { setPage(1) }, [filter, search])
 
   useEffect(() => {
-    if (!userId) return
     const fetchHistory = async () => {
       setLoading(true)
-
-      const { data: subData } = await supabase
-        .from("submissions")
-        .select("id, problem_id, is_correct, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-
-      const problemIds = [...new Set((subData ?? []).map((s: { problem_id: string }) => s.problem_id))]
-      const { data: probData } = problemIds.length > 0
-        ? await supabase
-            .from("problems")
-            .select("id, title, category, difficulty")
-            .in("id", problemIds)
-        : { data: [] }
-
-      const probMap = Object.fromEntries(
-        (probData ?? []).map((p: { id: string; title: string; category: string; difficulty: string }) => [p.id, p])
-      )
-      const merged = (subData ?? []).map((s: { id: string; problem_id: string; is_correct: boolean; created_at: string }) => ({
-        ...s,
-        problem: (probMap[s.problem_id] as { title: string; category: string; difficulty: string } | undefined) ?? null,
-      }))
-
-      setSubmissions(merged as Submission[])
-      setLoading(false)
+      try {
+        const res = await fetch("/api/history")
+        if (res.ok) setSubmissions(await res.json())
+      } finally {
+        setLoading(false)
+      }
     }
     fetchHistory()
-  }, [userId])
+  }, [])
 
-  // 오답노트: 문제 단위 중복 제거 + 틀린 횟수 집계
+  // 오답노트: 미해결 문제만 (정답 처리된 문제 제외), 문제 단위 중복 제거 + 틀린 횟수 집계
   const wrongEntries = useMemo<WrongEntry[]>(() => {
+    const solvedProblemIds = new Set(
+      submissions.filter(s => s.is_correct).map(s => s.problem_id)
+    )
     const grouped: Record<string, WrongEntry> = {}
     for (const s of submissions) {
       if (s.is_correct) continue
+      if (solvedProblemIds.has(s.problem_id)) continue
       if (!grouped[s.problem_id]) {
         grouped[s.problem_id] = {
-          problem_id:  s.problem_id,
-          problem:     s.problem,
-          latest_at:   s.created_at,
-          wrong_count: 1,
+          problem_id:    s.problem_id,
+          problem_title: s.problem_title,
+          category:      s.category,
+          topic:         s.topic,
+          latest_at:     s.created_at,
+          wrong_count:   1,
         }
       } else {
         grouped[s.problem_id].wrong_count++
@@ -107,18 +90,18 @@ export default function HistoryClient() {
     if (search.trim()) {
       const q = search.toLowerCase()
       entries = entries.filter(e =>
-        e.problem?.title?.toLowerCase().includes(q) ||
-        e.problem?.category?.toLowerCase().includes(q)
+        e.problem_title.toLowerCase().includes(q) ||
+        (e.category ?? "").toLowerCase().includes(q) ||
+        (e.topic ?? "").toLowerCase().includes(q)
       )
     }
     return entries
   }, [submissions, search])
 
   // 전체/정답 탭: 개별 제출 필터링 (정답 탭은 problemId 기준 최신 1개만)
-  const filteredSubmissions = useMemo<Submission[]>(() => {
+  const filteredSubmissions = useMemo<HistorySubmission[]>(() => {
     let list = submissions
     if (filter === "correct") {
-      // submissions는 created_at DESC 정렬 → 첫 등장이 최신
       const seen = new Set<string>()
       list = list.filter(s => {
         if (!s.is_correct) return false
@@ -130,8 +113,9 @@ export default function HistoryClient() {
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(s =>
-        s.problem?.title?.toLowerCase().includes(q) ||
-        s.problem?.category?.toLowerCase().includes(q)
+        s.problem_title.toLowerCase().includes(q) ||
+        (s.category ?? "").toLowerCase().includes(q) ||
+        (s.topic ?? "").toLowerCase().includes(q)
       )
     }
     return list
@@ -262,8 +246,20 @@ export default function HistoryClient() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 shrink-0">오답</span>
-                      <span className="text-[10px] text-gray-400 shrink-0">{entry.problem?.category || "미분류"}</span>
-                      <span className="text-sm font-bold text-gray-800 truncate">{entry.problem?.title || entry.problem_id}</span>
+                      {entry.category && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 shrink-0">
+                          {CATEGORY_BADGE[entry.category] ?? entry.category}
+                        </span>
+                      )}
+                      {entry.topic && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 shrink-0">
+                          {entry.topic}
+                        </span>
+                      )}
+                      {!entry.category && !entry.topic && (
+                        <span className="text-[10px] text-gray-400 shrink-0">미분류</span>
+                      )}
+                      <span className="text-sm font-bold text-gray-800 truncate">{entry.problem_title}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
                       <Clock className="w-3 h-3 shrink-0" />
@@ -303,8 +299,20 @@ export default function HistoryClient() {
                       }`}>
                         {sub.is_correct ? "정답" : "오답"}
                       </span>
-                      <span className="text-[10px] text-gray-400 shrink-0">{sub.problem?.category || "미분류"}</span>
-                      <span className="text-sm font-bold text-gray-800 truncate">{sub.problem?.title || sub.problem_id}</span>
+                      {sub.category && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 shrink-0">
+                          {CATEGORY_BADGE[sub.category] ?? sub.category}
+                        </span>
+                      )}
+                      {sub.topic && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 shrink-0">
+                          {sub.topic}
+                        </span>
+                      )}
+                      {!sub.category && !sub.topic && (
+                        <span className="text-[10px] text-gray-400 shrink-0">미분류</span>
+                      )}
+                      <span className="text-sm font-bold text-gray-800 truncate">{sub.problem_title}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
                       <Clock className="w-3 h-3 shrink-0" />

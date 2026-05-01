@@ -13,9 +13,27 @@ import {
   LogOut, ClipboardList, Award, Star, Zap,
   Code2, BarChart2, Trophy, MessageSquare, Clock,
   Activity, CheckSquare, ArrowRight, Sparkles,
+  Play, RefreshCw,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGoal } from "@/lib/goalContext"
+
+// ── 카테고리 → 표시 라벨 ────────────────────────────────────────────────────
+const CATEGORY_LABEL: Record<string, string> = {
+  "파이썬기초":     "기초",
+  "파이썬알고리즘": "알고리즘",
+  "파이썬자격증":   "자격증",
+  "파이썬실전":     "실전",
+  "파이썬도전":     "도전",
+  "파이썬대회":     "대회",
+}
+
+// ── 난이도 배지 클래스 ────────────────────────────────────────────────────
+const DIFF_CLS: Record<string, string> = {
+  "하": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "중": "bg-amber-50   text-amber-700   border-amber-200",
+  "상": "bg-red-50     text-red-700     border-red-200",
+}
 
 // ── 아이콘 맵 ─────────────────────────────────────────────────────────────
 const COURSE_ICON_MAP: Record<string, { Icon: LucideIcon; iconBg: string; iconColor: string }> = {
@@ -52,7 +70,7 @@ const COURSE_CATEGORY: Record<string, string> = {
 }
 
 // ── 타입 ───────────────────────────────────────────────────────────────────
-export type Problem = { id: string; category: string; title?: string; status?: string }
+export type Problem = { id: string; category: string; title?: string; status?: string; difficulty?: string }
 
 type Submission = {
   id: string
@@ -101,6 +119,13 @@ function formatRelativeTime(dateStr?: string) {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}시간 전`
   return `${Math.floor(hours / 24)}일 전`
+}
+
+function formatMonthDay(dateStr?: string) {
+  if (!dateStr) return ""
+  const utcStr = /Z|[+-]\d{2}:?\d{2}$/.test(dateStr) ? dateStr : dateStr + "Z"
+  const d = new Date(utcStr)
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }
 
 // ── 목표 도트 ─────────────────────────────────────────────────────────────
@@ -205,12 +230,22 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const [loadingSubmissions, setLoadingSubmissions] = useState(true)
   const [correctSubs,        setCorrectSubs]        = useState<CorrectSub[]>([])
   const [loadingProgress,    setLoadingProgress]    = useState(true)
-  const [wrongProblemIds,    setWrongProblemIds]    = useState<Set<string>>(new Set())
+  const [wrongSubs,          setWrongSubs]          = useState<{ problem_id: string; created_at: string }[]>([])
   const [homework,           setHomework]           = useState<HomeworkItem[]>([])
   const [loadingHomework,    setLoadingHomework]    = useState(true)
   const [hwExpanded,         setHwExpanded]         = useState(false)
   const [totalSubmitCount,   setTotalSubmitCount]   = useState<number | null>(null)
   const [aiChatOpen,         setAiChatOpen]         = useState(false)
+  const [resumeTab,          setResumeTab]          = useState<"continue" | "next" | "retry">("continue")
+  const [wrongProblemDetailsMap, setWrongProblemDetailsMap] = useState<Record<string, { title: string; category: string | null; topic: string | null }>>({})
+
+  const [lastProblemDetail,  setLastProblemDetail]  = useState<{ title: string; category: string; topic: string | null } | null>(null)
+  const [nextProblemFromApi, setNextProblemFromApi] = useState<{ id: string; title: string } | null | undefined>(undefined)
+  const [loadingProblemDetail, setLoadingProblemDetail] = useState(false)
+  const [recommendations, setRecommendations] = useState<{
+    problems: { id: string; title: string; category: string | null; topic: string | null; difficulty: string | null; status: "미풀" | "오답"; reason: string }[]
+    courseComplete: boolean
+  } | null | undefined>(undefined)
 
   const userId   = (session?.user as any)?.id as string | undefined
   const userName = session?.user?.name ?? "학생"
@@ -257,11 +292,11 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     ;(async () => {
       const { data } = await supabase
         .from("submissions")
-        .select("problem_id")
+        .select("problem_id, created_at")
         .eq("user_id", userId)
         .eq("is_correct", false)
-      const ids = new Set((data ?? []).map((r: { problem_id: string }) => r.problem_id))
-      setWrongProblemIds(ids)
+        .order("created_at", { ascending: false })
+      setWrongSubs(data ?? [])
     })()
   }, [userId])
 
@@ -277,7 +312,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
           if (newSub.is_correct && newSub.created_at) {
             setCorrectSubs(prev => [{ problem_id: newSub.problem_id, created_at: newSub.created_at! }, ...prev])
           } else if (!newSub.is_correct) {
-            setWrongProblemIds(prev => { const next = new Set(prev); next.add(newSub.problem_id); return next })
+            setWrongSubs(prev => [{ problem_id: newSub.problem_id, created_at: newSub.created_at ?? new Date().toISOString() }, ...prev])
           }
         }
       )
@@ -291,6 +326,30 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
       .then(r => r.ok ? r.json() : [])
       .then(data => { setHomework(data); setLoadingHomework(false) })
       .catch(() => setLoadingHomework(false))
+  }, [userId])
+
+  // ── 마지막 문제 상세 + 다음 문제 fetch ────────────────────────────────
+  useEffect(() => {
+    const id = submissions[0]?.problem_id
+    if (!id || !userId) { setNextProblemFromApi(null); return }
+    setLoadingProblemDetail(true)
+    Promise.all([
+      fetch(`/api/problems/${id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/problems/next?currentId=${id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([detail, next]) => {
+      setLastProblemDetail(detail)
+      setNextProblemFromApi(next ?? null)
+      setLoadingProblemDetail(false)
+    })
+  }, [submissions[0]?.problem_id, userId])
+
+  // ── 추천 문제 fetch ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return
+    fetch("/api/recommendations?limit=3")
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(data => setRecommendations(data))
   }, [userId])
 
   // ── 과정별 진도율 ──────────────────────────────────────────────────────
@@ -328,6 +387,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const rate    = total > 0 ? Math.round((correct / total) * 100) : 0
 
   const correctProblemIds     = useMemo(() => new Set(correctSubs.map(s => s.problem_id)), [correctSubs])
+  const wrongProblemIds       = useMemo(() => new Set(wrongSubs.map(s => s.problem_id)), [wrongSubs])
   const attemptedProblemIds   = useMemo(() => new Set([...correctProblemIds, ...wrongProblemIds]), [correctProblemIds, wrongProblemIds])
   const correctProblemCount   = correctProblemIds.size
   const attemptedProblemCount = attemptedProblemIds.size
@@ -397,6 +457,47 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
   const nextProblemTitle = nextProblemId ? (problemTitles[nextProblemId] ?? null) : null
 
+
+  // 추천 문제: 현재 과정의 미풀 문제 3개
+
+
+  // 오답 복습: 미해결 오답 최대 5개 (날짜 포함)
+  const wrongReviewProblems = useMemo(() => {
+    const seen = new Set<string>()
+    const result: { id: string; title: string; category: string | null; createdAt: string }[] = []
+    for (const s of wrongSubs) {
+      if (!correctProblemIds.has(s.problem_id) && !seen.has(s.problem_id)) {
+        seen.add(s.problem_id)
+        const prob = allProblems.find(p => p.id === s.problem_id)
+        result.push({
+          id:        s.problem_id,
+          title:     problemTitles[s.problem_id] ?? s.problem_id,
+          category:  prob?.category ?? null,
+          createdAt: s.created_at,
+        })
+      }
+      if (result.length >= 5) break
+    }
+    return result
+  }, [wrongSubs, correctProblemIds, problemTitles, allProblems])
+
+  useEffect(() => {
+    const ids = wrongReviewProblems.map(p => p.id)
+    if (ids.length === 0) return
+    Promise.all(
+      ids.map(id =>
+        fetch(`/api/problems/${id}`).then(r => r.ok ? r.json() : null).catch(() => null)
+      )
+    ).then(results => {
+      const updates: Record<string, { title: string; category: string | null; topic: string | null }> = {}
+      results.forEach((data, i) => {
+        if (data) updates[ids[i]] = { title: data.title ?? ids[i], category: data.category ?? null, topic: data.topic ?? null }
+      })
+      if (Object.keys(updates).length > 0)
+        setWrongProblemDetailsMap(prev => ({ ...prev, ...updates }))
+    })
+  }, [wrongReviewProblems])
+
   const sortedHomework = useMemo(() => {
     return [...homework].sort((a, b) => {
       const weightA = !a.isSubmitted ? 0 : (a.isCorrect === false ? 1 : 2)
@@ -412,9 +513,10 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
   const nextHref = firstPendingHwId
     ? `/problems/${firstPendingHwId}`
+    : nextProblemFromApi?.id ? `/problems/${nextProblemFromApi.id}`
     : nextProblemId ? `/problems/${nextProblemId}`
     : currentCourse ? `/course/${currentCourse.slug}`
-    : "/problems/max-number"
+    : "/courses"
 
   if (status === "loading") {
     return (
@@ -526,8 +628,8 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
           {/* 정답률 */}
           <button
-            onClick={() => router.push("/history")}
-            className="group bg-white rounded-2xl p-5 text-left hover:shadow-md transition-all border border-gray-100"
+            onClick={() => router.push("/history?tab=all")}
+            className="group bg-white rounded-2xl p-5 text-left hover:shadow-md transition-all border border-gray-100 cursor-pointer"
           >
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center mb-4">
               <Activity className="w-5 h-5 text-[#639922]" strokeWidth={1.75} />
@@ -628,89 +730,258 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
               </div>
             </div>
 
-            {/* 3-2. 마지막 학습 패널 */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <h2 className="text-sm font-bold text-gray-900">마지막 학습</h2>
+            {/* 3-2. 오늘의 학습 재개 */}
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              {/* 헤더 */}
+              <div className="px-5 pt-5 pb-0">
+                <div className="flex items-center gap-2 mb-4">
+                  <Play className="w-4 h-4 text-gray-400" />
+                  <h2 className="text-sm font-bold text-gray-900">오늘의 학습 재개</h2>
                 </div>
-                {nextProblemId && (
-                  <Link href={`/problems/${nextProblemId}`} className="text-xs font-semibold text-[#534AB7] hover:underline">
-                    이어서 풀기
-                  </Link>
-                )}
+                {/* 탭 */}
+                <div className="flex gap-0 border-b border-gray-100">
+                  {(["continue", "next", "retry"] as const).map(tab => {
+                    const labels = { continue: "이어서 풀기", next: "추천 문제", retry: "오답 복습" }
+                    const badge  = tab === "retry" ? wrongReviewProblems.length : 0
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setResumeTab(tab)}
+                        className={`pb-3 mr-5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap ${
+                          resumeTab === tab
+                            ? "text-[#534AB7] border-[#534AB7]"
+                            : "text-gray-400 border-transparent hover:text-gray-600"
+                        }`}
+                      >
+                        {labels[tab]}
+                        {badge > 0 && (
+                          <span className="ml-1.5 text-[10px] bg-[#D85A30] text-white px-1.5 py-0.5 rounded-full">
+                            {badge}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
-              {loadingSubmissions ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-5 h-5 border-2 border-[#534AB7] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : !lastSub ? (
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
-                    <BookOpen className="w-5 h-5 text-gray-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">아직 풀이 기록이 없어요</p>
-                  <p className="text-xs text-gray-400 mb-4">첫 문제를 풀고 학습을 시작해 보세요</p>
-                  <button
-                    onClick={() => router.push("/problems/max-number")}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#534AB7] text-white rounded-xl text-xs font-bold hover:bg-[#443DA0] transition-all"
-                  >
-                    첫 문제 풀러 가기 <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  {/* 마지막 문제 카드 */}
-                  <div className={`rounded-xl p-4 mb-3 ${lastSub.is_correct ? "bg-green-50 border border-green-100" : "bg-red-50 border border-red-100"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-400 mb-1">마지막으로 푼 문제</p>
-                        <p className={`text-sm font-bold leading-snug ${lastSub.is_correct ? "text-[#185FA5]" : "text-gray-800"}`}>
-                          {lastProblem}
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          {formatRelativeTime(lastSub.created_at)}
-                          {currentCourse && <span> · {currentCourse.label}</span>}
-                          {nextProblemTitle && <span> &gt; {nextProblemTitle}</span>}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${lastSub.is_correct ? "bg-green-200 text-green-700" : "bg-red-200 text-red-700"}`}>
-                        {lastSub.is_correct ? "정답" : "오답"}
-                      </span>
+              <div className="p-5">
+
+                {/* ── Tab 1: 이어서 풀기 ── */}
+                {resumeTab === "continue" && (
+                  loadingSubmissions ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-5 h-5 border-2 border-[#534AB7] border-t-transparent rounded-full animate-spin" />
                     </div>
-                  </div>
+                  ) : !lastSub ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                        <BookOpen className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-600 mb-1">아직 풀이 기록이 없어요</p>
+                      <p className="text-xs text-gray-400 mb-4">첫 문제를 풀고 학습을 시작해 보세요</p>
+                      <button
+                        onClick={() => router.push("/problems/max-number")}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#534AB7] text-white rounded-xl text-xs font-bold hover:bg-[#443DA0] transition-all"
+                      >
+                        첫 문제 풀러 가기 <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* 마지막 문제 카드 */}
+                      {loadingProblemDetail ? (
+                        <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
+                      ) : (
+                        <div className={`rounded-xl p-4 border ${lastSub.is_correct ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100"}`}>
+                          <p className="text-[10px] font-semibold text-gray-400 mb-2">마지막으로 푼 문제</p>
+                          <p className="text-base font-medium text-gray-900 leading-snug mb-3">
+                            {lastProblemDetail?.title ?? lastProblem}
+                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {lastProblemDetail?.category && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                                  {CATEGORY_LABEL[lastProblemDetail.category] ?? lastProblemDetail.category}
+                                </span>
+                              )}
+                              {lastProblemDetail?.topic && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-50 text-gray-600 border-gray-200">
+                                  {lastProblemDetail.topic}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-gray-400">{formatRelativeTime(lastSub.created_at)}</span>
+                            </div>
+                            <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${lastSub.is_correct ? "bg-green-200 text-green-700" : "bg-red-200 text-red-700"}`}>
+                              {lastSub.is_correct ? "정답" : "오답"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                  {/* 액션 링크 */}
-                  <div className="flex items-center gap-4 mb-4">
-                    {nextProblemId && (
-                      <Link href={`/problems/${nextProblemId}`}
-                        className="flex items-center gap-0.5 text-xs font-bold text-[#534AB7] hover:underline">
-                        이어서 풀기 <ArrowRight className="w-3 h-3" />
-                      </Link>
-                    )}
-                    <Link href={`/problems/${lastSub.problem_id}`}
-                      className="text-xs font-medium text-gray-400 hover:text-gray-600">
-                      다시 풀기
-                    </Link>
-                  </div>
-
-                  {/* 최근 풀이 */}
-                  {submissions.length > 1 && (
-                    <div className="space-y-2">
-                      {submissions.slice(1, 3).map((sub, i) => (
-                        <button key={i} onClick={() => router.push(`/problems/${sub.problem_id}`)}
-                          className="w-full flex items-center gap-2.5 py-1.5 hover:bg-gray-50 rounded-lg transition-colors px-1">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sub.is_correct ? "bg-[#639922]" : "bg-[#D85A30]"}`} />
-                          <p className="text-xs text-gray-600 flex-1 text-left truncate">{problemTitles[sub.problem_id] ?? sub.problem_id}</p>
-                          <span className="text-[11px] text-gray-400 shrink-0">{formatRelativeTime(sub.created_at)}</span>
+                      {/* 다음 문제 CTA */}
+                      {nextProblemFromApi === undefined ? (
+                        <div className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+                      ) : nextProblemFromApi ? (
+                        <button
+                          onClick={() => router.push(`/problems/${nextProblemFromApi.id}`)}
+                          className="w-full flex items-center justify-between gap-2 bg-[#534AB7] hover:bg-[#443DA0] text-white rounded-lg px-4 py-3 transition-colors group"
+                        >
+                          <span className="text-sm font-semibold truncate">
+                            다음 문제: {nextProblemFromApi.title}
+                          </span>
+                          <ArrowRight className="w-4 h-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                         </button>
+                      ) : null}
+                    </div>
+                  )
+                )}
+
+                {/* ── Tab 2: 추천 문제 ── */}
+                {resumeTab === "next" && (
+                  recommendations === undefined ? (
+                    /* 로딩 */
+                    <div className="space-y-3">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="h-28 bg-gray-50 rounded-xl animate-pulse" />
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
+                  ) : recommendations?.courseComplete ? (
+                    /* 과정 100% 완료 */
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mb-3">
+                        <Sparkles className="w-5 h-5 text-amber-400" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700 mb-1">현재 과정 완료!</p>
+                      <p className="text-xs text-gray-400 mb-4">다음 과정으로 넘어가볼까요?</p>
+                      <button
+                        onClick={() => {
+                          const idx      = STUDY_COURSES.findIndex(c => c.slug === currentCourse?.slug)
+                          const nextCourse = STUDY_COURSES[idx + 1]
+                          router.push(nextCourse ? `/course/${nextCourse.slug}` : "/courses")
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#534AB7] text-white rounded-xl text-xs font-bold hover:bg-[#443DA0] transition-all"
+                      >
+                        다음 과정 시작하기 <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : !recommendations?.problems?.length ? (
+                    /* 추천 없음 */
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <BookOpen className="w-8 h-8 text-gray-200 mb-3" />
+                      <p className="text-sm font-semibold text-gray-500">추천할 문제를 찾지 못했어요</p>
+                      <p className="text-xs text-gray-400 mt-1">과정 탭에서 직접 문제를 골라보세요</p>
+                    </div>
+                  ) : (
+                    /* 추천 카드 3개 */
+                    <div className="space-y-[6px]">
+                      {recommendations.problems.map(p => (
+                        <div key={p.id} className="border border-gray-100 rounded-xl px-3.5 py-2.5 hover:border-gray-200 transition-colors">
+                          {/* 배지 + 난이도 + 상태 한 줄 */}
+                          <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+                            {p.category && (
+                              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                                {CATEGORY_LABEL[p.category] ?? p.category}
+                              </span>
+                            )}
+                            {p.topic && (
+                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded border bg-gray-50 text-gray-600 border-gray-200">
+                                {p.topic}
+                              </span>
+                            )}
+                            {p.difficulty && (
+                              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${DIFF_CLS[p.difficulty] ?? "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                                {p.difficulty}
+                              </span>
+                            )}
+                            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${
+                              p.status === "오답"
+                                ? "bg-red-50 text-red-600 border-red-200"
+                                : "bg-gray-50 text-gray-500 border-gray-200"
+                            }`}>
+                              {p.status}
+                            </span>
+                          </div>
+                          {/* 제목 */}
+                          <p className="text-sm font-medium text-gray-900 leading-snug mb-2">{p.title}</p>
+                          {/* 추천 이유 + 버튼 */}
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[11px] text-gray-400 leading-snug">{p.reason}</p>
+                            <button
+                              onClick={() => router.push(`/problems/${p.id}`)}
+                              className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#534AB7] hover:bg-[#443DA0] text-white text-[12px] font-bold rounded-lg transition-colors"
+                            >
+                              바로 풀기 <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+
+                {/* ── Tab 3: 오답 복습 ── */}
+                {resumeTab === "retry" && (
+                  wrongReviewProblems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-3">
+                        <CheckCircle className="w-5 h-5 text-emerald-500" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-600 mb-1">오답 문제가 없어요!</p>
+                      <p className="text-xs text-gray-400">최근에 틀린 문제를 모두 해결했어요</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] text-gray-400 mb-2">틀렸지만 아직 맞추지 못한 문제예요</p>
+                      {wrongReviewProblems.map((p, i) => {
+                        const detail = wrongProblemDetailsMap[p.id]
+                        const displayTitle    = detail?.title    ?? p.title
+                        const displayCategory = detail?.category ?? p.category
+                        const displayTopic    = detail?.topic    ?? null
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-center gap-3 py-2.5 px-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 text-[#534AB7] shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-800 truncate">{displayTitle}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {displayCategory && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                                    {CATEGORY_LABEL[displayCategory] ?? displayCategory}
+                                  </span>
+                                )}
+                                {displayTopic && (
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-50 text-gray-600 border-gray-200">
+                                    {displayTopic}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-gray-400">{formatMonthDay(p.createdAt)}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => router.push(`/problems/${p.id}`)}
+                              className="shrink-0 px-2.5 py-1 bg-[#534AB7] hover:bg-[#443DA0] text-white text-[10px] font-bold rounded-lg transition-colors"
+                            >
+                              다시 풀기
+                            </button>
+                          </div>
+                        )
+                      })}
+                      {wrongNoteCount > 5 && (
+                        <button
+                          onClick={() => router.push("/history?filter=wrong")}
+                          className="w-full pt-2 text-xs font-semibold text-[#534AB7] hover:text-[#443DA0] text-center transition-colors"
+                        >
+                          전체 {wrongNoteCount}개 보기 →
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
+
+              </div>
             </div>
 
           </div>{/* end 좌측 */}
@@ -819,7 +1090,15 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                 <div className="flex items-center justify-center py-6">
                   <div className="w-4 h-4 border-2 border-[#534AB7] border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : hwTotal === 0 || hwSubmitted === hwTotal ? (
+              ) : hwTotal === 0 ? (
+                <div className="flex flex-col items-center text-center py-4">
+                  <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                    <ClipboardList className="w-6 h-6 text-gray-300" />
+                  </div>
+                  <p className="text-sm font-bold text-gray-600 mb-1">오늘 배정된 숙제가 없어요</p>
+                  <p className="text-[11px] text-gray-400">선생님이 숙제를 배정하면 여기에 표시돼요</p>
+                </div>
+              ) : hwSubmitted === hwTotal ? (
                 <div className="flex flex-col items-center text-center py-4">
                   <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
                     <CheckCircle className="w-6 h-6 text-emerald-500" />
@@ -828,17 +1107,19 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                   <p className="text-[11px] text-gray-400 mb-4">추천 문제를 풀거나 복습해보세요</p>
                   <div className="flex gap-2 w-full">
                     <button
-                      onClick={() => router.push(nextProblemId ? `/problems/${nextProblemId}` : "/problems")}
+                      onClick={() => router.push(nextProblemFromApi?.id ? `/problems/${nextProblemFromApi.id}` : currentCourse ? `/course/${currentCourse.slug}` : "/courses")}
                       className="flex-1 py-2 bg-[#534AB7] text-white text-xs font-bold rounded-xl hover:bg-[#443DA0] transition-colors"
                     >
                       추천 문제 풀기
                     </button>
-                    <button
-                      onClick={() => router.push("/history?filter=wrong")}
-                      className="flex-1 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200 transition-colors"
-                    >
-                      복습하러 가기
-                    </button>
+                    {wrongNoteCount > 0 && (
+                      <button
+                        onClick={() => router.push("/history?filter=wrong")}
+                        className="flex-1 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                      >
+                        복습하러 가기
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (

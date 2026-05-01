@@ -39,10 +39,9 @@ export default function GoalsClient() {
   const [correctSubs,  setCorrectSubs]  = useState<{ problem_id: string; created_at: string }[]>([])
   const [loading,      setLoading]      = useState(true)
   const [showConfetti, setShowConfetti] = useState(false)
-  const [showAllWeeks, setShowAllWeeks] = useState(false)
-  const [cellSize,     setCellSize]     = useState(12)
   const prevAchievedRef = useRef(false)
-  const gridRef         = useRef<HTMLDivElement>(null)
+
+  const CELL = 13  // 고정 셀 크기(px) — 가로 스크롤로 전체 연도 표시
 
   const userId   = (session?.user as any)?.id
   const userName = session?.user?.name ?? "학생"
@@ -144,72 +143,57 @@ export default function GoalsClient() {
     return { streak: cur, longestStreak: Math.max(cur, longest) }
   }, [dayCounts])
 
-  // 잔디 캘린더 (최근 52주)
+  // 잔디 캘린더 (현재 연도 1월 1일 ~ 12월 31일)
   const { weeks } = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const todayStr = toLocalDate(today)
-    const start = new Date(today)
-    start.setDate(today.getDate() - today.getDay() - 51 * 7)
+    const year = today.getFullYear()
+
+    // 1월 1일이 속한 주의 일요일부터 시작
+    const jan1 = new Date(year, 0, 1)
+    const start = new Date(jan1)
+    start.setDate(jan1.getDate() - jan1.getDay())
+
+    // 12월 31일이 속한 주의 토요일까지
+    const dec31 = new Date(year, 11, 31)
+    const end = new Date(dec31)
+    end.setDate(dec31.getDate() + (6 - dec31.getDay()))
 
     type Cell = { date: string; count: number; isToday: boolean; isFuture: boolean }
     const cells: Cell[] = []
     const cur = new Date(start)
-    while (cur <= today) {
+    while (cur <= end) {
       const str = toLocalDate(cur)
-      cells.push({ date: str, count: dayCounts[str] ?? 0, isToday: str === todayStr, isFuture: false })
+      const isThisYear = cur.getFullYear() === year
+      const isFuture   = cur > today || !isThisYear
+      cells.push({
+        date:     isThisYear ? str : "",
+        count:    isThisYear && !isFuture ? (dayCounts[str] ?? 0) : 0,
+        isToday:  str === todayStr,
+        isFuture,
+      })
       cur.setDate(cur.getDate() + 1)
     }
 
     const weeksArr: Cell[][] = []
-    for (let i = 0; i < cells.length; i += 7) {
-      const week = cells.slice(i, i + 7)
-      while (week.length < 7) week.push({ date: "", count: 0, isToday: false, isFuture: true })
-      weeksArr.push(week)
-    }
+    for (let i = 0; i < cells.length; i += 7) weeksArr.push(cells.slice(i, i + 7))
     return { weeks: weeksArr }
   }, [dayCounts])
 
-  // 표시할 weeks: 기본 3개월(13주), 전체 보기 시 52주
-  const displayWeeks = showAllWeeks ? weeks : weeks.slice(-13)
+  // 1월~12월 각각의 시작 주 인덱스 계산 (isFuture 무관하게 전체 표시)
+  const monthStartWeeks = useMemo(() => {
+    const year = new Date().getFullYear()
+    const jan1 = new Date(year, 0, 1)
+    const calStart = new Date(jan1)
+    calStart.setDate(jan1.getDate() - jan1.getDay()) // 캘린더 시작 일요일
 
-  // 현재 보이는 weeks 기준으로 월 라벨 재계산
-  const displayMonthLabels = (() => {
-    const labels: { weekIdx: number; label: string }[] = []
-    let lastMonth = -1
-    displayWeeks.forEach((week, wi) => {
-      const firstReal = week.find(c => !c.isFuture && c.date)
-      if (!firstReal) return
-      const m = new Date(firstReal.date + "T12:00:00").getMonth()
-      if (m !== lastMonth) {
-        labels.push({
-          weekIdx: wi,
-          label: new Date(firstReal.date + "T12:00:00").toLocaleDateString("ko-KR", { month: "short" }),
-        })
-        lastMonth = m
-      }
+    return Array.from({ length: 12 }, (_, m) => {
+      const firstDay = new Date(year, m, 1)
+      const dayOffset = Math.round((firstDay.getTime() - calStart.getTime()) / 86_400_000)
+      return { month: m + 1, weekIdx: Math.floor(dayOffset / 7) }
     })
-    return labels
-  })()
+  }, [])
 
-  // 컨테이너 너비에 맞춰 셀 크기 동적 계산 (전체 보기는 고정 12px)
-  useEffect(() => {
-    const el = gridRef.current
-    if (!el) return
-    if (showAllWeeks) {
-      setCellSize(12)
-      return
-    }
-    const numWeeks = Math.min(weeks.length, 13)
-    const compute = () => {
-      const w = el.clientWidth
-      const available = w - 20 - 4 * numWeeks
-      setCellSize(Math.max(10, Math.floor(available / numWeeks)))
-    }
-    compute()
-    const ro = new ResizeObserver(compute)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [showAllWeeks, weeks.length])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F4F5F8]">
@@ -357,22 +341,29 @@ export default function GoalsClient() {
         <div className="bg-white rounded-2xl p-6">
           <h2 className="text-base font-bold text-gray-900 mb-4">학습 캘린더</h2>
 
-          <div ref={gridRef} className={showAllWeeks ? "overflow-x-auto" : "overflow-hidden"}>
-            {/* CSS Grid: 20px 요일라벨 + N×cellSize 셀 컬럼 */}
+          <div className="overflow-x-auto">
+            {/* CSS Grid: 20px 요일라벨 + N×CELL 셀 컬럼, 전체 연도 가로 스크롤 */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: `20px repeat(${displayWeeks.length}, ${cellSize}px)`,
-              gap: showAllWeeks ? "3px" : "4px",
+              gridTemplateColumns: `20px repeat(${weeks.length}, ${CELL}px)`,
+              gap: "3px",
+              width: "max-content",
             }}>
 
-              {/* Row 0: 빈 코너 + 월 라벨 */}
-              <div style={{ height: 14 }} />
-              {displayWeeks.map((_, wi) => {
-                const label = displayMonthLabels.find(m => m.weekIdx === wi)?.label
+              {/* Row 0: 빈 코너 + 1월~12월 전체 월 라벨 */}
+              <div style={{ height: 18 }} />
+              {weeks.map((_, wi) => {
+                const monthInfo = monthStartWeeks.find(m => m.weekIdx === wi)
                 return (
-                  <div key={`ml-${wi}`} style={{ height: 14, overflow: "visible" }}>
-                    {label && (
-                      <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1, whiteSpace: "nowrap", display: "block" }}>{label}</span>
+                  <div key={`ml-${wi}`} style={{ height: 18, overflow: "visible" }}>
+                    {monthInfo && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600,
+                        color: "#6b7280", lineHeight: 1,
+                        whiteSpace: "nowrap", display: "block",
+                      }}>
+                        {monthInfo.month}월
+                      </span>
                     )}
                   </div>
                 )
@@ -381,27 +372,29 @@ export default function GoalsClient() {
               {/* Rows 1–7: 요일 라벨 + 잔디 셀 */}
               {DAY_NAMES.map((dayName, dayIdx) => (
                 <Fragment key={`row-${dayIdx}`}>
-                  <div style={{ width: 20, height: cellSize, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                    {[1, 3, 5].includes(dayIdx) && (
-                      <span className="text-[9px] text-gray-300 leading-none">{dayName}</span>
-                    )}
+                  <div style={{ width: 20, height: CELL, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                    <span className="text-[9px] text-gray-300 leading-none">{dayName}</span>
                   </div>
-                  {displayWeeks.map((week, wi) => {
+                  {weeks.map((week, wi) => {
                     const cell = week[dayIdx]
+                    const isToday = cell.isToday && !cell.isFuture
                     return (
                       <div
                         key={`c-${wi}-${dayIdx}`}
                         title={cell.isFuture || !cell.date ? "" : `${cell.date}: ${cell.count}문제`}
                         style={{
-                          width:        cellSize,
-                          height:       cellSize,
-                          borderRadius: 3,
-                          flexShrink:   0,
-                          ...(cell.isToday && !cell.isFuture
-                            ? { border: "2px solid #534AB7" }
-                            : {}),
+                          width:         CELL,
+                          height:        CELL,
+                          borderRadius:  3,
+                          flexShrink:    0,
+                          outline:       isToday ? "2px solid #534AB7" : undefined,
+                          outlineOffset: isToday ? "1px" : undefined,
                         }}
-                        className={cell.isFuture ? "" : cellBg(cell.count)}
+                        className={
+                          cell.isFuture ? "bg-gray-50"
+                          : isToday && cell.count === 0 ? "bg-violet-100"
+                          : cellBg(cell.count)
+                        }
                       />
                     )
                   })}
@@ -418,16 +411,10 @@ export default function GoalsClient() {
             <span className="w-3 h-3 rounded-sm bg-[#7c3aed] inline-block" />
             <span className="w-3 h-3 rounded-sm bg-[#4c1d95] inline-block" />
             <span>많음</span>
-          </div>
-
-          {/* 전체 기록 토글 */}
-          <div className="flex justify-center mt-3">
-            <button
-              onClick={() => setShowAllWeeks(v => !v)}
-              className="text-xs text-[#534AB7] font-semibold hover:underline"
-            >
-              {showAllWeeks ? "접기" : "전체 기록 보기"}
-            </button>
+            <span className="ml-2 flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm bg-violet-100 inline-block" style={{ outline: "2px solid #534AB7", outlineOffset: "1px" }} />
+              오늘
+            </span>
           </div>
         </div>
 

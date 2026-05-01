@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/authOptions"
 import DashboardClient from "./DashboardClient"
-import { supabase } from "@/lib/supabase"
+import { supabaseServer as supabase } from "@/lib/supabaseServer"
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   // 대시보드에 필요한 전체 문제 목록을 서버 사이드에서 불러옵니다.
   const { data: problems } = await supabase
     .from("problems")
-    .select("id, category, title, status")
+    .select("id, category, title, status, difficulty")
 
   return <DashboardClient initialProblems={problems ?? []} />
 }
