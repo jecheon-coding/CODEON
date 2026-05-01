@@ -6,8 +6,9 @@ import { useSession } from "next-auth/react"
 import { supabase } from "@/lib/supabase"
 import { useCodeExecution } from "@/hooks/useCodeExecution"
 import { useSubmission } from "@/hooks/useSubmission"
+import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
-import { Problem, AdjacentProblem, SubmissionStatus } from "@/types/problem"
+import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/problem"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
   type SubmissionSummaryRow,
@@ -43,6 +44,7 @@ const BG_OPTIONS: Record<BgKey, { label: string; editor: string; panel: string; 
 const CATEGORY_SLUG: Record<string, string> = {
   파이썬기초: "basic", 파이썬알고리즘: "algorithm",
   파이썬자격증: "certificate", 파이썬실전: "practical", 파이썬도전: "challenge",
+  파이썬대회: "competition",
 }
 const DIFF_BADGE: Record<string, string> = {
   하: "bg-emerald-100 text-emerald-700",
@@ -53,18 +55,112 @@ const DIFF_BADGE: Record<string, string> = {
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 type HistoryEntry = { id: number; time: Date; result: SubmissionStatus; code: string }
 
-// ── 오답 출력 파싱 ────────────────────────────────────────────────────────────
-function parseWrongOutput(output: string): { input?: string; expected: string; actual: string } {
-  const lines = output.split("\n")
-  let input: string | undefined
-  let expected = ""
-  let actual = ""
-  for (const line of lines) {
-    if (line.startsWith("입력: "))          input    = line.slice("입력: ".length)
-    else if (line.startsWith("기대 출력: ")) expected = line.slice("기대 출력: ".length)
-    else if (line.startsWith("실제 출력: ")) actual   = line.slice("실제 출력: ".length)
+// ── 이미지 파싱 유틸 ─────────────────────────────────────────────────────────
+// 한 줄 = 하나의 행. 행 안에서 , 로 구분하면 가로 배치.
+// 각 항목 형식: url  /  url|400  /  url|center  /  url|400|center
+const IMAGE_URL_RE = /^https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|svg)(\?[^\s]*)?/i
+const ALIGN_VALS = ["left", "center", "right"] as const
+type ImgAlign = typeof ALIGN_VALS[number]
+
+function parseImageEntry(raw: string): { url: string; width?: number; align: ImgAlign } {
+  const parts = raw.trim().split("|")
+  const url = parts[0].trim()
+  let width: number | undefined
+  let align: ImgAlign = "left"
+  for (let i = 1; i < parts.length; i++) {
+    const p = parts[i].trim()
+    if (ALIGN_VALS.includes(p as ImgAlign)) align = p as ImgAlign
+    else { const n = Number(p); if (n > 0) width = n }
   }
-  return { input, expected, actual }
+  return { url, width, align }
+}
+
+// 행(줄) 하나를 렌더링 — 항목이 여러 개면 가로 배치
+function ProblemImageRow({ line, altPrefix }: { line: string; altPrefix?: string }) {
+  const entries = line.split(",").map(s => s.trim()).filter(Boolean)
+  const isRow = entries.length > 1
+
+  if (isRow) {
+    return (
+      <div className="flex flex-wrap gap-3 items-end my-1">
+        {entries.map((raw, i) => {
+          const { url, width } = parseImageEntry(raw)
+          return (
+            <img key={i} src={url} alt={`${altPrefix ?? "그림"} ${i + 1}`}
+              className="rounded-lg"
+              style={{ maxWidth: width ? `${width}px` : "45%", maxHeight: "320px", width: "auto", height: "auto" }} />
+          )
+        })}
+      </div>
+    )
+  }
+
+  const { url, width, align } = parseImageEntry(entries[0])
+  const alignCls = align === "center" ? "mx-auto" : align === "right" ? "ml-auto" : "mr-auto"
+  return (
+    <div className="flex my-1">
+      <img src={url} alt={altPrefix ?? "문제 그림"}
+        className={`rounded-lg ${alignCls}`}
+        style={{ maxWidth: width ? `${width}px` : "100%", maxHeight: "320px", width: "auto", height: "auto" }} />
+    </div>
+  )
+}
+
+// content 인라인용: 한 줄이 이미지 URL(들)인지 확인
+function isImageRowLine(line: string): boolean {
+  const entries = line.split(",").map(s => s.trim()).filter(Boolean)
+  return entries.length > 0 && entries.every(e => IMAGE_URL_RE.test(e.split("|")[0].trim()))
+}
+
+// ── 문제 내용 렌더러 ──────────────────────────────────────────────────────────
+function ProblemContent({ text }: { text: string }) {
+  const isDataLine = (line: string) => {
+    const t = line.trim()
+    return t.length > 0 && /^[\d\s\+\-\.,\/\[\]\(\)]+$/.test(t)
+  }
+
+  type SegType = "text" | "code" | "image"
+  type Seg = { type: SegType; lines: string[] }
+  const segs: Seg[] = []
+
+  for (const line of text.split("\n")) {
+    const type: SegType = isImageRowLine(line) ? "image" : isDataLine(line) ? "code" : "text"
+    if (type === "image") {
+      segs.push({ type: "image", lines: [line.trim()] })
+    } else if (segs.length === 0 || segs[segs.length - 1].type !== type) {
+      segs.push({ type, lines: [line] })
+    } else {
+      segs[segs.length - 1].lines.push(line)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      {segs.map((seg, i) => {
+        const content = seg.lines.join("\n").trim()
+        if (!content) return null
+        if (seg.type === "image") {
+          return <ProblemImageRow key={i} line={seg.lines[0]} />
+        }
+        if (seg.type === "code") {
+          return (
+            <pre key={i} className="font-mono text-[13px] leading-relaxed whitespace-pre-wrap"
+              style={{ background: "#1a1a2a", color: "#5cba6a", borderRadius: "6px", padding: "8px 12px" }}>
+              {content}
+            </pre>
+          )
+        }
+        return <p key={i} className="text-gray-700 leading-relaxed whitespace-pre-wrap">{seg.lines.join("\n")}</p>
+      })}
+    </div>
+  )
+}
+
+// ── 오답 출력 파싱 ────────────────────────────────────────────────────────────
+function truncateForDisplay(s: string | null | undefined, maxChars = 300): string {
+  if (!s) return "(없음)"
+  if (s.length <= maxChars) return s
+  return s.slice(0, maxChars) + `\n…(총 ${s.length.toLocaleString()}자, 일부 생략)`
 }
 
 // ── Monaco 코드 뷰어 모달 (드래그 가능) ─────────────────────────────────────
@@ -161,15 +257,83 @@ function CodeViewerModal({
   )
 }
 
+// ── ErrorOutput — 에러 메시지 파싱 표시 ──────────────────────────────────────
+function ErrorOutput({ error, isDark }: { error: string; isDark: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const lines    = error.split("\n").filter(Boolean)
+  const lastLine = lines[lines.length - 1] ?? error
+  const colonIdx = lastLine.indexOf(": ")
+  const errType  = colonIdx > -1 ? lastLine.slice(0, colonIdx) : null
+  const errMsg   = colonIdx > -1 ? lastLine.slice(colonIdx + 2) : lastLine
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg"
+        style={{ background: isDark ? "rgba(239,68,68,0.12)" : "#fef2f2", border: `1px solid ${isDark ? "rgba(239,68,68,0.25)" : "#fecaca"}` }}>
+        <span className="shrink-0 mt-px" style={{ color: "#ef4444", fontSize: "13px" }}>⚠</span>
+        <p className="font-mono text-xs leading-relaxed break-all">
+          {errType && <span className="font-bold" style={{ color: "#ef4444" }}>{errType}: </span>}
+          <span style={{ color: isDark ? "#fca5a5" : "#b91c1c" }}>{errMsg}</span>
+        </p>
+      </div>
+      {lines.length > 1 && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="self-start text-xs px-2 py-1 rounded transition-colors"
+          style={{ color: isDark ? "#9ca3af" : "#6b7280", background: isDark ? "rgba(255,255,255,0.05)" : "#f3f4f6" }}
+        >{expanded ? "접기" : `자세히 보기 (${lines.length}줄)`}</button>
+      )}
+      {expanded && (
+        <pre className="font-mono text-xs whitespace-pre-wrap rounded-lg p-3 overflow-auto"
+          style={{ background: isDark ? "rgba(0,0,0,0.3)" : "#f9fafb", color: isDark ? "#9ca3af" : "#6b7280", maxHeight: "200px" }}>
+          {error}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 // ── ResultTab ─────────────────────────────────────────────────────────────────
 function ResultTab({
-  status, output, isDark, onNextProblem,
+  status, caseResults, isDark, submitting, progress, onNextProblem,
 }: {
   status: SubmissionStatus
-  output: string
+  caseResults: CaseResult[] | null
   isDark: boolean
+  submitting: boolean
+  progress: { current: number; total: number } | null
   onNextProblem?: () => void
 }) {
+  if (submitting) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-10">
+        <div className="flex gap-1.5">
+          {[0, 1, 2].map(i => (
+            <span key={i} className="w-2 h-2 rounded-full bg-violet-400 animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </div>
+        {progress ? (
+          <>
+            <p className={`text-sm font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              채점 중... {progress.current}/{progress.total}
+            </p>
+            <div className={`w-40 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-white/10" : "bg-gray-200"}`}>
+              <div
+                className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+          </>
+        ) : (
+          <p className={`text-sm font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+            채점 중...
+          </p>
+        )}
+      </div>
+    )
+  }
+
   if (!status) {
     return (
       <div className={`h-full flex items-center justify-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
@@ -180,49 +344,99 @@ function ResultTab({
   if (status === "no_criteria") {
     return <div className={`text-sm p-4 rounded-lg ${isDark ? "bg-slate-800 text-gray-400" : "bg-gray-50 text-gray-500"}`}>이 문제에는 채점 기준이 등록되어 있지 않습니다.</div>
   }
-  if (status === "correct") {
-    return (
-      <div className="flex items-center justify-between px-4 py-3 rounded-lg text-white bg-emerald-500">
-        <div className="flex items-center gap-2 font-bold text-sm"><SvgCheck />정답입니다! 훌륭해요</div>
-        {onNextProblem && (
+
+  const total       = caseResults?.length ?? 0
+  const passedCount = caseResults?.filter(r => r.status === "passed").length ?? 0
+  const firstFail   = caseResults?.find(r => r.status !== "passed" && !r.isHidden)
+
+  const BANNER: Record<string, { bg: string; text: string }> = {
+    correct: { bg: "bg-emerald-500", text: "정답입니다! 훌륭해요" },
+    wrong:   { bg: "bg-rose-500",    text: "오답" },
+    timeout: { bg: "bg-amber-500",   text: "시간 초과" },
+    error:   { bg: "bg-amber-500",   text: "런타임 오류" },
+  }
+  const banner = BANNER[status] ?? { bg: "bg-gray-500", text: status }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 결과 배너 */}
+      <div className={`flex items-center justify-between px-4 py-3 rounded-lg text-white font-bold text-sm ${banner.bg}`}>
+        <div className="flex items-center gap-2">
+          {status === "correct" ? <SvgCheck /> : <SvgX size={16} />}
+          <span>{banner.text}</span>
+          {total > 0 && (
+            <span className="font-normal text-white/70 text-xs">· {passedCount}/{total} 맞음</span>
+          )}
+        </div>
+        {status === "correct" && onNextProblem && (
           <button onClick={onNextProblem} className="flex items-center gap-1 text-xs font-bold bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition-colors">
             다음 문제 <SvgChevronRight />
           </button>
         )}
       </div>
-    )
-  }
-  const bannerConfig = { wrong: { bg: "bg-rose-500", text: "틀렸습니다. 다시 시도해보세요" }, error: { bg: "bg-amber-500", text: "오류가 발생했습니다. 코드를 점검해보세요" } }[status]
-  if (!bannerConfig) return null
-  const parsed = status === "wrong" ? parseWrongOutput(output) : null
-  return (
-    <div className="flex flex-col gap-3">
-      <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-white font-bold text-sm ${bannerConfig.bg}`}>
-        <SvgX size={16} />{bannerConfig.text}
-      </div>
-      {status === "wrong" && parsed && (
+
+      {/* 공개 케이스는 통과했지만 히든 케이스 실패 시 안내 */}
+      {!firstFail && status !== "correct" && caseResults && caseResults.some(r => r.status !== "passed") && (
+        <p className={`text-xs px-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+          공개 케이스는 모두 통과했습니다. 예외 입력이나 경계값을 다시 점검해 보세요.
+        </p>
+      )}
+
+      {/* 첫 번째 실패한 공개 케이스 상세 */}
+      {firstFail && (
         <div className="flex flex-col gap-2">
-          {parsed.input !== undefined && (
+          {firstFail.status === "wrong" && (
+            <>
+              {firstFail.input !== undefined && (
+                <div>
+                  <p className={`text-xs font-bold mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>입력</p>
+                  <pre className={`font-mono text-xs p-3 rounded-lg whitespace-pre-wrap break-all max-h-28 overflow-y-auto
+                    ${isDark ? "bg-white/5 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
+                    {truncateForDisplay(firstFail.input)}
+                  </pre>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-bold mb-1 text-emerald-500">기대 출력 (정답)</p>
+                <pre className={`font-mono text-xs p-3 rounded-lg whitespace-pre-wrap
+                  ${isDark ? "bg-white/5 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
+                  {truncateForDisplay(firstFail.expected)}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-bold mb-1 text-rose-400">내 출력</p>
+                <pre className={`font-mono text-xs p-3 rounded-lg whitespace-pre-wrap
+                  ${isDark ? "bg-white/5 text-rose-300" : "bg-rose-50 text-rose-700"}`}>
+                  {truncateForDisplay(firstFail.actual)}
+                </pre>
+              </div>
+            </>
+          )}
+          {firstFail.status === "error" && firstFail.errorMsg && (
             <div>
-              <p className={`text-xs font-bold mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>입력</p>
-              <div className="bg-[#0d1117] text-gray-300 font-mono text-xs p-3 rounded-lg whitespace-pre-wrap">{parsed.input || "(없음)"}</div>
+              <p className={`text-xs font-bold mb-1 ${isDark ? "text-amber-400" : "text-amber-600"}`}>오류 메시지</p>
+              <pre className={`font-mono text-xs p-3 rounded-lg whitespace-pre-wrap
+                ${isDark ? "bg-amber-900/20 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
+                {firstFail.errorMsg}
+              </pre>
             </div>
           )}
-          <div>
-            <p className="text-xs font-bold mb-1 text-emerald-500">기대 출력 (정답)</p>
-            <div className="bg-[#0d1117] text-emerald-300 font-mono text-xs p-3 rounded-lg whitespace-pre-wrap">{parsed.expected || "(없음)"}</div>
-          </div>
-          <div>
-            <p className="text-xs font-bold mb-1 text-red-400">내 출력</p>
-            <div className="bg-[#0d1117] text-red-300 font-mono text-xs p-3 rounded-lg whitespace-pre-wrap">{parsed.actual || "(없음)"}</div>
-          </div>
         </div>
-      )}
-      {status === "error" && output && (
-        <div className={`text-xs font-mono whitespace-pre-wrap p-3 rounded-lg ${isDark ? "bg-white/5 text-amber-300" : "bg-amber-50 text-amber-700"}`}>{output}</div>
       )}
     </div>
   )
+}
+
+// ── 날짜 포맷 (M월 D일 오전/오후 H:MM) ───────────────────────────────────────
+function formatSubmitTime(date: Date): string {
+  const month  = date.getMonth() + 1
+  const day    = date.getDate()
+  const hours  = date.getHours()
+  const minutes = date.getMinutes()
+  const ampm   = hours >= 12 ? "오후" : "오전"
+  const h      = hours % 12 || 12
+  const m      = String(minutes).padStart(2, "0")
+  return `${month}월 ${day}일 ${ampm} ${h}:${m}`
 }
 
 // ── HistoryTab ────────────────────────────────────────────────────────────────
@@ -239,16 +453,22 @@ function HistoryTab({
   }
   const STATUS_LABEL: Record<string, string> = { correct: "정답", wrong: "오답", error: "오류", no_criteria: "미채점" }
   if (history.length === 0) {
-    return <div className={`h-full flex items-center justify-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>제출 기록이 없습니다.</div>
+    return (
+      <div className={`h-full flex flex-col items-center justify-center gap-2 py-10 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+        <SvgCode />
+        <p style={{ fontSize: "13px" }}>제출 기록이 없습니다.</p>
+        <p style={{ fontSize: "13px", color: isDark ? "#6b7280" : "#9ca3af" }}>코드를 작성하고 제출해보세요</p>
+      </div>
+    )
   }
   return (
     <div className={`rounded-xl overflow-hidden border ${isDark ? "border-white/10" : "border-gray-200"}`}>
       <table className="w-full text-xs text-left whitespace-nowrap">
         <thead className={`${isDark ? "bg-[#181825] text-gray-500 border-b border-white/10" : "bg-gray-50 text-gray-500 border-b border-gray-200"}`}>
           <tr>
-            <th className="px-4 py-3 font-semibold">번호</th>
-            <th className="px-4 py-3 font-semibold">제출 시간</th>
-            <th className="px-4 py-3 font-semibold">결과</th>
+            <th className="px-4 py-3 font-semibold" style={{ width: "60px" }}>번호</th>
+            <th className="px-4 py-3 font-semibold" style={{ width: "180px" }}>제출 시간</th>
+            <th className="px-4 py-3 font-semibold" style={{ width: "100px" }}>결과</th>
             <th className="px-4 py-3 font-semibold text-center">소스 코드</th>
           </tr>
         </thead>
@@ -257,7 +477,7 @@ function HistoryTab({
             <tr key={entry.id} className={`transition-colors ${isDark ? "hover:bg-white/5 text-gray-300" : "hover:bg-gray-50 text-gray-700"}`}>
               <td className="px-4 py-3 font-mono text-gray-400">#{history.length - idx}</td>
               <td className="px-4 py-3 text-gray-400 font-mono">
-                {entry.time.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                {formatSubmitTime(entry.time)}
               </td>
               <td className="px-4 py-3">
                 <span className={`px-2 py-1 rounded font-bold ${STATUS_STYLE[entry.result] ?? "text-gray-400 bg-gray-800"}`}>
@@ -301,7 +521,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
   // ── 실행 / 채점 훅 ──────────────────────────────────────────────────────────
   const { output: runOutput, error: runError, running, pyodideStatus, run, reset: resetRun } = useCodeExecution()
-  const { output: subOutput, status: subStatus, submitting, submit } = useSubmission(problem)
+  const { caseResults, status: subStatus, submitting, progress: subProgress, submit } = useSubmission(problem)
+
+  // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
+  useEffect(() => { preloadWorker() }, [])
 
   // ── 타이머 ──────────────────────────────────────────────────────────────────
   const [elapsed, setElapsed] = useState(0)
@@ -398,7 +621,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [inputOpen, setInputOpen] = useState(false)
 
   // ── 결과 탭 ─────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history">("result")
+  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history">("output")
 
   // ── 제출 기록 ───────────────────────────────────────────────────────────────
   const [history, setHistory]         = useState<HistoryEntry[]>([])
@@ -411,7 +634,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [userState, setUserState] = useState<ProblemUserState>({ status: "미제출", count: 0 })
 
   // ── 좌측 패널 토글 ──────────────────────────────────────────────────────────
-  const [constraintsOpen, setConstraintsOpen] = useState(true)
+  const [constraintsOpen, setConstraintsOpen] = useState(false)
   const [hintOpen, setHintOpen]               = useState(false)
 
   // ── AI 코치 패널 ────────────────────────────────────────────────────────────
@@ -617,8 +840,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
   const handleSubmit = async () => {
     const code   = getCode()
-    const result = await submit(code)
     setActiveTab("result")
+    const result = await submit(code)
     setSubmissionStatus(result)
     setHistory(prev => [{ id: Date.now(), time: new Date(), result, code }, ...prev])
     setUserState(prev => {
@@ -699,8 +922,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden" style={{ userSelect: isDragging || isVDragging ? "none" : undefined }}>
 
         {/* ── 왼쪽: 문제 패널 ───────────────────────────────────────────────── */}
-        <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%` }}>
-          <div className="px-6 pt-6 pb-2 flex flex-col gap-4">
+        <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%`, paddingTop: "16px", paddingBottom: "16px", paddingLeft: "24px", paddingRight: "24px" }}>
+          <div className="flex flex-col gap-4">
 
             {/* 태그 행 */}
             <div className="flex items-center justify-between">
@@ -729,7 +952,12 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
 
             {/* 문제 내용 */}
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{problem.content}</p>
+            <ProblemContent text={problem.content} />
+
+            {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
+            {problem.image_url && problem.image_url.trim().split(/\r?\n/).filter(Boolean).map((line, i) => (
+              <ProblemImageRow key={i} line={line} altPrefix={`그림 ${i + 1}`} />
+            ))}
 
             {/* 제한사항 */}
             {problem.constraints && (
@@ -771,30 +999,35 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               </div>
             )}
 
-            {/* 입출력 예시 (2열) */}
-            {(exampleInput || exampleOutput) && (
-              <div className="grid grid-cols-2 gap-4 max-[768px]:grid-cols-1">
-                {exampleInput && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-bold text-gray-800">입력 예시</h3>
+            {/* 입출력 예시 (2열) — 입력이 없어도 타이틀은 항상 표시 */}
+            {exampleOutput && (
+              <div className="grid grid-cols-2 gap-4 max-[768px]:grid-cols-1 items-stretch">
+                {/* 입력 예시 */}
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-gray-800">입력 예시</h3>
+                    {exampleInput && (
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => handleSendToInput(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors">입력창으로</button>
                         <button onClick={() => navigator.clipboard.writeText(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
                       </div>
-                    </div>
-                    <div className="bg-[#1a1a2e] text-[#4ADE80] p-4 rounded-lg font-mono text-sm whitespace-pre">{exampleInput}</div>
+                    )}
                   </div>
-                )}
-                {exampleOutput && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-bold text-gray-800">출력 예시</h3>
-                      <button onClick={() => navigator.clipboard.writeText(exampleOutput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
-                    </div>
-                    <div className="bg-[#1a1a2e] text-[#4ADE80] p-4 rounded-lg font-mono text-sm whitespace-pre">{exampleOutput}</div>
+                  <div className="bg-[#1a1a2e] rounded-lg font-mono text-sm whitespace-pre p-4 flex-1 min-h-[56px]">
+                    {exampleInput
+                      ? <span className="text-[#4ADE80]">{exampleInput}</span>
+                      : <span className="text-gray-500 text-xs">입력 없음</span>
+                    }
                   </div>
-                )}
+                </div>
+                {/* 출력 예시 */}
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-gray-800">출력 예시</h3>
+                    <button onClick={() => navigator.clipboard.writeText(exampleOutput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
+                  </div>
+                  <div className="bg-[#1a1a2e] text-[#4ADE80] p-4 rounded-lg font-mono text-sm whitespace-pre flex-1 min-h-[56px]">{exampleOutput}</div>
+                </div>
               </div>
             )}
 
@@ -842,7 +1075,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             style={{ background: bg.panel, borderTop: `1px solid ${editorBorderColor}`, color: isDark ? "rgba(255,255,255,0.3)" : "#9ca3af" }}
           >
             <span style={{ color: running ? "#f59e0b" : submitting ? "#a78bfa" : pyodideStatus === "loading" ? "#60a5fa" : "#4ade80" }}>
-              {running ? "실행 중..." : submitting ? "채점 중..." : pyodideStatus === "loading" ? "로딩 중..." : "Ready"}
+              {running ? "실행 중..." :
+               submitting ? (subProgress ? `채점 중... ${subProgress.current}/${subProgress.total}` : "채점 중...") :
+               pyodideStatus === "loading" ? "로딩 중..." : "Ready"}
             </span>
             <div className="flex items-center gap-4">
               <span>Ln {cursorPos.ln}, Col {cursorPos.col}</span>
@@ -856,12 +1091,19 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             <div className="shrink-0 border-t p-3" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-bold text-gray-700">테스트 입력</span>
-                <button onClick={() => setInputOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><SvgX size={14} /></button>
+                <button
+                  onClick={() => setInputOpen(false)}
+                  className="flex items-center justify-center transition-colors"
+                  style={{ width: "24px", height: "24px", background: "rgba(0,0,0,0.06)", borderRadius: "4px" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.14)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
+                ><SvgX size={14} /></button>
               </div>
               <textarea
                 value={testInput} onChange={e => setTestInput(e.target.value)} rows={3}
                 placeholder="입력값을 입력하세요..."
                 className="w-full text-sm font-mono bg-white border border-[#86efac] rounded-lg px-3 py-2 resize-none outline-none focus:border-[#22c55e] text-gray-700"
+                style={{ maxHeight: "120px", overflowY: "auto" }}
               />
             </div>
           )}
@@ -917,9 +1159,15 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
             <div className="flex-1 overflow-auto p-4">
               {activeTab === "output" && (
-                <div className="text-sm font-mono whitespace-pre-wrap" style={{ color: runError ? "#f87171" : isDark ? "#d1d5db" : "#374151" }}>
-                  {running ? "실행 중..." : runError || runOutput || "코드를 실행하면 결과가 여기에 표시됩니다."}
-                </div>
+                running ? (
+                  <p className="text-sm font-mono" style={{ color: isDark ? "#d1d5db" : "#374151" }}>실행 중...</p>
+                ) : runError ? (
+                  <ErrorOutput error={runError} isDark={isDark} />
+                ) : runOutput ? (
+                  <pre className="text-sm font-mono whitespace-pre-wrap" style={{ color: isDark ? "#d1d5db" : "#374151" }}>{runOutput}</pre>
+                ) : (
+                  <p className="text-sm font-mono" style={{ color: isDark ? "#6b7280" : "#9ca3af" }}>코드를 실행하면 결과가 여기에 표시됩니다.</p>
+                )
               )}
               {activeTab === "example" && (
                 <div className="grid grid-cols-2 gap-4 max-[600px]:grid-cols-1">
@@ -939,7 +1187,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 </div>
               )}
               {activeTab === "result" && (
-                <ResultTab status={subStatus} output={subOutput} isDark={isDark}
+                <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
+                  submitting={submitting} progress={subProgress}
                   onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
                 />
               )}
