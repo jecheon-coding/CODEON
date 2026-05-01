@@ -1,30 +1,26 @@
-import { withAuth } from "next-auth/middleware"
+import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 
-export default withAuth(
-  function middleware(req) {
-    const { pathname } = req.nextUrl
-    const role = req.nextauth.token?.role
+export async function proxy(request: NextRequest) {
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+  const { pathname } = request.nextUrl
 
-    if (pathname.startsWith("/dashboard") && role !== "student" && role !== "admin") {
-      return NextResponse.redirect(new URL("/login", req.url))
+  if (pathname.startsWith("/parent")) {
+    if (!token || (token as any).role !== "parent") {
+      return NextResponse.redirect(new URL("/login?role=parent", request.url))
     }
-
-    if (pathname.startsWith("/parent") && role !== "parent") {
-      return NextResponse.redirect(new URL("/login?role=parent", req.url))
+    if ((token as any).must_change_password && pathname !== "/parent/change-password") {
+      return NextResponse.redirect(new URL("/parent/change-password", request.url))
     }
-
-    if (pathname.startsWith("/admin") && role !== "admin") {
-      return NextResponse.redirect(new URL("/login", req.url))
+    if (!(token as any).must_change_password && pathname === "/parent/change-password") {
+      return NextResponse.redirect(new URL("/parent", request.url))
     }
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
-    },
-  },
-)
+  }
+
+  return NextResponse.next()
+}
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/parent/:path*", "/admin/:path*"],
+  matcher: ["/parent/:path*"],
 }
