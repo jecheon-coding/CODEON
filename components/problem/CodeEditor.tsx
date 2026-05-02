@@ -5,7 +5,7 @@ import {
   Play, Send, Terminal, ChevronDown, Loader2,
   CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles, Lightbulb,
 } from "lucide-react";
-import { Problem, SubmissionStatus } from "@/types/problem";
+import { Problem, SubmissionStatus, CaseResult } from "@/types/problem";
 import { useCodeExecution } from "@/hooks/useCodeExecution";
 import { useSubmission }    from "@/hooks/useSubmission";
 
@@ -398,7 +398,8 @@ export default function CodeEditor({
           {activeTab === "result" && (
             <ResultView
               status={submission.status}
-              output={submission.output}
+              caseResults={submission.caseResults}
+              progress={submission.progress}
               onNextProblem={onNextProblem}
             />
           )}
@@ -412,38 +413,39 @@ export default function CodeEditor({
 
 // ── 제출 결과 뷰 ──
 function ResultView({
-  status, output, onNextProblem,
+  status, caseResults, progress, onNextProblem,
 }: {
   status: SubmissionStatus;
-  output: string;
+  caseResults: CaseResult[] | null;
+  progress: { current: number; total: number } | null;
   onNextProblem?: () => void;
 }) {
+  // 채점 중 진행 상황
+  if (progress) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-indigo-400">
+        <Loader2 size={11} className="animate-spin" />
+        채점 중... {progress.current} / {progress.total} 케이스
+      </div>
+    );
+  }
+
   if (!status) return (
     <p className="text-xs text-gray-600">// 제출 버튼을 눌러 채점 결과를 확인하세요.</p>
   );
 
-  const CONFIG: Record<string, {
-    Icon: any; color: string; bar: string; msg: string;
-  }> = {
-    correct:     { Icon: CheckCircle2, color: "text-emerald-400", bar: "border-emerald-500", msg: "정답입니다! 훌륭해요"              },
-    wrong:       { Icon: XCircle,      color: "text-red-400",     bar: "border-red-500",     msg: "오답입니다. 다시 시도해보세요."    },
-    error:       { Icon: AlertCircle,  color: "text-yellow-400",  bar: "border-yellow-500",  msg: "실행 중 오류가 발생했습니다."      },
+  const CONFIG: Record<string, { Icon: any; color: string; bar: string; msg: string }> = {
+    correct:     { Icon: CheckCircle2, color: "text-emerald-400", bar: "border-emerald-500", msg: "정답입니다! 훌륭해요"                 },
+    wrong:       { Icon: XCircle,      color: "text-red-400",     bar: "border-red-500",     msg: "오답입니다. 다시 시도해보세요."       },
+    timeout:     { Icon: AlertCircle,  color: "text-amber-400",   bar: "border-amber-500",   msg: "시간 초과입니다."                    },
+    error:       { Icon: AlertCircle,  color: "text-yellow-400",  bar: "border-yellow-500",  msg: "실행 중 오류가 발생했습니다."         },
     no_criteria: { Icon: AlertCircle,  color: "text-slate-400",   bar: "border-slate-500",   msg: "채점 기준이 등록되지 않은 문제입니다." },
   };
 
   const c = CONFIG[status];
   if (!c) return null;
 
-  const renderOutput = (text: string) => {
-    const lines = text.split("\n");
-    return lines.map((line, i) => {
-      if (line.startsWith("입력:"))       return <span key={i} className="text-gray-400">{line}</span>;
-      if (line.startsWith("기대 출력:"))  return <span key={i} className="text-emerald-400">{line}</span>;
-      if (line.startsWith("실제 출력:"))  return <span key={i} className="text-red-400">{line}</span>;
-      if (line.startsWith("케이스"))      return <span key={i} className="text-yellow-400 font-semibold">{line}</span>;
-      return <span key={i} className="text-gray-400">{line}</span>;
-    }).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, "\n", el], []);
-  };
+  const failedCases = (caseResults ?? []).filter(r => r.status !== "passed" && !r.isHidden);
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -451,6 +453,11 @@ function ResultView({
         <c.Icon size={14} className={c.color} />
         <span className={`text-sm font-semibold ${c.color}`}>{c.msg}</span>
         {status === "correct" && <Sparkles size={13} className="text-emerald-400" />}
+        {caseResults && (
+          <span className="text-xs text-gray-500 ml-1">
+            ({caseResults.filter(r => r.status === "passed").length}/{caseResults.length} 통과)
+          </span>
+        )}
       </div>
 
       {/* 정답: 다음 문제 유도 */}
@@ -464,19 +471,37 @@ function ResultView({
         </button>
       )}
 
-      {/* 오답/오류: 후속 행동 안내 */}
+      {/* 오답/오류: 케이스별 상세 */}
+      {failedCases.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-0.5">
+          {failedCases.map((r) => (
+            <div key={r.caseNum} className="text-[11px] font-mono leading-relaxed">
+              <span className="text-yellow-400 font-semibold">케이스 {r.caseNum}</span>
+              {r.status === "wrong" && (
+                <>
+                  {r.input    != null && <div><span className="text-gray-500">입력: </span><span className="text-gray-400">{r.input || "(없음)"}</span></div>}
+                  {r.expected != null && <div><span className="text-gray-500">기대 출력: </span><span className="text-emerald-400">{r.expected}</span></div>}
+                  {r.actual   != null && <div><span className="text-gray-500">실제 출력: </span><span className="text-red-400">{r.actual}</span></div>}
+                </>
+              )}
+              {r.status === "error" && r.errorMsg && (
+                <div><span className="text-gray-500">오류: </span><span className="text-red-400">{r.errorMsg}</span></div>
+              )}
+              {r.status === "timeout" && (
+                <div className="text-amber-400">시간 초과</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 오답/오류: AI 코치 안내 */}
       {(status === "wrong" || status === "error") && (
         <p className="text-[11px] text-gray-500 leading-relaxed flex items-start gap-1">
           <Lightbulb size={11} className="text-indigo-400 mt-0.5 shrink-0" />
           <span>아래 <span className="text-indigo-400 font-medium">AI 코치</span>에서 단계별 힌트를 받거나,
           코드를 수정하고 다시 제출해보세요.</span>
         </p>
-      )}
-
-      {output && (
-        <pre className="text-xs whitespace-pre-wrap mt-1 leading-relaxed">
-          {renderOutput(output)}
-        </pre>
       )}
     </div>
   );
