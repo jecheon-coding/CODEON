@@ -1,24 +1,22 @@
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { NextResponse }     from "next/server"
-import { authOptions }      from "@/lib/authOptions"
-import { supabaseServer }   from "@/lib/supabaseServer"
+import { authOptions } from "@/lib/authOptions"
+import { supabaseServer } from "@/lib/supabaseServer"
 
+// GET /api/parent/link-status — 가장 최근 연결 요청 상태 조회
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 })
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const parentId = (session.user as any).id as string
-  if (!parentId) return NextResponse.json({ error: "세션 오류" }, { status: 400 })
+  const userId = (session.user as any).id as string
 
-  const { data, error } = await supabaseServer
+  const { data } = await supabaseServer
     .from("parent_link_requests")
-    .select("status, reject_reason")
-    .eq("parent_user_id", parentId)
+    .select("id, status, reject_reason, created_at")
+    .eq("parent_user_id", userId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ data })
+  return NextResponse.json({ data: data ?? null })
 }

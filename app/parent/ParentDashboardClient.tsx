@@ -1,16 +1,16 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 import {
   Code, LogOut, Bell, CheckCircle2, XCircle, Clock,
-  Target, MessageSquare, ChevronRight, X,
+  Target, MessageSquare, ChevronRight, ChevronLeft, X,
   AlertCircle, Flame, Send, Phone, ChevronDown, ChevronUp,
   BookOpen, Minus, Users, History, FileText, BarChart2, Sparkles,
   GraduationCap, ArrowUpRight, ArrowDownRight,
-  ListChecks, PackageCheck, CalendarCheck2, BadgeAlert,
+  ListChecks, PackageCheck, CalendarCheck2, BadgeAlert, Loader2,
 } from "lucide-react"
 
 /* ─────────────────────────────────────────────
@@ -32,16 +32,21 @@ export interface ParentDashboardProps {
   teacherInput: TeacherInput | null               // 관리자 입력 (없으면 AI 자동)
   stats: {
     total: number; correct: number; wrong: number; rate: number
-    weekTotal: number; weekCorrect: number; weekRate: number
+    correctProblemCount: number; attemptedProblemCount: number
+    weekTotal: number; weekCorrect: number; weekAttemptedProblemCount: number; weekRate: number
     prevWeekRate: number; rateChange: number
     streak: number; lastStudyDate: string | null
-    currentCourse: string
+    currentCourse: string; weekStudyMinutes: number
   } | null
   weeklyData:  { day: string; date: string; count: number; correct: number }[]
   monthlyData: { week: string; count: number; correct: number }[]
   courseStats: Record<string, { label: string; total: number; completed: number; rate: number }>
   topicStats:  { topic: string; correct: number; total: number; rate: number }[]
-  assignments: { id: string; title: string; difficulty: string; topic: string | null; isCorrect: boolean; isAttempted: boolean }[]
+  assignments: {
+    id: string; title: string; dueDate: string | null
+    problems: { id: string; title: string; difficulty: string; topic: string | null; isCorrect: boolean; isAttempted: boolean }[]
+    completedCount: number; totalCount: number
+  }[]
   recentSubs:  { title: string; isCorrect: boolean; createdAt: string; topic: string | null }[]
 }
 
@@ -56,27 +61,26 @@ const ATTITUDE_STYLE: Record<string, { badge: string; bar: string }> = {
   "주의 필요": { badge: "text-red-700    bg-red-100    border-red-200",         bar: "bg-red-500"    },
 }
 
-type AssignmentGroup = {
-  topic:    string
-  label:    string   // 학부모용 표시 이름
-  items:    ParentDashboardProps["assignments"]
-  done:     number
-  total:    number
-  hasRetry: boolean
+function getAssignmentStatus(
+  completedCount: number, totalCount: number, isExpired: boolean, hasRetry: boolean
+): { label: string; cls: string } {
+  if (completedCount === totalCount && totalCount > 0)
+    return { label: "완료",     cls: "text-emerald-700 bg-emerald-50 border-emerald-200" }
+  if (isExpired)
+    return { label: "기한초과", cls: "text-red-600     bg-red-50     border-red-200"     }
+  if (hasRetry)
+    return { label: "재시도",   cls: "text-amber-700  bg-amber-50  border-amber-200"    }
+  if (completedCount > 0)
+    return { label: "진행 중",  cls: "text-blue-700   bg-blue-50   border-blue-200"     }
+  return   { label: "미시작",   cls: "text-slate-600  bg-slate-100 border-slate-200"    }
 }
 
-function getBundleStatus(g: AssignmentGroup): { label: string; cls: string } {
-  if (g.done === g.total && g.total > 0)
-    return { label: "완료",        cls: "text-emerald-700 bg-emerald-50 border-emerald-200" }
-  if (g.hasRetry)
-    return { label: "재시도 필요", cls: "text-amber-700  bg-amber-50  border-amber-200"   }
-  if (g.done > 0)
-    return { label: "진행 중",     cls: "text-blue-700   bg-blue-50   border-blue-200"     }
-  return   { label: "미완료",      cls: "text-slate-600  bg-slate-100 border-slate-200"   }
+function toUTC(dateStr: string) {
+  return /Z|[+-]\d{2}:?\d{2}$/.test(dateStr) ? dateStr : dateStr + "Z"
 }
 
 function formatRelativeTime(dateStr: string) {
-  const diffMs   = Date.now() - new Date(dateStr).getTime()
+  const diffMs   = Date.now() - new Date(toUTC(dateStr)).getTime()
   const diffMins = Math.floor(diffMs / 60000)
   if (diffMins < 60) return `${Math.max(1, diffMins)}분 전`
   const diffHrs = Math.floor(diffMins / 60)
@@ -84,6 +88,43 @@ function formatRelativeTime(dateStr: string) {
   const diffDays = Math.floor(diffHrs / 24)
   if (diffDays === 1) return "어제"
   return `${diffDays}일 전`
+}
+
+function formatDateTime(dateStr: string) {
+  const d      = new Date(toUTC(dateStr))
+  const month  = d.getMonth() + 1
+  const day    = d.getDate()
+  const hours  = d.getHours()
+  const mins   = String(d.getMinutes()).padStart(2, "0")
+  const period = hours < 12 ? "오전" : "오후"
+  const h12    = hours % 12 || 12
+  return `${month}월 ${day}일 ${period} ${h12}:${mins}`
+}
+
+const TOPIC_KEYWORDS: [string, string][] = [
+  ["변수", "기초"], ["출력", "기초"], ["입력", "기초"],
+  ["조건문", "기초"], ["반복문", "기초"], ["함수", "기초"],
+  ["리스트", "기초"], ["딕셔너리", "기초"], ["문자열", "기초"],
+  ["튜플", "기초"], ["집합", "기초"], ["클래스", "기초"],
+  ["모듈", "기초"], ["파일", "기초"],
+  ["정렬", "알고리즘"], ["탐색", "알고리즘"], ["재귀", "알고리즘"],
+  ["동적", "알고리즘"], ["그래프", "알고리즘"], ["트리", "알고리즘"],
+  ["알고리즘", "알고리즘"],
+  ["자격증", "자격증"], ["정보처리", "자격증"],
+  ["대회", "대회"], ["올림피아드", "대회"], ["공모전", "대회"],
+]
+const CATEGORY_CLS: Record<string, string> = {
+  "기초":    "bg-blue-50   text-blue-600   border-blue-100",
+  "알고리즘": "bg-violet-50 text-violet-600 border-violet-100",
+  "자격증":  "bg-emerald-50 text-emerald-600 border-emerald-100",
+  "대회":    "bg-orange-50  text-orange-600 border-orange-100",
+}
+function resolveCategory(topic: string | null): string | null {
+  if (!topic) return null
+  for (const [kw, cat] of TOPIC_KEYWORDS) {
+    if (topic.includes(kw)) return cat
+  }
+  return null
 }
 
 /* ─────────────────────────────────────────────
@@ -131,51 +172,230 @@ function ConsultModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ─────────────────────────────────────────────
-   SUBMISSION HISTORY MODAL
+   SUBMISSION HISTORY PANEL
 ───────────────────────────────────────────── */
-function SubHistoryModal({
-  subs, onClose,
-}: { subs: ParentDashboardProps["recentSubs"]; onClose: () => void }) {
+type SubEntry = { title: string; isCorrect: boolean; createdAt: string; topic: string | null; isRetry: boolean }
+
+function SubHistoryPanel({
+  onClose, initialTotal,
+}: { onClose: () => void; initialTotal: number }) {
+  const [filter,     setFilter]     = useState<"all" | "correct" | "wrong">("all")
+  const [dateRange,  setDateRange]  = useState<"today" | "week" | "month" | "all">("all")
+  const [page,       setPage]       = useState(1)
+  const [mounted,    setMounted]    = useState(false)
+  const [loading,    setLoading]    = useState(true)
+  const [items,      setItems]      = useState<SubEntry[]>([])
+  const [total,      setTotal]      = useState(initialTotal)
+  const [totalPages, setTotalPages] = useState(1)
+
+  useEffect(() => {
+    requestAnimationFrame(() => setMounted(true))
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  // 필터·날짜·페이지 변경 시 API 호출
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/parent/submissions?page=${page}&limit=20&filter=${filter}&dateRange=${dateRange}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        const raw: Omit<SubEntry, "isRetry">[] = d.data ?? []
+        // 페이지 내 재시도 판별 (오래된→최신 순회)
+        const seen     = new Set<string>()
+        const retryIdx = new Set<number>()
+        for (let i = raw.length - 1; i >= 0; i--) {
+          if (seen.has(raw[i].title)) retryIdx.add(i)
+          else seen.add(raw[i].title)
+        }
+        setItems(raw.map((s, i) => ({ ...s, isRetry: retryIdx.has(i) })))
+        setTotal(d.total ?? 0)
+        setTotalPages(d.totalPages ?? 1)
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [page, filter, dateRange])
+
+  function changeFilter(f: typeof filter)        { setFilter(f);    setPage(1) }
+  function changeDateRange(dr: typeof dateRange) { setDateRange(dr); setPage(1) }
+
+  // 연속 동일 문제 묶음
+  const grouped = useMemo(() => {
+    type G = { main: SubEntry; retries: SubEntry[] }
+    const groups: G[] = []
+    for (const s of items) {
+      const last = groups[groups.length - 1]
+      if (last && last.main.title === s.title) last.retries.push(s)
+      else groups.push({ main: s, retries: [] })
+    }
+    return groups
+  }, [items])
+
+  // 표시할 페이지 번호 (최대 5개, 현재 페이지 중심)
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+    return Array.from({ length: 5 }, (_, i) => start + i)
+  }, [page, totalPages])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg max-h-[82vh] overflow-hidden flex flex-col">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className={`fixed right-0 top-0 z-50 h-screen w-full sm:w-[420px] bg-white dark:bg-gray-900 shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+          mounted ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         {/* 헤더 */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-gray-800 flex items-center justify-between shrink-0">
-          <div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">전체 제출 이력</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">문제명 · 정답 여부 · 제출 시각 · 재도전 여부</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
-        {/* 목록 */}
-        <div className="overflow-y-auto flex-1 p-4 space-y-2">
-          {subs.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-slate-400 text-sm">제출 기록이 없습니다.</div>
-          ) : subs.map((s, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700">
-              {s.isCorrect
-                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                : <XCircle      className="w-4 h-4 text-red-400    shrink-0" />
-              }
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{s.title}</p>
-                {s.topic && (
-                  <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">{s.topic}</span>
-                )}
-              </div>
-              <div className="shrink-0 text-right space-y-0.5">
-                <p className={`text-xs font-bold ${s.isCorrect ? "text-emerald-600" : "text-red-500"}`}>
-                  {s.isCorrect ? "정답" : "오답"}
-                </p>
-                <p className="text-[10px] text-slate-400">{formatRelativeTime(s.createdAt)}</p>
-              </div>
+        <div className="px-6 pt-5 pb-4 border-b border-slate-100 dark:border-gray-800 shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">전체 제출 이력</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">총 {total}건</p>
             </div>
-          ))}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+          {/* 정답/오답 탭 */}
+          <div className="flex gap-1 p-1 bg-slate-100 dark:bg-gray-800 rounded-lg mb-3">
+            {(["all", "correct", "wrong"] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => changeFilter(f)}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  filter === f
+                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {f === "all" ? "전체" : f === "correct" ? "정답" : "오답"}
+              </button>
+            ))}
+          </div>
+          {/* 날짜 범위 */}
+          <select
+            value={dateRange}
+            onChange={e => changeDateRange(e.target.value as typeof dateRange)}
+            className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            <option value="all">전체 기간</option>
+            <option value="today">오늘</option>
+            <option value="week">이번 주</option>
+            <option value="month">이번 달</option>
+          </select>
         </div>
+
+        {/* 목록 */}
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-1.5">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+            </div>
+          ) : grouped.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+              <FileText className="w-8 h-8 text-slate-200" />
+              <p className="text-sm">해당하는 제출 기록이 없습니다.</p>
+            </div>
+          ) : grouped.map((g, gi) => {
+            const cat = resolveCategory(g.main.topic)
+            return (
+              <div key={gi}>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700">
+                  {g.main.isCorrect
+                    ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    : <XCircle      className="w-4 h-4 text-red-400    shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{g.main.title}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {cat && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${CATEGORY_CLS[cat]}`}>
+                          {cat}
+                        </span>
+                      )}
+                      {g.main.topic && <span className="text-[10px] text-slate-400">{g.main.topic}</span>}
+                      <span className="text-[10px] text-slate-300 dark:text-gray-600">·</span>
+                      <span className="text-[10px] text-slate-400">{formatDateTime(g.main.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    <p className={`text-xs font-bold ${g.main.isCorrect ? "text-emerald-600" : "text-red-500"}`}>
+                      {g.main.isCorrect ? "정답" : "오답"}
+                    </p>
+                    {g.main.isRetry && (
+                      <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 px-1.5 py-0.5 rounded-md">
+                        재도전
+                      </span>
+                    )}
+                    {g.retries.length > 0 && (
+                      <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-md font-medium">
+                        +{g.retries.length}회
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {g.retries.map((r, ri) => (
+                  <div key={ri} className="flex items-center gap-3 px-4 py-2 ml-5 mt-1 rounded-xl bg-white dark:bg-gray-800/50 border border-dashed border-slate-200 dark:border-gray-600">
+                    {r.isCorrect
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      : <XCircle      className="w-3.5 h-3.5 text-red-300    shrink-0" />
+                    }
+                    <span className="text-[10px] text-slate-400 flex-1">{formatDateTime(r.createdAt)}</span>
+                    <p className={`text-[10px] font-semibold ${r.isCorrect ? "text-emerald-500" : "text-red-400"}`}>
+                      {r.isCorrect ? "정답" : "오답"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 페이지네이션 */}
+        {totalPages > 1 && (
+          <div className="shrink-0 px-6 py-3 border-t border-slate-100 dark:border-gray-800">
+            <div className="flex items-center justify-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              {pageNumbers.map(n => (
+                <button
+                  key={n}
+                  onClick={() => setPage(n)}
+                  className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                    n === page
+                      ? "bg-indigo-500 text-white"
+                      : "text-slate-500 hover:bg-slate-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-center text-[10px] text-slate-400 mt-1">{page} / {totalPages} 페이지</p>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   )
 }
 
@@ -187,9 +407,33 @@ export default function ParentDashboardClient({
   courseStats, topicStats, assignments, recentSubs,
 }: ParentDashboardProps) {
 
-  const [showConsult,   setShowConsult]   = useState(false)
-  const [showHistory,   setShowHistory]   = useState(false)
-  const [bundleExpanded, setBundleExpanded] = useState<string | null>(null)
+  const [showConsult,    setShowConsult]    = useState(false)
+  const [showHistory,    setShowHistory]    = useState(false)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    // 미완료 진행 중인 과제 중 마감 가장 임박한 1개만 기본 펼침
+    const now = Date.now()
+    const urgent = [...assignments]
+      .filter(a => {
+        const t = a.dueDate ? new Date(toUTC(a.dueDate)).getTime() : Infinity
+        const done = a.completedCount === a.totalCount && a.totalCount > 0
+        return t > now && !done
+      })
+      .sort((a, b) => {
+        const aTime = a.dueDate ? new Date(toUTC(a.dueDate)).getTime() : Infinity
+        const bTime = b.dueDate ? new Date(toUTC(b.dueDate)).getTime() : Infinity
+        return aTime - bTime
+      })
+    return urgent.length > 0 ? new Set([urgent[0].id]) : new Set()
+  })
+  const [showPastAssignments, setShowPastAssignments] = useState(false)
+  const [apiNotices,     setApiNotices]     = useState<{ date: string; content: string }[]>([])
+
+  useEffect(() => {
+    fetch("/api/notices?limit=3")
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { date: string; content: string }[]) => setApiNotices(data))
+      .catch(() => {})
+  }, [])
 
   const studentName = student?.name ?? "학생"
   const grade       = student?.grade      ? `${student.grade}학년` : null
@@ -201,9 +445,7 @@ export default function ParentDashboardClient({
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <nav className="fixed top-0 inset-x-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-8 h-14 flex items-center justify-between">
-            <Link href="/" className="opacity-90 hover:opacity-100 transition-opacity">
-              <CodeOnLogo />
-            </Link>
+            <CodeOnLogo />
             <button onClick={() => signOut()} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700">
               <LogOut className="w-4 h-4" /> 로그아웃
             </button>
@@ -229,17 +471,26 @@ export default function ParentDashboardClient({
   }
 
   /* ── 자동 계산 값 ── */
-  const { total, rate, weekTotal, weekCorrect, weekRate, rateChange, streak, currentCourse } = stats
+  const { total, rate, correctProblemCount, attemptedProblemCount, weekTotal, weekCorrect, weekAttemptedProblemCount, weekRate, rateChange, streak, currentCourse, weekStudyMinutes } = stats
+
+  const weekStudyTimeLabel = (() => {
+    if (weekStudyMinutes < 1) return "기록 없음"
+    const h = Math.floor(weekStudyMinutes / 60)
+    const m = weekStudyMinutes % 60
+    if (h === 0) return `약 ${m}분`
+    if (m === 0) return `약 ${h}시간`
+    return `약 ${h}시간 ${m}분`
+  })()
   const weakTopics        = useMemo(() => topicStats.filter(t => t.total >= 2 && t.rate < 60), [topicStats])
-  const assignedTotal     = assignments.length
-  const assignedDone      = assignments.filter(a => a.isCorrect).length
+  const assignedTotal     = assignments.reduce((s, a) => s + a.totalCount, 0)
+  const assignedDone      = assignments.reduce((s, a) => s + a.completedCount, 0)
   const assignedPending   = assignedTotal - assignedDone
   const studyDaysThisWeek = weeklyData.filter(d => d.count > 0).length
   const recent10Subs      = recentSubs.slice(0, 10)
   const recent10Correct   = recent10Subs.filter(s => s.isCorrect).length
   const recent10Wrong     = recent10Subs.length - recent10Correct
   const recent10Rate      = recent10Subs.length > 0 ? Math.round((recent10Correct / recent10Subs.length) * 100) : 0
-  const retryNeeded       = assignments.filter(a => a.isAttempted && !a.isCorrect).length
+  const retryNeeded       = assignments.reduce((s, a) => s + a.problems.filter(p => p.isAttempted && !p.isCorrect).length, 0)
   const submitRate        = assignedTotal > 0 ? Math.round((assignedDone / assignedTotal) * 100) : 0
 
   /* ── AI 자동 피드백 (teacherInput이 없을 때 사용) ── */
@@ -250,16 +501,16 @@ export default function ParentDashboardClient({
       summary:  "아직 학습 기록이 없습니다.",
       tips: ["첫 문제부터 시작해보도록 격려해주세요.", "매일 조금씩 접속하는 습관이 중요합니다."] as [string, string],
     }
-    if (rate >= 85 && weekTotal >= 5) return {
+    if (rate >= 85 && weekAttemptedProblemCount >= 5) return {
       attitude: "매우 우수",
-      oneLiner: `이번 주 ${weekTotal}문제, 정답률 ${weekRate}% — 매우 우수한 학습 흐름입니다.`,
-      summary:  `${studentName} 학생은 이번 주 ${weekTotal}문제를 풀며 ${weekRate}%의 높은 정답률을 보이고 있습니다. 꾸준한 학습 태도가 돋보입니다.`,
+      oneLiner: `이번 주 ${weekAttemptedProblemCount}문제, 정답률 ${weekRate}% — 매우 우수한 학습 흐름입니다.`,
+      summary:  `${studentName} 학생은 이번 주 ${weekAttemptedProblemCount}문제를 풀며 ${weekRate}%의 높은 정답률을 보이고 있습니다. 꾸준한 학습 태도가 돋보입니다.`,
       tips: [
         weakTopics[0] ? `'${weakTopics[0].topic}' 단원을 조금 더 보완하면 완벽합니다.` : "현재 페이스 그대로 유지하면 충분합니다.",
         "다음 과정 도전을 고려해볼 시점입니다.",
       ] as [string, string],
     }
-    if (weekTotal === 0) return {
+    if (weekAttemptedProblemCount === 0) return {
       attitude: "주의 필요",
       oneLiner: "이번 주 학습 기록이 없습니다. 가정에서 격려가 필요합니다.",
       summary:  "이번 주 학습 기록이 없습니다. 가정에서 학습을 독려해주시면 좋겠습니다.",
@@ -276,8 +527,8 @@ export default function ParentDashboardClient({
     }
     return {
       attitude: "양호",
-      oneLiner: `이번 주 ${weekTotal}문제 풀이, 정답률 ${weekRate}% — 안정적으로 학습 중입니다.`,
-      summary:  `${studentName} 학생은 꾸준히 학습하고 있으며 이번 주 ${weekTotal}문제를 풀었습니다. 정답률 ${weekRate}%로 성장 중입니다.`,
+      oneLiner: `이번 주 ${weekAttemptedProblemCount}문제 풀이, 정답률 ${weekRate}% — 안정적으로 학습 중입니다.`,
+      summary:  `${studentName} 학생은 꾸준히 학습하고 있으며 이번 주 ${weekAttemptedProblemCount}문제를 풀었습니다. 정답률 ${weekRate}%로 성장 중입니다.`,
       tips: [
         weakTopics[0] ? `'${weakTopics[0].topic}' 관련 문제를 조금 더 연습해보세요.` : "다양한 문제 유형에 도전해보세요.",
         "현재 페이스를 유지하면 좋겠습니다.",
@@ -292,37 +543,40 @@ export default function ParentDashboardClient({
   const isTeacherWritten = !!(teacherInput?.summary || teacherInput?.tips?.some(Boolean))
   const oneLiner   = autoFeedback.oneLiner  // 한 줄 요약은 항상 자동
   const needsConsult = teacherInput?.needsConsult ?? false
-  const notices    = teacherInput?.notices?.filter(n => n.label).length
-    ? teacherInput.notices.filter(n => n.label)
-    : [
-        { label: "4월 학습 리포트가 준비되었습니다.", date: "4. 15" },
-        { label: "5월 시험 대비 특별반이 운영됩니다.", date: "4. 10" },
-      ]
 
   const attitudeStyle = ATTITUDE_STYLE[attitude] ?? ATTITUDE_STYLE["보통"]
 
-  /* ── 과제 묶음 그룹핑 ── */
-  const assignmentGroups = useMemo<AssignmentGroup[]>(() => {
-    const map = new Map<string, AssignmentGroup>()
-    for (const a of assignments) {
-      const key = a.topic ?? "기타"
-      if (!map.has(key)) {
-        // 관리자가 입력한 묶음명 우선, 없으면 "단원명 단원 과제" 형식으로 통일
-        const label = teacherInput?.bundleNames?.[key] ?? `${key} 단원 과제`
-        map.set(key, { topic: key, label, items: [], done: 0, total: 0, hasRetry: false })
-      }
-      const g = map.get(key)!
-      g.items.push(a)
-      g.total++
-      if (a.isCorrect) g.done++
-      if (a.isAttempted && !a.isCorrect) g.hasRetry = true
-    }
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.done === a.total && b.done !== b.total) return 1
-      if (b.done === b.total && a.done !== b.total) return -1
-      return (b.total - b.done) - (a.total - a.done)
+  /* ── 과제 정렬: 미완료·기한임박 우선, 완료 후순위 ── */
+  const sortedAssignments = useMemo(() => {
+    const now = Date.now()
+    return [...assignments].sort((a, b) => {
+      const aDone = a.completedCount === a.totalCount && a.totalCount > 0
+      const bDone = b.completedCount === b.totalCount && b.totalCount > 0
+      if (aDone && !bDone) return 1
+      if (!aDone && bDone) return -1
+      const aTime = a.dueDate ? new Date(toUTC(a.dueDate)).getTime() : Infinity
+      const bTime = b.dueDate ? new Date(toUTC(b.dueDate)).getTime() : Infinity
+      // 기한 지난 것은 맨 뒤로
+      const aExp = aTime < now, bExp = bTime < now
+      if (aExp && !bExp) return 1
+      if (!aExp && bExp) return -1
+      return aTime - bTime
     })
-  }, [assignments, teacherInput?.bundleNames])
+  }, [assignments])
+
+  const activeAssignments = useMemo(() => {
+    const now = Date.now()
+    return sortedAssignments.filter(a =>
+      !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > now
+    )
+  }, [sortedAssignments])
+
+  const pastAssignments = useMemo(() => {
+    const now = Date.now()
+    return sortedAssignments.filter(a =>
+      !!a.dueDate && new Date(toUTC(a.dueDate)).getTime() <= now
+    )
+  }, [sortedAssignments])
 
   /* ── 과정 진도 ── */
   const COURSE_ORDER  = ["basic", "intermediate", "advanced"]
@@ -343,10 +597,8 @@ export default function ParentDashboardClient({
 
       {/* ═══ NAVBAR ═══ */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-slate-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-8 h-14 flex items-center justify-between">
-          <Link href="/" className="opacity-90 hover:opacity-100 transition-opacity">
-            <CodeOnLogo />
-          </Link>
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
+          <CodeOnLogo />
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
               <GraduationCap className="w-3.5 h-3.5" />
@@ -360,7 +612,7 @@ export default function ParentDashboardClient({
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-8 pt-20 pb-16 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-18 sm:pt-20 pb-12 sm:pb-16 space-y-4 sm:space-y-5 overflow-x-hidden">
 
         {/* ── 상담 필요 알림 배너 (강사가 ON으로 설정했을 때만) ── */}
         {needsConsult && (
@@ -381,26 +633,26 @@ export default function ParentDashboardClient({
             자동 계산: 전체 정답률 / 학습일 / 최근 정답률 / 과제 완료율
         ══════════════════════════════════════════ */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm overflow-hidden">
-          <div className="px-8 pt-7 pb-5 border-b border-slate-100 dark:border-gray-800">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1.5">자녀 학습 현황</p>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">{studentName} 학생</h1>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {grade    && <span className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">{grade}</span>}
-                    {classNum && <span className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">{classNum}반</span>}
-                    <span className="text-xs text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 px-2.5 py-1 rounded-full font-semibold border border-indigo-100 dark:border-indigo-800">{currentCourse}</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${attitudeStyle.badge}`}>{attitude}</span>
-                  </div>
+          <div className="px-4 sm:px-8 pt-5 sm:pt-7 pb-4 sm:pb-5 border-b border-slate-100 dark:border-gray-800">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">자녀 학습 현황</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">{studentName} 학생</h1>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${attitudeStyle.badge}`}>{attitude}</span>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed max-w-2xl">{oneLiner}</p>
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  {grade    && <span className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">{grade}</span>}
+                  {classNum && <span className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">{classNum}반</span>}
+                  <span className="text-xs text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 px-2.5 py-1 rounded-full font-semibold border border-indigo-100 dark:border-indigo-800">{currentCourse} 진행 중</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{oneLiner}</p>
               </div>
               {streak > 0 && (
-                <div className="shrink-0 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 px-4 py-3 rounded-xl">
-                  <Flame className="w-5 h-5 text-orange-400" />
+                <div className="shrink-0 flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl">
+                  <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
                   <div className="text-right">
-                    <p className="text-xl font-extrabold text-orange-600 dark:text-orange-400 leading-none tabular-nums">{streak}</p>
+                    <p className="text-lg sm:text-xl font-extrabold text-orange-600 dark:text-orange-400 leading-none tabular-nums">{streak}</p>
                     <p className="text-[10px] text-orange-400 font-medium mt-0.5">일 연속</p>
                   </div>
                 </div>
@@ -409,7 +661,7 @@ export default function ParentDashboardClient({
           </div>
           {/* KPI — 4개 모두 자동 계산 */}
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-100 dark:divide-gray-800">
-            <div className="px-7 py-5">
+            <div className="px-4 sm:px-7 py-4 sm:py-5">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2">전체 정답률</p>
               <div className="flex items-end gap-1.5 mb-2">
                 <p className="text-3xl font-extrabold text-gray-900 dark:text-white tabular-nums leading-none">{rate}</p>
@@ -418,9 +670,10 @@ export default function ParentDashboardClient({
               <div className="w-full bg-slate-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                 <div className={`h-full rounded-full ${attitudeStyle.bar}`} style={{ width: `${rate}%` }} />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1.5">누적 {total}회 기준</p>
+              <p className="text-[11px] text-slate-400 mt-1">{attemptedProblemCount}문제 중 {correctProblemCount}문제 정답</p>
+              <p className="text-[10px] text-slate-300 mt-0.5">총 {total}회 제출</p>
             </div>
-            <div className="px-7 py-5">
+            <div className="px-4 sm:px-7 py-4 sm:py-5">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2">최근 7일 학습일</p>
               <div className="flex items-end gap-1.5 mb-2">
                 <p className="text-3xl font-extrabold text-gray-900 dark:text-white tabular-nums leading-none">{studyDaysThisWeek}</p>
@@ -429,9 +682,9 @@ export default function ParentDashboardClient({
               <div className="flex gap-1 mb-1.5">
                 {weeklyData.map((d, i) => <div key={i} className={`flex-1 rounded-sm h-1.5 ${d.count > 0 ? "bg-indigo-400" : "bg-slate-100 dark:bg-gray-800"}`} />)}
               </div>
-              <p className="text-[11px] text-slate-400">이번 주 {weekTotal}문제 제출</p>
+              <p className="text-[11px] text-slate-400">이번 주 {weekTotal}회 제출 ({weekAttemptedProblemCount}문제)</p>
             </div>
-            <div className="px-7 py-5">
+            <div className="px-4 sm:px-7 py-4 sm:py-5">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2">최근 10문제 정답률</p>
               {recent10Subs.length > 0 ? (
                 <>
@@ -468,17 +721,17 @@ export default function ParentDashboardClient({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
           {/* 강사 피드백 & AI 분석 */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-7">
-            <div className="flex items-center gap-3 mb-5">
+          <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-7">
+            <div className="flex items-start gap-3 mb-5">
               <div className="w-9 h-9 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center shrink-0">
                 <Sparkles className="w-[18px] h-[18px] text-indigo-500" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">강사 피드백 &amp; AI 분석</h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">{feedbackUpdatedAt}</p>
               </div>
-              <span className={`ml-auto text-xs font-semibold px-3 py-1 rounded-full border ${attitudeStyle.badge}`}>
-                학습 태도: {attitude}
+              <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${attitudeStyle.badge}`}>
+                {attitude}
               </span>
             </div>
 
@@ -509,18 +762,25 @@ export default function ParentDashboardClient({
               <div className="mt-5 pt-5 border-t border-slate-100 dark:border-gray-800">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2.5">집중 보완 단원 <span className="normal-case font-normal">(자동 계산)</span></p>
                 <div className="flex flex-wrap gap-2">
-                  {weakTopics.slice(0, 4).map((t, i) => (
-                    <span key={i} className="text-xs font-semibold px-3 py-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 border border-red-100 dark:border-red-800 rounded-full">
-                      {t.topic} <span className="opacity-70">({t.rate}%)</span>
-                    </span>
-                  ))}
+                  {weakTopics.slice(0, 4).map((t, i) => {
+                    const cls = t.rate >= 50
+                      ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 border-red-100 dark:border-red-800"
+                      : t.rate >= 30
+                      ? "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 border-orange-100 dark:border-orange-800"
+                      : "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-300 border-yellow-100 dark:border-yellow-800"
+                    return (
+                      <span key={i} className={`text-xs font-semibold px-3 py-1 border rounded-full ${cls}`}>
+                        {t.topic} <span className="opacity-70">({t.rate}%)</span>
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}
           </div>
 
           {/* 이번 주 학습 흐름 (자동) */}
-          <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-7 flex flex-col">
+          <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-7 flex flex-col">
             <div className="flex items-center gap-2.5 mb-5">
               <div className="w-9 h-9 bg-slate-50 dark:bg-gray-800 rounded-xl flex items-center justify-center shrink-0">
                 <BarChart2 className="w-[18px] h-[18px] text-slate-500" />
@@ -564,17 +824,25 @@ export default function ParentDashboardClient({
               </div>
               <div className="bg-slate-50 dark:bg-gray-800 rounded-xl px-4 py-3.5">
                 <p className="text-xs text-slate-500 font-medium mb-2">요일별 학습</p>
-                <div className="flex items-end gap-1 h-8">
-                  {weeklyData.map((d, i) => (
-                    <div key={i} className="flex-1">
-                      <div className={`w-full rounded-sm ${d.count > 0 ? "bg-indigo-400" : "bg-slate-200 dark:bg-gray-700"}`}
-                        style={{ height: d.count > 0 ? `${Math.max(20, Math.min(100, d.count * 20))}%` : "20%" }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-1 mt-1">
-                  {weeklyData.map((d, i) => <p key={i} className="flex-1 text-center text-[9px] text-slate-400">{d.day}</p>)}
-                </div>
+                {(() => {
+                  const maxC = Math.max(...weeklyData.map(d => d.count), 1)
+                  return (
+                    <>
+                      <div className="flex items-end gap-1" style={{ height: 32 }}>
+                        {weeklyData.map((d, i) => (
+                          <div
+                            key={i}
+                            className={`flex-1 rounded-sm transition-all ${d.count > 0 ? "bg-indigo-400" : "bg-slate-200 dark:bg-gray-700"}`}
+                            style={{ height: d.count > 0 ? Math.max(8, Math.round((d.count / maxC) * 32)) : 4 }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        {weeklyData.map((d, i) => <p key={i} className="flex-1 text-center text-[9px] text-slate-400">{d.day}</p>)}
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -587,70 +855,119 @@ export default function ParentDashboardClient({
         ══════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-          {/* 과제 현황 — 묶음형 */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-7">
+          {/* 과제 현황 — 과제 단위 */}
+          <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-7">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0">
                 <ListChecks className="w-[18px] h-[18px] text-amber-500" />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">과제 현황</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">{currentCourse} · 단원별 묶음</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">기초 과정 · 단원별 묶음</p>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 font-medium">{assignedDone}개 완료</span>
-                {assignedPending > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 font-medium">{assignedPending}개 미완료</span>}
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 font-medium">{assignedDone}문제 완료</span>
+                {assignedPending > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 font-medium">{assignedPending}문제 미완료</span>
+                )}
               </div>
             </div>
 
-            {assignmentGroups.length === 0 ? (
-              <div className="flex items-center justify-center py-10 text-slate-400 text-sm">과제가 없습니다.</div>
+            {sortedAssignments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
+                <BookOpen className="w-8 h-8 text-slate-200" />
+                <p className="text-sm">배정된 과제가 없습니다.</p>
+                <p className="text-xs text-slate-300">담당 강사가 과제를 배정하면 여기에 표시됩니다.</p>
+              </div>
             ) : (
               <div className="space-y-2.5">
-                {assignmentGroups.map(g => {
-                  const status     = getBundleStatus(g)
-                  const pct        = g.total > 0 ? Math.round((g.done / g.total) * 100) : 0
-                  const isExpanded = bundleExpanded === g.topic
+
+                {/* ── 진행 중 과제 ── */}
+                {activeAssignments.length === 0 && (
+                  <p className="text-center py-4 text-xs text-slate-400">진행 중인 과제가 없습니다.</p>
+                )}
+                {activeAssignments.map(a => {
+                  const now        = new Date()
+                  const due        = a.dueDate ? new Date(toUTC(a.dueDate)) : null
+                  const isExpired  = false
+                  const allDone    = a.completedCount === a.totalCount && a.totalCount > 0
+                  const inProgress = a.completedCount > 0 && !allDone
+                  const hasRetry   = a.problems.some(p => p.isAttempted && !p.isCorrect)
+                  const status     = getAssignmentStatus(a.completedCount, a.totalCount, isExpired, hasRetry)
+                  const pct        = a.totalCount > 0 ? Math.round((a.completedCount / a.totalCount) * 100) : 0
+                  const isExpanded = expandedIds.has(a.id)
+                  const dday       = due ? (() => {
+                    const diffDays = Math.ceil((due.getTime() - now.getTime()) / 86_400_000)
+                    return diffDays <= 0 ? "D-Day" : `D-${diffDays}`
+                  })() : null
+
                   return (
-                    <div key={g.topic} className="border border-slate-100 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div key={a.id} className="border border-slate-100 dark:border-gray-700 rounded-xl overflow-hidden">
                       <button
                         className="w-full flex items-center gap-4 px-5 py-4 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors text-left"
-                        onClick={() => setBundleExpanded(isExpanded ? null : g.topic)}
+                        onClick={() => setExpandedIds(prev => {
+                          const next = new Set(prev)
+                          next.has(a.id) ? next.delete(a.id) : next.add(a.id)
+                          return next
+                        })}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${g.done === g.total ? "bg-emerald-50" : g.done > 0 ? "bg-blue-50" : "bg-slate-100 dark:bg-gray-700"}`}>
-                          {g.done === g.total
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
+                          ${allDone ? "bg-emerald-50" : inProgress ? "bg-blue-50" : "bg-slate-100 dark:bg-gray-700"}`}>
+                          {allDone
                             ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            : <Clock className={`w-4 h-4 ${g.done > 0 ? "text-blue-500" : "text-slate-400"}`} />}
+                            : <Clock className={`w-4 h-4 ${inProgress ? "text-blue-500" : "text-slate-400"}`} />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            {/* 과제 묶음명: 강사 입력 or 자동 포맷 */}
-                            <span className="text-sm font-semibold text-gray-800 dark:text-white">{g.label}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}`}>{status.label}</span>
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-gray-800 dark:text-white truncate">{a.title}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${status.cls}`}>{status.label}</span>
+                            {dday && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0
+                                ${dday === "D-Day"
+                                  ? "text-red-600 bg-red-50 border-red-200"
+                                  : "text-indigo-600 bg-indigo-50 border-indigo-200"}`}>
+                                {dday}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="flex-1 bg-slate-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                              <div className={`h-full rounded-full transition-all ${g.done === g.total ? "bg-emerald-500" : g.done > 0 ? "bg-blue-500" : "bg-slate-300"}`} style={{ width: `${pct}%` }} />
+                              <div
+                                className={`h-full rounded-full transition-all duration-500
+                                  ${allDone ? "bg-emerald-500" : inProgress ? "bg-blue-500" : "bg-slate-300"}`}
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
-                            <span className="text-xs tabular-nums text-slate-500 shrink-0 font-medium">{g.done}/{g.total}문제</span>
+                            <span className="text-xs tabular-nums text-slate-500 shrink-0 font-medium">
+                              {a.completedCount}/{a.totalCount}문제
+                            </span>
+                            {due && (
+                              <span className="text-[11px] shrink-0 text-slate-400">
+                                마감 {due.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" })}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                        {isExpanded
+                          ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+                          : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
                       </button>
                       {isExpanded && (
                         <div className="border-t border-slate-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-5 py-3 space-y-1.5">
-                          {g.items.map((a, i) => (
+                          {a.problems.map((p, i) => (
                             <div key={i} className="flex items-center gap-3 py-1.5">
-                              {a.isCorrect
+                              {p.isCorrect
                                 ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                : a.isAttempted
+                                : p.isAttempted
                                   ? <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  : <Clock       className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                              }
-                              <span className={`text-xs flex-1 truncate ${a.isCorrect ? "text-slate-400 dark:text-slate-500 line-through" : "text-gray-700 dark:text-gray-200 font-medium"}`}>
-                                {a.title}
+                                  : <Clock       className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+                              <span className={`text-xs flex-1 truncate
+                                ${p.isCorrect
+                                  ? "text-slate-400 dark:text-slate-500 line-through"
+                                  : "text-gray-700 dark:text-gray-200 font-medium"}`}>
+                                {p.title}
                               </span>
-                              {a.isAttempted && !a.isCorrect && (
+                              {p.isAttempted && !p.isCorrect && (
                                 <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md font-semibold shrink-0">재시도</span>
                               )}
                             </div>
@@ -660,19 +977,108 @@ export default function ParentDashboardClient({
                     </div>
                   )
                 })}
+
+                {/* ── 지난 과제 토글 ── */}
+                {pastAssignments.length > 0 && (
+                  <button
+                    onClick={() => setShowPastAssignments(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-slate-100 dark:border-gray-700 rounded-xl bg-slate-50 dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-750 transition-colors"
+                  >
+                    <span>지난 과제 ({pastAssignments.length}개)</span>
+                    {showPastAssignments
+                      ? <ChevronUp className="w-3.5 h-3.5" />
+                      : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+                {showPastAssignments && pastAssignments.map(a => {
+                  const now        = new Date()
+                  const due        = a.dueDate ? new Date(toUTC(a.dueDate)) : null
+                  const isExpired  = true
+                  const allDone    = a.completedCount === a.totalCount && a.totalCount > 0
+                  const inProgress = a.completedCount > 0 && !allDone
+                  const hasRetry   = a.problems.some(p => p.isAttempted && !p.isCorrect)
+                  const status     = getAssignmentStatus(a.completedCount, a.totalCount, isExpired, hasRetry)
+                  const pct        = a.totalCount > 0 ? Math.round((a.completedCount / a.totalCount) * 100) : 0
+                  const isExpanded = expandedIds.has(a.id)
+
+                  return (
+                    <div key={a.id} className="border border-slate-100 dark:border-gray-700 rounded-xl overflow-hidden opacity-60">
+                      <button
+                        className="w-full flex items-center gap-4 px-5 py-4 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors text-left"
+                        onClick={() => setExpandedIds(prev => {
+                          const next = new Set(prev)
+                          next.has(a.id) ? next.delete(a.id) : next.add(a.id)
+                          return next
+                        })}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0
+                          ${allDone ? "bg-emerald-50" : "bg-slate-100 dark:bg-gray-700"}`}>
+                          {allDone
+                            ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            : <Clock className="w-4 h-4 text-slate-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 truncate">{a.title}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${status.cls}`}>{status.label}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 bg-slate-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${allDone ? "bg-emerald-400" : "bg-slate-300"}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs tabular-nums text-slate-400 shrink-0 font-medium">
+                              {a.completedCount}/{a.totalCount}문제
+                            </span>
+                            {due && (
+                              <span className="text-[11px] shrink-0 text-red-300">
+                                마감 {due.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isExpanded
+                          ? <ChevronUp className="w-4 h-4 text-slate-300 shrink-0" />
+                          : <ChevronDown className="w-4 h-4 text-slate-300 shrink-0" />}
+                      </button>
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-5 py-3 space-y-1.5">
+                          {a.problems.map((p, i) => (
+                            <div key={i} className="flex items-center gap-3 py-1.5">
+                              {p.isCorrect
+                                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                : p.isAttempted
+                                  ? <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  : <Clock       className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+                              <span className={`text-xs flex-1 truncate
+                                ${p.isCorrect
+                                  ? "text-slate-400 dark:text-slate-500 line-through"
+                                  : "text-gray-600 dark:text-gray-300"}`}>
+                                {p.title}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
               </div>
             )}
           </div>
 
           {/* 이번 주 과제 제출 현황 */}
-          <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-7 flex flex-col">
+          <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-7 flex flex-col">
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-9 h-9 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center shrink-0">
                 <PackageCheck className="w-[18px] h-[18px] text-indigo-500" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-gray-900 dark:text-white">이번 주 과제 제출 현황</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">과제 완료율 기준 · 자동 집계</p>
+                <h2 className="text-sm font-bold text-gray-900 dark:text-white">과제 제출 현황</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">전체 과제 완료율 · 자동 집계</p>
               </div>
             </div>
 
@@ -696,7 +1102,7 @@ export default function ParentDashboardClient({
                 </div>
               </div>
               <p className="text-xs text-slate-500 mt-2 text-center">
-                전체 {assignedTotal}개 과제 중 <span className="font-bold text-gray-800 dark:text-white">{assignedDone}개 완료</span>
+                전체 {assignedTotal}문제 중 <span className="font-bold text-gray-800 dark:text-white">{assignedDone}문제 완료</span>
               </p>
             </div>
 
@@ -708,6 +1114,13 @@ export default function ParentDashboardClient({
                   <span className="text-xs text-slate-600 dark:text-slate-300">이번 주 제출 건수</span>
                 </div>
                 <span className="text-sm font-bold text-gray-900 dark:text-white tabular-nums">{weekTotal}건</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-900/20">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                  <span className="text-xs text-slate-600 dark:text-slate-300">이번 주 학습 시간</span>
+                </div>
+                <span className="text-sm font-bold text-violet-600 dark:text-violet-300 tabular-nums">{weekStudyTimeLabel}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20">
                 <div className="flex items-center gap-2">
@@ -738,23 +1151,30 @@ export default function ParentDashboardClient({
               {/* 4주 추이 */}
               <div className="px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-800">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2">최근 4주 제출 추이</p>
-                <div className="flex items-end gap-1.5 h-10">
-                  {monthlyData.map((w, i) => {
-                    const maxCount = Math.max(...monthlyData.map(m => m.count), 1)
-                    const h = Math.max(15, Math.round((w.count / maxCount) * 100))
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <div className={`w-full rounded-sm ${i === monthlyData.length - 1 ? "bg-indigo-500" : "bg-slate-300 dark:bg-gray-600"}`} style={{ height: `${h}%` }} />
-                        <p className="text-[9px] text-slate-400 leading-none">{w.week}</p>
-                      </div>
-                    )
-                  })}
-                </div>
+                {(() => {
+                  const maxCount = Math.max(...monthlyData.map(m => m.count), 1)
+                  const barAlpha = ["bg-indigo-100 dark:bg-indigo-900/30", "bg-indigo-200 dark:bg-indigo-800/50", "bg-indigo-300 dark:bg-indigo-600/60", "bg-indigo-500"]
+                  return (
+                    <div className="flex items-end gap-1.5" style={{ height: 52 }}>
+                      {monthlyData.map((w, i) => {
+                        const barH = Math.max(4, Math.round((w.count / maxCount) * 36))
+                        const idx  = monthlyData.length === 4 ? i : i + (4 - monthlyData.length)
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5">
+                            {w.count > 0 && <p className="text-[8px] text-slate-500 font-semibold tabular-nums leading-none">{w.count}</p>}
+                            <div className={`w-full rounded-sm ${barAlpha[idx] ?? "bg-indigo-400"}`} style={{ height: barH }} />
+                            <p className="text-[9px] text-slate-400 leading-none">{w.week}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
 
               {recentSubs[0] && (
                 <p className="text-[11px] text-slate-400 text-center">
-                  마지막 제출: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatRelativeTime(recentSubs[0].createdAt)}</span>
+                  마지막 제출: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatDateTime(recentSubs[0].createdAt)}</span>
                 </p>
               )}
             </div>
@@ -768,7 +1188,7 @@ export default function ParentDashboardClient({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* 최근 제출 요약 — 요약형 유지, 상세는 모달 */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-6">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-slate-50 dark:bg-gray-800 rounded-xl flex items-center justify-center shrink-0">
                 <History className="w-4 h-4 text-slate-500" />
@@ -838,7 +1258,7 @@ export default function ParentDashboardClient({
           </div>
 
           {/* 과정별 진도 (자동) */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-6">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center shrink-0">
                 <BookOpen className="w-4 h-4 text-indigo-500" />
@@ -887,29 +1307,28 @@ export default function ParentDashboardClient({
             ) : null}
           </div>
 
-          {/* 공지 및 상담 — 공지는 강사 입력 우선 */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-6 flex flex-col">
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0">
-                    <Bell className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-gray-900 dark:text-white">공지사항</h2>
-                    <p className="text-[11px] text-slate-400">강사 입력</p>
-                  </div>
+          {/* 공지사항 + 강사 상담 — 분리된 두 카드 */}
+          <div className="flex flex-col gap-5">
+
+            {/* 공지사항 */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0">
+                  <Bell className="w-4 h-4 text-amber-500" />
                 </div>
-                <button className="text-[11px] text-indigo-500 hover:text-indigo-700 font-semibold flex items-center gap-0.5">
-                  전체 <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900 dark:text-white">공지사항</h2>
+                  <p className="text-[11px] text-slate-400">최신 3개</p>
+                </div>
               </div>
               <div className="space-y-2">
-                {notices.map((n, i) => (
-                  <div key={i} className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 hover:border-slate-200 transition-colors cursor-pointer">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0" />
+                {apiNotices.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-3">등록된 공지가 없습니다.</p>
+                ) : apiNotices.map((n, i) => (
+                  <div key={i} className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 hover:border-slate-200 transition-colors">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold leading-relaxed text-gray-800 dark:text-white">{n.label}</p>
+                      <p className="text-xs font-semibold leading-relaxed text-gray-800 dark:text-white">{n.content}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{n.date}</p>
                     </div>
                   </div>
@@ -917,8 +1336,9 @@ export default function ParentDashboardClient({
               </div>
             </div>
 
-            <div className="mt-auto pt-4 border-t border-slate-100 dark:border-gray-800">
-              <div className="flex items-center gap-2 mb-2.5">
+            {/* 강사 상담 */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center shrink-0">
                   <Phone className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
@@ -927,25 +1347,24 @@ export default function ParentDashboardClient({
                   <p className="text-[11px] text-slate-400">1~2 영업일 내 답변</p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setShowConsult(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-colors"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" /> 상담 신청
-                </button>
-                <button className="px-3 py-2.5 border border-slate-200 dark:border-gray-700 text-slate-500 hover:border-slate-300 rounded-xl text-xs font-semibold transition-colors">
-                  이력 보기
-                </button>
-              </div>
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                담당 강사에게 메시지를 남기면 빠르게 연락드립니다.
+              </p>
+              <button
+                onClick={() => setShowConsult(true)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" /> 상담 신청
+              </button>
             </div>
+
           </div>
 
         </div>
       </div>
 
       {showConsult && <ConsultModal onClose={() => setShowConsult(false)} />}
-      {showHistory  && <SubHistoryModal subs={recentSubs} onClose={() => setShowHistory(false)} />}
+      {showHistory  && <SubHistoryPanel onClose={() => setShowHistory(false)} initialTotal={stats.total} />}
     </div>
   )
 }

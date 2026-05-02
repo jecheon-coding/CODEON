@@ -1,86 +1,71 @@
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { NextResponse }     from "next/server"
-import { authOptions }      from "@/lib/authOptions"
-import { supabaseServer }   from "@/lib/supabaseServer"
+import { authOptions } from "@/lib/authOptions"
+import { supabaseServer } from "@/lib/supabaseServer"
 
-async function guardAdmin() {
+// GET /api/admin/submissions?filter=all
+export async function GET() {
   const session = await getServerSession(authOptions)
-  if ((session?.user as any)?.role !== "admin") return null
-  return session
-}
+  if ((session?.user as any)?.role !== "admin")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-export async function GET(req: Request) {
-  if (!await guardAdmin()) return NextResponse.json({ error: "권한 없음" }, { status: 403 })
+  // assignment_students × assignment_problems 의 cross join → 제출 여부 확인
+  const [
+    { data: asData },   // assignment_students
+    { data: apData },   // assignment_problems
+    { data: aData },    // assignments
+    { data: pData },    // problems (title)
+    { data: uData },    // users (student name)
+    { data: subData },  // submissions
+  ] = await Promise.all([
+    supabaseServer.from("assignment_students").select("assignment_id, student_user_id"),
+    supabaseServer.from("assignment_problems").select("assignment_id, problem_id"),
+    supabaseServer.from("assignments").select("id, title, due_date"),
+    supabaseServer.from("problems").select("id, title"),
+    supabaseServer.from("users").select("id, name").eq("role", "student"),
+    supabaseServer.from("submissions").select("user_id, problem_id, is_correct, created_at"),
+  ])
 
-  const { searchParams } = new URL(req.url)
-  const filter = searchParams.get("filter") ?? "all" // all | unsubmitted
+  const assignMap  = Object.fromEntries((aData  ?? []).map((a: any) => [a.id,   a]))
+  const problemMap = Object.fromEntries((pData  ?? []).map((p: any) => [p.id,   p.title]))
+  const userMap    = Object.fromEntries((uData  ?? []).map((u: any) => [u.id,   u.name]))
 
-  // 모든 과제-문제-학생 배정 건 조회
-  const { data: rows, error } = await supabaseServer
-    .from("assignment_students")
-    .select(`
-      student_user_id,
-      assignment_id,
-      assignments ( id, title, due_date,
-        assignment_problems ( problem_id,
-          problems ( id, title )
-        )
-      ),
-      users!assignment_students_student_user_id_fkey ( id, name )
-    `)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // 제출 현황 조회
-  const { data: subs } = await supabaseServer
-    .from("submissions")
-    .select("problem_id, user_id, is_correct, created_at")
-
-  const subMap = new Map<string, { isCorrect: boolean; submittedAt: string }>()
-  for (const s of subs ?? []) {
-    const key = `${s.user_id}:${s.problem_id}`
-    if (!subMap.has(key) || s.is_correct) {
-      subMap.set(key, { isCorrect: s.is_correct, submittedAt: s.created_at })
+  // 제출 기록: (userId, problemId) → 최신 제출
+  const subMap: Record<string, { isCorrect: boolean; createdAt: string }> = {}
+  for (const s of subData ?? []) {
+    const key = `${(s as any).user_id}__${(s as any).problem_id}`
+    const cur = subMap[key]
+    if (!cur || (s as any).created_at > cur.createdAt) {
+      subMap[key] = { isCorrect: (s as any).is_correct, createdAt: (s as any).created_at }
     }
   }
 
-  const result: unknown[] = []
-  for (const row of rows ?? []) {
-    const assignment = row.assignments as any
-    const student    = (row as any).users
-    if (!assignment || !student) continue
+  const rows: object[] = []
+  for (const as_ of asData ?? []) {
+    const { assignment_id, student_user_id } = as_ as any
+    const assignment = assignMap[assignment_id]
+    if (!assignment) continue
 
-    for (const ap of assignment.assignment_problems ?? []) {
-      const problem = ap.problems
-      if (!problem) continue
-      const key = `${row.student_user_id}:${problem.id}`
-      const sub = subMap.get(key)
-
-      result.push({
-        studentId:       row.student_user_id,
-        studentName:     student.name,
-        assignmentId:    assignment.id,
+    // 이 과제에 속한 문제들
+    const problems = (apData ?? []).filter((ap: any) => ap.assignment_id === assignment_id)
+    for (const ap of problems) {
+      const { problem_id } = ap as any
+      const key = `${student_user_id}__${problem_id}`
+      const sub = subMap[key]
+      rows.push({
+        studentId:       student_user_id,
+        studentName:     userMap[student_user_id] ?? "알 수 없음",
+        assignmentId:    assignment_id,
         assignmentTitle: assignment.title,
-        dueDate:         assignment.due_date,
-        problemId:       problem.id,
-        problemTitle:    problem.title,
+        dueDate:         assignment.due_date ?? null,
+        problemId:       problem_id,
+        problemTitle:    problemMap[problem_id] ?? problem_id,
         isSubmitted:     !!sub,
-        submittedAt:     sub?.submittedAt ?? null,
-        isCorrect:       sub?.isCorrect   ?? null,
+        submittedAt:     sub?.createdAt ?? null,
+        isCorrect:       sub ? sub.isCorrect : null,
       })
     }
   }
 
-  const filtered = filter === "unsubmitted"
-    ? result.filter((r: any) => !r.isSubmitted)
-    : result
-
-  // 최신 제출 순 → 미제출 후순위
-  filtered.sort((a: any, b: any) => {
-    if (!a.isSubmitted && b.isSubmitted) return 1
-    if (a.isSubmitted && !b.isSubmitted) return -1
-    return (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "")
-  })
-
-  return NextResponse.json(filtered)
+  return NextResponse.json(rows)
 }

@@ -5,42 +5,39 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { LayoutGrid, ChevronRight, ClipboardList, CheckCircle2, Circle } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-
-// ── 타입 ──────────────────────────────────────────────────────────────────────
-type Problem = {
-  id: string
-  title: string
-  category: string
-  difficulty: string
-}
-
-type SubmissionRow = {
-  problem_id: string
-  is_correct: boolean
-  created_at: string
-}
-
-type WrongItem = {
-  problem: Problem
-  attemptCount: number
-  lastAttemptAt: string
-  solvedAt?: string
-}
-
-type TabValue = "복습 필요" | "복습 완료" | "전체"
+import {
+  LayoutGrid, ChevronRight, ClipboardList,
+  CheckCircle2, Circle, FolderOpen, FileText,
+} from "lucide-react"
+import type { WrongNoteItem, WrongNoteResponse } from "@/app/api/wrong-notes/route"
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
+const CATEGORY_BADGE: Record<string, string> = {
+  "파이썬기초":     "기초",
+  "파이썬알고리즘": "알고리즘",
+  "파이썬자격증":   "자격증",
+  "파이썬실전":     "실전",
+  "파이썬도전":     "도전",
+  "파이썬대회":     "대회",
+}
+
 const CATEGORY_LABEL: Record<string, string> = {
   "파이썬기초":     "기초 과정",
   "파이썬알고리즘": "알고리즘 과정",
   "파이썬자격증":   "자격증 과정",
   "파이썬실전":     "실전 문제",
   "파이썬도전":     "도전 문제",
+  "파이썬대회":     "대회 과정",
 }
 
-const CATEGORY_ORDER = ["파이썬기초", "파이썬알고리즘", "파이썬자격증", "파이썬실전", "파이썬도전"]
+const CATEGORY_ORDER = [
+  "파이썬기초", "파이썬알고리즘", "파이썬자격증",
+  "파이썬실전", "파이썬도전", "파이썬대회",
+]
+
+const LIMIT = 20
+
+type TabValue = "복습 필요" | "복습 완료" | "전체"
 
 function formatDate(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
@@ -53,67 +50,100 @@ function formatDate(dateStr: string) {
 
 // ── 문제 행 컴포넌트 ──────────────────────────────────────────────────────────
 function WrongItemRow({
-  item, idx, isCompleted, onClick,
+  item, isCompleted, onClick,
 }: {
-  item: WrongItem
-  idx: number
+  item: WrongNoteItem
   isCompleted: boolean
   onClick: () => void
 }) {
   return (
     <div
       onClick={onClick}
-      className={`group bg-white border border-gray-100 rounded-xl px-4 py-2.5
+      className={`group bg-white border border-gray-100 rounded-xl px-4 py-3
         flex items-center gap-3 cursor-pointer select-none shadow-sm
         transition-all duration-150
-        ${isCompleted
-          ? "hover:border-green-300 hover:shadow-md"
-          : "hover:border-red-300 hover:shadow-md"
-        }`}
+        ${isCompleted ? "hover:border-green-300 hover:shadow-md" : "hover:border-red-300 hover:shadow-md"}`}
     >
-      {/* 왼쪽: 상태 아이콘 */}
+      {/* 상태 아이콘 */}
       {isCompleted
-        ? <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500 transition-colors duration-150" strokeWidth={2} />
-        : <Circle       className="w-5 h-5 shrink-0 text-red-300 group-hover:text-red-400 transition-colors duration-150" strokeWidth={1.75} />
+        ? <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500" strokeWidth={2} />
+        : <Circle       className="w-5 h-5 shrink-0 text-red-300 group-hover:text-red-400" strokeWidth={1.75} />
       }
 
-      {/* 가운데: 제목 + 메타 */}
+      {/* 제목 + 배지 + 메타 */}
       <div className="flex-1 min-w-0">
-        <p className={`text-base font-bold truncate transition-colors duration-150
+        <p className={`text-sm font-bold truncate transition-colors duration-150
           ${isCompleted ? "text-slate-700 group-hover:text-green-700" : "text-slate-800 group-hover:text-red-600"}`}>
-          {item.problem.title}
+          {item.problemTitle}
         </p>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-xs text-slate-600">시도 {item.attemptCount}회</span>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          {/* 과정 배지 */}
+          {item.category ? (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+              {CATEGORY_BADGE[item.category] ?? item.category}
+            </span>
+          ) : null}
+          {/* 토픽 배지 */}
+          {item.topic ? (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-50 text-gray-600 border-gray-200">
+              {item.topic}
+            </span>
+          ) : null}
+          {/* 둘 다 없으면 미분류 */}
+          {!item.category && !item.topic && (
+            <span className="text-[10px] text-gray-400">미분류</span>
+          )}
+          {/* 시도 횟수 + 날짜 */}
+          <span className="text-[10px] text-slate-400">시도 {item.attemptCount}회</span>
           {isCompleted && item.solvedAt ? (
-            <>
-              <span className="text-slate-300">·</span>
-              <span className="text-[11px] text-emerald-500 font-medium">{formatDate(item.solvedAt)} 정답</span>
-            </>
+            <span className="text-[10px] text-emerald-500 font-medium">{formatDate(item.solvedAt)} 정답</span>
           ) : item.lastAttemptAt ? (
-            <>
-              <span className="text-slate-300">·</span>
-              <span className="text-[11px] text-slate-400/70">{formatDate(item.lastAttemptAt)}</span>
-            </>
+            <span className="text-[10px] text-slate-400">{formatDate(item.lastAttemptAt)}</span>
           ) : null}
         </div>
       </div>
 
-      {/* 오른쪽: 상태 배지 + CTA */}
+      {/* 상태 배지 + CTA */}
       <div className="flex flex-col items-end gap-1 shrink-0 min-w-[72px]">
         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap leading-snug
           ${isCompleted
             ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-            : "bg-red-50 text-red-500 border border-red-100"
-          }`}>
+            : "bg-red-50 text-red-500 border border-red-100"}`}>
           {isCompleted ? "복습 완료" : "복습 필요"}
         </span>
         <span className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all
           ${isCompleted ? "text-emerald-400 group-hover:text-emerald-500" : "text-red-400 group-hover:text-red-500"}`}>
-          {isCompleted ? "다시 풀기" : "복습하기"}
-          <ChevronRight className="w-3 h-3" />
+          {isCompleted ? "다시 풀기" : "복습하기"}<ChevronRight className="w-3 h-3" />
         </span>
       </div>
+    </div>
+  )
+}
+
+// ── 페이지네이터 ──────────────────────────────────────────────────────────────
+function Paginator({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
+  if (totalPages <= 1) return null
+  const half    = 2
+  const start   = Math.max(1, page - half)
+  const end     = Math.min(totalPages, start + 4)
+  const pages   = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  const btnBase = "w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all"
+  return (
+    <div className="flex items-center justify-center gap-1 mt-6">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))} disabled={page === 1}
+        className={`${btnBase} text-gray-400 hover:text-gray-700 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed`}
+      >&lt;</button>
+      {pages.map(p => (
+        <button key={p} onClick={() => onChange(p)}
+          className={`${btnBase} ${p === page ? "bg-[#534AB7] text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-white"}`}>
+          {p}
+        </button>
+      ))}
+      <button
+        onClick={() => onChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+        className={`${btnBase} text-gray-400 hover:text-gray-700 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed`}
+      >&gt;</button>
     </div>
   )
 }
@@ -122,10 +152,12 @@ function WrongItemRow({
 export default function WrongNotePage() {
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [needReviewItems, setNeedReviewItems] = useState<WrongItem[]>([])
-  const [completedItems,  setCompletedItems]  = useState<WrongItem[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [activeTab, setActiveTab]   = useState<TabValue>("복습 필요")
+  const [data,    setData]    = useState<WrongNoteResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabValue>("복습 필요")
+  const [page,      setPage]      = useState(1)
+
+  const userId = (session?.user as any)?.id
 
   useEffect(() => {
     if (status === "loading") return
@@ -133,87 +165,41 @@ export default function WrongNotePage() {
   }, [status, router])
 
   useEffect(() => {
-    const userId = (session?.user as { id?: string })?.id
     if (!userId) return
+    setLoading(true)
+    fetch("/api/wrong-notes")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [userId])
 
-    ;(async () => {
-      setLoading(true)
+  // 탭 변경 시 페이지 초기화
+  useEffect(() => { setPage(1) }, [activeTab])
 
-      const { data: subs } = await supabase
-        .from("submissions")
-        .select("problem_id, is_correct, created_at")
-        .eq("user_id", userId)
+  const allItems: WrongNoteItem[] = useMemo(() => {
+    if (!data) return []
+    if (activeTab === "복습 필요") return data.needReview
+    if (activeTab === "복습 완료") return data.completed
+    return [...data.needReview, ...data.completed]
+  }, [data, activeTab])
 
-      if (!subs || subs.length === 0) {
-        setNeedReviewItems([])
-        setCompletedItems([])
-        setLoading(false)
-        return
-      }
-
-      const correctIds = new Set<string>()
-      const wrongIds   = new Set<string>()
-      const subsByProblem: Record<string, SubmissionRow[]> = {}
-
-      for (const sub of subs as SubmissionRow[]) {
-        if (sub.is_correct) correctIds.add(sub.problem_id)
-        else                wrongIds.add(sub.problem_id)
-        ;(subsByProblem[sub.problem_id] ??= []).push(sub)
-      }
-
-      const needReviewIds = [...wrongIds].filter(id => !correctIds.has(id))
-      const completedIds  = [...wrongIds].filter(id =>  correctIds.has(id))
-      const allIds        = [...new Set([...needReviewIds, ...completedIds])]
-
-      if (allIds.length === 0) {
-        setNeedReviewItems([])
-        setCompletedItems([])
-        setLoading(false)
-        return
-      }
-
-      const { data: problems } = await supabase
-        .from("problems")
-        .select("id, title, category, difficulty")
-        .in("id", allIds)
-
-      const problemMap: Record<string, Problem> = {}
-      for (const p of (problems ?? [])) problemMap[p.id] = p
-
-      const toItem = (id: string): WrongItem | null => {
-        const p = problemMap[id]
-        if (!p) return null
-        const ps = subsByProblem[id] ?? []
-        const lastAttemptAt = [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? ""
-        const solvedAt      = ps.filter(s => s.is_correct).sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.created_at
-        return { problem: p, attemptCount: ps.length, lastAttemptAt, solvedAt }
-      }
-
-      setNeedReviewItems(needReviewIds.map(toItem).filter((x): x is WrongItem => x !== null))
-      setCompletedItems(completedIds.map(toItem).filter((x): x is WrongItem => x !== null))
-      setLoading(false)
-    })()
-  }, [session])
-
-  const displayItems = useMemo(() => {
-    if (activeTab === "복습 필요") return needReviewItems
-    if (activeTab === "복습 완료") return completedItems
-    return [...needReviewItems, ...completedItems]
-  }, [activeTab, needReviewItems, completedItems])
+  const totalPages = Math.ceil(allItems.length / LIMIT)
+  const pagedItems = allItems.slice((page - 1) * LIMIT, page * LIMIT)
 
   const grouped = useMemo(() => {
-    const map: Record<string, WrongItem[]> = {}
-    for (const item of displayItems) {
-      ;(map[item.problem.category] ??= []).push(item)
+    const map: Record<string, WrongNoteItem[]> = {}
+    for (const item of pagedItems) {
+      const cat = item.category ?? "미분류"
+      ;(map[cat] ??= []).push(item)
     }
-    return CATEGORY_ORDER
-      .filter(cat => (map[cat]?.length ?? 0) > 0)
-      .map(cat => ({ category: cat, items: map[cat] }))
-  }, [displayItems])
+    const known   = CATEGORY_ORDER.filter(c => (map[c]?.length ?? 0) > 0).map(c => ({ category: c, items: map[c] }))
+    const unknown = map["미분류"]?.length ? [{ category: "미분류", items: map["미분류"] }] : []
+    return [...known, ...unknown]
+  }, [pagedItems])
 
-  const needReviewCount = needReviewItems.length
-  const isCompleteView  = activeTab === "복습 완료"
-  const isEmpty         = displayItems.length === 0
+  const needReviewCount = data?.needReview.length ?? 0
+  const completedCount  = data?.completed.length  ?? 0
+  const isEmpty         = allItems.length === 0
 
   if (status === "loading" || (status === "authenticated" && loading)) {
     return (
@@ -251,12 +237,20 @@ export default function WrongNotePage() {
               <p className="text-xs text-gray-500 mt-0.5">틀렸던 문제를 다시 풀며 약한 부분을 복습하세요</p>
             </div>
           </div>
-          <div className={`shrink-0 mt-1 px-3 py-1.5 rounded-full text-xs font-bold border
-            ${needReviewCount > 0
-              ? "bg-red-50 text-red-600 border-red-200"
-              : "bg-gray-100 text-gray-500 border-gray-200"}`}>
-            {needReviewCount > 0 ? `복습 필요 ${needReviewCount}개` : "복습 필요 없음"}
-          </div>
+          {/* 정답률 배지 */}
+          {data && (needReviewCount > 0 || completedCount > 0) && (
+            <div className="shrink-0 flex flex-col items-end gap-1 mt-1">
+              <div className={`px-3 py-1.5 rounded-full text-xs font-bold border
+                ${needReviewCount > 0
+                  ? "bg-red-50 text-red-600 border-red-200"
+                  : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                {needReviewCount > 0 ? `복습 필요 ${needReviewCount}개` : "복습 필요 없음"}
+              </div>
+              <p className="text-[11px] text-gray-400">
+                정답률 {data.accuracy}% ({data.totalCorrect}/{data.totalAttempted}문제)
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 탭 */}
@@ -272,29 +266,29 @@ export default function WrongNotePage() {
               {tab}
               <span className={`text-[11px] px-1.5 py-0.5 rounded-full
                 ${activeTab === tab ? "bg-gray-100 text-gray-500" : "text-gray-400"}`}>
-                {tab === "복습 필요" ? needReviewItems.length
-                  : tab === "복습 완료" ? completedItems.length
-                  : needReviewItems.length + completedItems.length}
+                {tab === "복습 필요" ? needReviewCount
+                  : tab === "복습 완료" ? completedCount
+                  : needReviewCount + completedCount}
               </span>
             </button>
           ))}
         </div>
 
-        {/* Empty state */}
+        {/* 빈 상태 */}
         {isEmpty && (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-7 text-center max-w-sm mx-auto">
             <div className="flex justify-center mb-3">
               {activeTab === "복습 필요"
                 ? <Image src="/error_note.png" alt="오답 없음" width={52} height={52} />
-                : <p className="text-3xl">{activeTab === "복습 완료" ? "📂" : "📝"}</p>
+                : activeTab === "복습 완료"
+                  ? <FolderOpen className="w-10 h-10 text-gray-300" />
+                  : <FileText className="w-10 h-10 text-gray-300" />
               }
             </div>
             <p className="text-sm font-bold text-gray-800 mb-1.5">
-              {activeTab === "복습 필요"
-                ? "복습할 오답이 없어요"
-                : activeTab === "복습 완료"
-                  ? "아직 복습 완료한 문제가 없어요"
-                  : "오답 기록이 없어요"}
+              {activeTab === "복습 필요" ? "복습할 오답이 없어요"
+                : activeTab === "복습 완료" ? "아직 복습 완료한 문제가 없어요"
+                : "오답 기록이 없어요"}
             </p>
             <p className="text-xs text-gray-400 mb-5 leading-[1.8]">
               {activeTab === "복습 필요" ? (
@@ -327,33 +321,38 @@ export default function WrongNotePage() {
         {/* 카테고리별 목록 */}
         {!isEmpty && (
           <div className="flex flex-col gap-6">
-            {grouped.map(({ category, items }) => (
-              <div key={category}>
-                <div className="flex items-center gap-2 mb-3">
-                  <h2 className="text-sm font-bold text-gray-700">
-                    {CATEGORY_LABEL[category] ?? category}
-                  </h2>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
-                    ${isCompleteView ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
-                    {items.length}
-                  </span>
+            {grouped.map(({ category, items }) => {
+              const isCompleteView = activeTab === "복습 완료"
+              return (
+                <div key={category}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h2 className="text-sm font-bold text-gray-700">
+                      {CATEGORY_LABEL[category] ?? category}
+                    </h2>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
+                      ${isCompleteView ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {items.map(item => {
+                      const itemIsCompleted = activeTab === "복습 완료" || (activeTab === "전체" && !!item.solvedAt)
+                      return (
+                        <WrongItemRow
+                          key={item.problemId}
+                          item={item}
+                          isCompleted={itemIsCompleted}
+                          onClick={() => router.push(`/problems/${item.problemId}`)}
+                        />
+                      )
+                    })}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  {items.map((item, idx) => {
-                    const itemIsCompleted = activeTab === "복습 완료" || (activeTab === "전체" && !!item.solvedAt)
-                    return (
-                      <WrongItemRow
-                        key={item.problem.id}
-                        item={item}
-                        idx={idx}
-                        isCompleted={itemIsCompleted}
-                        onClick={() => router.push(`/problems/${item.problem.id}`)}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+              )
+            })}
+
+            {/* 페이지네이션 */}
+            <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }) }} />
           </div>
         )}
 

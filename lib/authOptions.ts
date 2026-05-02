@@ -119,13 +119,20 @@ export const authOptions: NextAuthOptions = {
 
     async jwt({ token, user, account }) {
       if (user) {
-        token.id = account?.provider === "google"
+        const userId = account?.provider === "google"
           ? (user as any).dbId
           : (user as any).id
 
+        token.id                   = userId
         token.role                 = (user as any).role
         token.status               = (user as any).status
         token.must_change_password = (user as any).must_change_password
+
+        if (userId) {
+          await supabaseServer.from("users")
+            .update({ last_login_at: new Date().toISOString() })
+            .eq("id", userId)
+        }
       }
       return token
     },

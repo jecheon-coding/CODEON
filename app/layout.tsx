@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Fira_Code } from "next/font/google";
+import { Geist, Geist_Mono, Fira_Code, Noto_Sans_KR } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/Providers"
@@ -12,6 +12,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const notoSansKR = Noto_Sans_KR({
+  variable: "--font-noto-sans-kr",
+  subsets: ["latin"],
+  weight: ["400", "500", "700", "900"],
+  display: "swap",
 });
 
 // 코딩 에디터 전용 폰트 — Monaco에 CSS 변수로 주입
@@ -35,7 +42,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} ${firaCode.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${firaCode.variable} ${notoSansKR.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-gray-100">
         

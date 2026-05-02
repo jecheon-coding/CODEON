@@ -1,333 +1,247 @@
 "use client"
 
-import { signIn, signOut, useSession } from "next-auth/react"
+import { useState, Suspense } from "react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, Suspense, type FormEvent } from "react"
-import { deriveSessionKind } from "@/lib/session-utils"
+import { Loader2, AlertCircle, Smile } from "lucide-react"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 
-type LoginType   = "student" | "parent"
-type StudentMode = "id" | "code"
-type ParentMode  = "id" | "google"
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+    </svg>
+  )
+}
 
-function LoginPageInner() {
-  const router       = useRouter()
+function LoginForm() {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session, status } = useSession()
+  const initialRole = searchParams.get("role") // 'parent' or null
 
-  // ?role=parent → 학부모 전용 진입 경로
-  const isParentEntry = searchParams.get("role") === "parent"
+  // 1단계 탭: 수강생 vs 학부모
+  const [userType, setUserType] = useState<"student" | "parent">(initialRole === "parent" ? "parent" : "student")
+  
+  // 2단계 탭 (수강생): 아이디 vs 학원코드
+  const [studentLoginMode, setStudentLoginMode] = useState<"id" | "code">("id")
+  // 2단계 탭 (학부모): 아이디 vs 구글
+  const [parentLoginMode, setParentLoginMode]   = useState<"id" | "google">("google")
 
-  const sessionKind = deriveSessionKind(status, session)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // 학부모 진입인데 학생 세션 → 계정 불일치
-  const isWrongAccount = isParentEntry && sessionKind === "student"
-  // 수강생 진입인데 학부모 세션 → 계정 불일치 (수강생 로그인 경로에서 parent redirect 차단)
-  const isParentOnStudentPath = !isParentEntry && sessionKind === "parent"
-
-  const [loginType,   setLoginType]   = useState<LoginType>(isParentEntry ? "parent" : "student")
-  const [studentMode, setStudentMode] = useState<StudentMode>("id")
-  const [parentMode,  setParentMode]  = useState<ParentMode>("id")
-  const [userId,      setUserId]      = useState("")
-  const [password,    setPassword]    = useState("")
-  const [schoolCode,  setSchoolCode]  = useState("")
+  // Form states
+  const [studentCode, setStudentCode] = useState("")
   const [studentName, setStudentName] = useState("")
-  const [error,       setError]       = useState("")
-  const [signingOut,  setSigningOut]  = useState(false)
+  const [loginId, setLoginId] = useState("")
+  const [password, setPassword] = useState("")
 
-  // ── 인증 후 role 기반 라우팅 ──────────────────────────────────────────────
-  useEffect(() => {
-    // 관리자 로그인 성공 → /admin
-    if (sessionKind === "admin") {
-      router.push("/admin")
-      return
-    }
-
-    // 학부모 세션 → 경로 무관하게 학부모 대시보드로 이동
-    if (sessionKind === "parent") {
-      router.push("/parent")
-      return
-    }
-
-    // 아래는 학생/미인증 상태에서만 실행
-    if (isWrongAccount)        return
-    if (isParentOnStudentPath) return
-
-    // 학생 로그인 성공 후 라우팅
-    if (sessionKind === "student") {
-      if (session?.user?.must_change_password) { router.push("/change-password"); return }
-      if (session?.user?.status === "pending")  { router.push("/pending");         return }
-      router.push("/dashboard")
-    }
-  }, [sessionKind, session, isParentEntry, isWrongAccount, isParentOnStudentPath, router])
-
-  // ── 로그아웃 핸들러 ──────────────────────────────────────────────────────
-  const handleLogout = async (callbackUrl: string) => {
-    setSigningOut(true)
-    await signOut({ callbackUrl })
-  }
-
-  // ── 아이디 + 비밀번호 로그인 ─────────────────────────────────────────────
-  const handleIdLogin = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setError("")
-    if (!userId || !password) { setError("아이디와 비밀번호를 입력해 주세요."); return }
 
-    const result = await signIn("credentials", {
-      login_id: userId,
-      password,
-      redirect: false,
-    })
-    if (result?.error) {
-      setError(
-        result.error === "CredentialsSignin"
-          ? "아이디 또는 비밀번호가 틀렸어요."
-          : result.error,
-      )
+    try {
+      const res = await signIn("credentials", {
+        redirect: false,
+        // 학생 코드 모드
+        student_code: (userType === "student" && studentLoginMode === "code") ? studentCode : undefined,
+        student_name: (userType === "student" && studentLoginMode === "code") ? studentName : undefined,
+        // 아이디 모드 (학생 아이디 또는 학부모/관리자 아이디)
+        login_id: (userType === "parent" || (userType === "student" && studentLoginMode === "id")) ? loginId : undefined,
+        password: (userType === "parent" || (userType === "student" && studentLoginMode === "id")) ? password : undefined,
+      })
+
+      if (res?.error) {
+        setError(res.error)
+      } else {
+        const session = await getSession()
+        const role = (session?.user as any)?.role
+        if (role === "admin")   router.push("/admin")
+        else if (role === "parent") router.push("/parent")
+        else                    router.push("/dashboard")
+      }
+    } catch (err) {
+      setError("로그인 중 오류가 발생했습니다.")
+    } finally {
+      setLoading(false)
     }
-  }
-
-  // ── 학원코드 + 이름 로그인 ────────────────────────────────────────────────
-  const handleCodeLogin = async (e: FormEvent) => {
-    e.preventDefault()
-    setError("")
-    if (!schoolCode || !studentName) { setError("학원코드와 이름을 입력해 주세요."); return }
-
-    const result = await signIn("credentials", {
-      student_code: schoolCode,
-      student_name: studentName,
-      redirect:     false,
-    })
-    if (result?.error) {
-      setError(
-        result.error === "CredentialsSignin"
-          ? "학원코드 또는 이름이 맞지 않아요."
-          : result.error,
-      )
-    }
-  }
-
-  // ── 로딩 / 리다이렉트 스피너 ─────────────────────────────────────────────
-  // 학생 세션이 확인되거나 부모가 ?role=parent 로 진입 시 → 이동 중이므로 스피너
-  const isRedirecting =
-    sessionKind === "loading" ||
-    sessionKind === "admin" ||
-    sessionKind === "parent" ||
-    (sessionKind === "student" && !isParentEntry)
-
-  if (isRedirecting) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">
-            {sessionKind === "loading" ? "로그인 확인 중..." : "로그인 성공! 잠시만 기다려주세요..."}
-          </p>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] px-4">
-      <div className="w-full max-w-sm">
+    <div className="w-full max-w-[440px] bg-white rounded-[32px] shadow-sm border border-gray-100 p-10 flex flex-col items-center">
+      
+      {/* 로고 */}
+      <div className="mb-8">
+        <CodeOnLogo />
+      </div>
 
-        {/* ── 학생 세션으로 학부모 페이지 접근 시 경고 ── */}
-        {isWrongAccount && (
-          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 leading-relaxed">
-            <p className="text-center">
-              ⚠️ <span className="font-semibold">현재 학생 계정으로 로그인되어 있습니다.</span><br />
-              학부모 페이지는 학부모 Google 계정으로만 접근할 수 있습니다.
-            </p>
-            <button
-              onClick={() => handleLogout("/login?role=parent")}
-              disabled={signingOut}
-              className="mt-3 w-full py-2 text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {signingOut ? "로그아웃 중..." : "학생 계정 로그아웃 후 학부모 로그인"}
-            </button>
-          </div>
-        )}
+      {/* 제목 */}
+      <div className="text-center mb-8">
+        <h1 className="text-[28px] font-extrabold text-gray-900 mb-1">제천코딩학원</h1>
+        <p className="text-sm font-medium text-gray-400">코딩앤플레이 AI 학습 플랫폼</p>
+      </div>
 
-        {/* ── 학부모 세션으로 수강생 로그인 경로 접근 시 안내 ── */}
-        {isParentOnStudentPath && (
-          <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800 leading-relaxed">
-            <p className="text-center">
-              👋 <span className="font-semibold">현재 학부모 계정으로 로그인되어 있습니다.</span><br />
-              수강생으로 로그인하려면 먼저 로그아웃 해주세요.
-            </p>
-            <div className="mt-3 flex flex-col gap-2">
-              <button
-                onClick={() => router.push("/parent")}
-                className="w-full py-2 text-xs font-bold bg-blue-100 hover:bg-blue-200 text-blue-900 rounded-lg transition-colors"
-              >
-                학부모 페이지로 이동
-              </button>
-              <button
-                onClick={() => handleLogout("/login")}
-                disabled={signingOut}
-                className="w-full py-2 text-xs font-bold bg-white hover:bg-blue-50 border border-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {signingOut ? "로그아웃 중..." : "로그아웃 후 수강생으로 로그인"}
-              </button>
-            </div>
-          </div>
-        )}
+      {/* 1단계 탭: 수강생 / 학부모 */}
+      <div className="w-full bg-[#f1f5f9] p-1 rounded-2xl flex gap-1 mb-6">
+        <button
+          type="button"
+          onClick={() => setUserType("student")}
+          className={`flex-1 py-3 text-[15px] font-bold rounded-xl transition-all
+            ${userType === "student" ? "bg-white text-[#6366f1] shadow-sm" : "text-gray-500"}`}
+        >
+          수강생 로그인
+        </button>
+        <button
+          type="button"
+          onClick={() => setUserType("parent")}
+          className={`flex-1 py-3 text-[15px] font-bold rounded-xl transition-all
+            ${userType === "parent" ? "bg-white text-[#6366f1] shadow-sm" : "text-gray-500"}`}
+        >
+          학부모 로그인
+        </button>
+      </div>
 
-        {/* ── 학부모 전용 진입 안내 배너 (미로그인) ── */}
-        {isParentEntry && !isWrongAccount && sessionKind === "none" && (
-          <div className="mb-4 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700 text-center leading-relaxed">
-            🔒 <span className="font-semibold">학부모 전용 페이지입니다.</span><br />
-            학부모 계정(Google)으로 로그인해 주세요.
-          </div>
-        )}
-
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-8 py-9">
-
-          {/* 로고 */}
-          <div className="flex items-center justify-center mb-7">
-            <CodeOnLogo />
-          </div>
-
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">제천코딩학원</h1>
-            <p className="text-sm text-gray-400 mt-1 font-medium">코딩앤플레이 AI 학습 플랫폼</p>
-          </div>
-
-          {/* 탭 */}
-          <div className="flex bg-gray-100 rounded-xl p-1 mb-6 gap-1">
-            {(["student", "parent"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => { setLoginType(type); setError("") }}
-                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                  loginType === type
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {type === "student" ? "수강생 로그인" : "학부모 로그인"}
-              </button>
-            ))}
-          </div>
-
-          {/* ── 수강생 로그인 ── */}
-          {loginType === "student" && (
-            <div>
-              <div className="flex gap-2 mb-5">
-                {(["id", "code"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => { setStudentMode(mode); setError("") }}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all duration-200 ${
-                      studentMode === mode
-                        ? "border-indigo-400 bg-indigo-50 text-indigo-600"
-                        : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600"
-                    }`}
-                  >
-                    {mode === "id" ? "아이디로 로그인" : "학원코드로 로그인"}
-                  </button>
-                ))}
-              </div>
-
-              {studentMode === "id" && (
-                <form onSubmit={handleIdLogin} className="flex flex-col gap-3">
-                  <input type="text"     placeholder="아이디"   value={userId}   onChange={e => setUserId(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  <input type="password" placeholder="비밀번호" value={password} onChange={e => setPassword(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  {error && <p className="text-xs text-red-500 text-center">{error}</p>}
-                  <button type="submit" className="w-full py-3.5 bg-indigo-500 text-white rounded-xl text-base font-bold hover:bg-indigo-600 active:scale-95 transition-all mt-1">
-                    로그인
-                  </button>
-                </form>
-              )}
-
-              {studentMode === "code" && (
-                <form onSubmit={handleCodeLogin} className="flex flex-col gap-3">
-                  <input type="text" placeholder="학원코드 (선생님께 받은 코드)" value={schoolCode} onChange={e => setSchoolCode(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  <input type="text" placeholder="내 이름" value={studentName} onChange={e => setStudentName(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  {error && <p className="text-xs text-red-500 text-center">{error}</p>}
-                  <button type="submit" className="w-full py-3.5 bg-indigo-500 text-white rounded-xl text-base font-bold hover:bg-indigo-600 active:scale-95 transition-all mt-1">
-                    로그인
-                  </button>
-                </form>
-              )}
-
-              <p className="text-xs text-gray-400 text-center mt-4 leading-relaxed">
-                로그인이 안 되면 선생님께 여쭤보세요 😊
-              </p>
-            </div>
-          )}
-
-          {/* ── 학부모 로그인 ── */}
-          {loginType === "parent" && (
-            <div>
-              {/* 모드 선택 */}
-              <div className="flex gap-2 mb-5">
-                {([
-                  { mode: "id" as ParentMode,     label: "아이디로 로그인" },
-                  { mode: "google" as ParentMode,  label: "Google로 로그인" },
-                ]).map(({ mode, label }) => (
-                  <button
-                    key={mode}
-                    onClick={() => { setParentMode(mode); setError("") }}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all duration-200 ${
-                      parentMode === mode
-                        ? "border-indigo-400 bg-indigo-50 text-indigo-600"
-                        : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {parentMode === "id" && (
-                <form onSubmit={handleIdLogin} className="flex flex-col gap-3">
-                  <input type="text"     placeholder="아이디"   value={userId}   onChange={e => setUserId(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  <input type="password" placeholder="비밀번호" value={password} onChange={e => setPassword(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                  {error && <p className="text-xs text-red-500 text-center">{error}</p>}
-                  <button type="submit" className="w-full py-3.5 bg-indigo-500 text-white rounded-xl text-base font-bold hover:bg-indigo-600 active:scale-95 transition-all mt-1">
-                    로그인
-                  </button>
-                  <p className="text-xs text-gray-400 text-center leading-relaxed">
-                    학원에서 안내받은 아이디로 로그인해 주세요.
-                  </p>
-                </form>
-              )}
-
-              {parentMode === "google" && (
-                <div>
-                  <button
-                    onClick={() => signIn("google", { callbackUrl: "/parent" })}
-                    className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 active:scale-95 transition-all shadow-sm"
-                  >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    Google로 로그인
-                  </button>
-                  <p className="text-xs text-gray-400 text-center mt-4 leading-relaxed">
-                    학원에서 안내받은 Google 계정으로<br />로그인해 주세요.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
+      {/* 2단계 탭 (수강생): 아이디로 / 학원코드로 */}
+      {userType === "student" && (
+        <div className="w-full flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setStudentLoginMode("id")}
+            className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg border transition-all
+              ${studentLoginMode === "id" ? "border-[#6366f1] text-[#6366f1] bg-white" : "border-gray-200 text-gray-400 bg-white"}`}
+          >
+            아이디로 로그인
+          </button>
+          <button
+            type="button"
+            onClick={() => setStudentLoginMode("code")}
+            className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg border transition-all
+              ${studentLoginMode === "code" ? "border-[#6366f1] text-[#6366f1] bg-white" : "border-gray-200 text-gray-400 bg-white"}`}
+          >
+            학원코드로 로그인
+          </button>
         </div>
+      )}
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          제천코딩학원 Coding &amp; Play
-        </p>
+      {/* 2단계 탭 (학부모): 아이디 / Google */}
+      {userType === "parent" && (
+        <div className="w-full flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setParentLoginMode("google")}
+            className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg border transition-all
+              ${parentLoginMode === "google" ? "border-[#6366f1] text-[#6366f1] bg-white" : "border-gray-200 text-gray-400 bg-white"}`}
+          >
+            Google 로그인
+          </button>
+          <button
+            type="button"
+            onClick={() => setParentLoginMode("id")}
+            className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg border transition-all
+              ${parentLoginMode === "id" ? "border-[#6366f1] text-[#6366f1] bg-white" : "border-gray-200 text-gray-400 bg-white"}`}
+          >
+            아이디로 로그인
+          </button>
+        </div>
+      )}
+
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="w-full mb-4 flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs font-medium rounded-xl border border-red-100">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* 폼 */}
+      <form onSubmit={handleSubmit} className="w-full space-y-4">
+        {userType === "parent" && parentLoginMode === "google" ? (
+          <button
+            type="button"
+            onClick={() => signIn("google", { callbackUrl: "/parent" })}
+            className="w-full flex items-center justify-center gap-3 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+          >
+            <GoogleIcon />
+            Google로 시작하기
+          </button>
+        ) : userType === "parent" && parentLoginMode === "id" ? (
+          <>
+            <input
+              type="text"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              placeholder="아이디"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+          </>
+        ) : (userType === "student" && studentLoginMode === "id") ? (
+          <>
+            <input
+              type="text"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              placeholder="아이디"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+          </>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={studentCode}
+              onChange={(e) => setStudentCode(e.target.value)}
+              placeholder="학원코드"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+            <input
+              type="text"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              placeholder="이름"
+              required
+              className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:border-[#6366f1] transition-all placeholder:text-gray-300"
+            />
+          </>
+        )}
+
+        {!(userType === "parent" && parentLoginMode === "google") && (
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-[#6366f1] hover:bg-[#5558e3] text-white text-[16px] font-bold rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-4 shadow-sm"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "로그인"}
+          </button>
+        )}
+      </form>
+
+      {/* 푸터 문구 */}
+      <div className="mt-6 flex items-center gap-1.5">
+        <span className="text-[13px] text-gray-500">로그인이 안 되면 선생님께 여쭤보세요</span>
+        <Smile className="w-4 h-4 text-gray-400" />
       </div>
     </div>
   )
@@ -335,8 +249,15 @@ function LoginPageInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
-      <LoginPageInner />
-    </Suspense>
+    <main className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6">
+      <Suspense fallback={<Loader2 className="w-8 h-8 animate-spin text-[#6366f1]" />}>
+        <LoginForm />
+      </Suspense>
+      
+      {/* 하단 텍스트 */}
+      <div className="mt-8 text-center text-gray-400 text-[13px] font-medium">
+        제천코딩학원 Coding & Play
+      </div>
+    </main>
   )
 }

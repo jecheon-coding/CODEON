@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect }         from "next/navigation"
 import { authOptions }      from "@/lib/authOptions"
 import { supabaseServer }   from "@/lib/supabaseServer"
+import { calcAccuracy }     from "@/lib/accuracyUtils"
 import ParentDashboardClient, { type ParentDashboardProps, type TeacherInput } from "./ParentDashboardClient"
 
 const COURSE_CATEGORY: Record<string, string> = {
@@ -22,7 +23,7 @@ export default async function ParentPage() {
   if ((session.user as any).role !== "parent") redirect("/login?role=parent")
 
   const parentId   = (session.user as any).id as string
-  const parentName = session.user.name ?? "학부모님"
+  const parentName = (session.user.name ?? "학부모").replace(/님$/, "")
 
   // ── 자녀 연결 조회 ──────────────────────────────────────────────────────
   const { data: links } = await supabaseServer
@@ -89,11 +90,16 @@ export default async function ParentPage() {
   const allProblems = problems ?? []
   const problemMap  = new Map(allProblems.map(p => [p.id, p]))
 
-  // ── 기본 집계 ────────────────────────────────────────────────────────────
-  const total   = subs.length
-  const correct = subs.filter(s => s.is_correct).length
-  const wrong   = total - correct
-  const rate    = total > 0 ? Math.round((correct / total) * 100) : 0
+  // ── 기본 집계 (고유 문제 기준 정답률) ──────────────────────────────────────
+  const {
+    correctProblemCount,
+    attemptedProblemCount,
+    rate,
+    totalSubmitCount,
+  } = calcAccuracy(subs)
+  const total   = totalSubmitCount
+  const correct = correctProblemCount
+  const wrong   = attemptedProblemCount - correctProblemCount
 
   // ── 기간 분리 ────────────────────────────────────────────────────────────
   const now          = new Date()
@@ -109,13 +115,29 @@ export default async function ParentPage() {
     return t >= prevWeekStart && t < weekStart
   })
 
-  const weekTotal    = weekSubs.length
+  const weekTotal    = weekSubs.length  // 제출 횟수 (KPI: "이번 주 N문제 제출")
   const weekCorrect  = weekSubs.filter(s => s.is_correct).length
-  const weekRate     = weekTotal > 0 ? Math.round((weekCorrect / weekTotal) * 100) : 0
-  const prevWeekRate = prevWeekSubs.length > 0
-    ? Math.round((prevWeekSubs.filter(s => s.is_correct).length / prevWeekSubs.length) * 100)
-    : 0
+  const { attemptedProblemCount: weekAttemptedProblemCount, rate: weekRate } = calcAccuracy(weekSubs)
+  const { rate: prevWeekRate } = calcAccuracy(prevWeekSubs)
   const rateChange   = weekRate - prevWeekRate
+
+  // ── 이번 주 학습 시간 추정 (세션 기반) ──────────────────────────────────
+  // 30분 이내 연속 제출 = 같은 세션, 마지막 문제 +5분 추가
+  const weekStudyMinutes = (() => {
+    if (weekSubs.length === 0) return 0
+    const SESSION_GAP = 30 * 60 * 1000
+    const LAST_MIN    = 5
+    const times = weekSubs
+      .map(s => new Date(toUTC(s.created_at)).getTime())
+      .sort((a, b) => a - b)
+    let total = 0, start = times[0], end = times[0]
+    for (let i = 1; i < times.length; i++) {
+      if (times[i] - end < SESSION_GAP) { end = times[i] }
+      else { total += (end - start) / 60000 + LAST_MIN; start = times[i]; end = times[i] }
+    }
+    total += (end - start) / 60000 + LAST_MIN
+    return Math.round(total)
+  })()
 
   // ── 연속 학습일 ──────────────────────────────────────────────────────────
   const correctDays = new Set(
@@ -209,17 +231,46 @@ export default async function ParentPage() {
     }
   }
 
-  // ── 과제 목록 (현재 과정 문제 15개) ──────────────────────────────────────
-  const currentCategory = COURSE_CATEGORY[currentSlug]
-  const courseProblems  = allProblems.filter(p => p.category === currentCategory).slice(0, 15)
-  const assignments: ParentDashboardProps["assignments"] = courseProblems.map(p => ({
-    id:          p.id,
-    title:       p.title,
-    difficulty:  p.difficulty,
-    topic:       p.topic ?? null,
-    isCorrect:   correctProblemIds.has(p.id),
-    isAttempted: subs.some(s => s.problem_id === p.id),
-  }))
+  // ── 실제 과제 조회 (관리자가 배정한 과제) ─────────────────────────────────
+  const [{ data: asRows }, { data: apRows }, { data: aRows }] = await Promise.all([
+    supabaseServer.from("assignment_students")
+      .select("assignment_id")
+      .eq("student_user_id", studentId),
+    supabaseServer.from("assignment_problems")
+      .select("assignment_id, problem_id, display_order"),
+    supabaseServer.from("assignments")
+      .select("id, title, due_date")
+      .order("due_date", { ascending: true, nullsFirst: false }),
+  ])
+
+  const assignedIds = new Set((asRows ?? []).map((r: any) => r.assignment_id as string))
+
+  const assignments: ParentDashboardProps["assignments"] = (aRows ?? [])
+    .filter((a: any) => assignedIds.has(a.id))
+    .map((a: any) => {
+      const problemRows = ((apRows ?? []) as any[])
+        .filter(ap => ap.assignment_id === a.id)
+        .sort((ap1, ap2) => ap1.display_order - ap2.display_order)
+      const problems = problemRows.map(ap => {
+        const p = problemMap.get(ap.problem_id)
+        return {
+          id:          ap.problem_id as string,
+          title:       p?.title       ?? "알 수 없음",
+          difficulty:  p?.difficulty  ?? "medium",
+          topic:       p?.topic       ?? null,
+          isCorrect:   correctProblemIds.has(ap.problem_id),
+          isAttempted: subs.some(s => s.problem_id === ap.problem_id),
+        }
+      })
+      return {
+        id:             a.id as string,
+        title:          a.title as string,
+        dueDate:        a.due_date ?? null,
+        problems,
+        completedCount: problems.filter(p => p.isCorrect).length,
+        totalCount:     problems.length,
+      }
+    })
 
   // ── 최근 제출 (10건) ──────────────────────────────────────────────────────
   const recentSubs: ParentDashboardProps["recentSubs"] = [...subs]
@@ -237,8 +288,9 @@ export default async function ParentPage() {
 
   const stats: ParentDashboardProps["stats"] = {
     total, correct, wrong, rate,
-    weekTotal, weekCorrect, weekRate,
-    prevWeekRate, rateChange, streak, lastStudyDate,
+    correctProblemCount, attemptedProblemCount,
+    weekTotal, weekCorrect, weekAttemptedProblemCount, weekRate,
+    prevWeekRate, rateChange, streak, lastStudyDate, weekStudyMinutes,
     currentCourse: COURSE_LABEL[currentSlug] ?? "기초 과정",
   }
 
