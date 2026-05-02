@@ -47,6 +47,7 @@ function LoginForm() {
     try {
       const res = await signIn("credentials", {
         redirect: false,
+        user_type: userType,
         // 학생 코드 모드
         student_code: (userType === "student" && studentLoginMode === "code") ? studentCode : undefined,
         student_name: (userType === "student" && studentLoginMode === "code") ? studentName : undefined,

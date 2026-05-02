@@ -19,6 +19,7 @@ export const authOptions: NextAuthOptions = {
         password:     { label: "비밀번호", type: "password" },
         student_code: { label: "학원코드", type: "text"     },
         student_name: { label: "이름",     type: "text"     },
+        user_type:    { label: "로그인유형", type: "text"   }, // "student" | "parent"
       },
       async authorize(credentials) {
         // ── 모드 1: 아이디 + 비밀번호 ──────────────────────────────────────
@@ -35,6 +36,13 @@ export const authOptions: NextAuthOptions = {
 
           const valid = await verifyPassword(credentials.password, user.password_hash ?? "")
           if (!valid) throw new Error("아이디 또는 비밀번호가 틀렸습니다.")
+
+          // 탭 선택과 실제 role이 다르면 차단
+          const type = credentials.user_type
+          if (type === "student" && user.role === "parent")
+            throw new Error("수강생 계정이 아닙니다. 학부모 로그인을 이용하세요.")
+          if (type === "parent" && user.role !== "parent")
+            throw new Error("학부모 계정이 아닙니다. 수강생 로그인을 이용하세요.")
 
           return {
             id:                   user.id,

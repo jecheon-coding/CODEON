@@ -409,6 +409,33 @@ export default function ParentDashboardClient({
 
   const [showConsult,    setShowConsult]    = useState(false)
   const [showHistory,    setShowHistory]    = useState(false)
+  const [showPwModal,    setShowPwModal]    = useState(false)
+  const [pwNew,          setPwNew]          = useState("")
+  const [pwConfirm,      setPwConfirm]      = useState("")
+  const [pwLoading,      setPwLoading]      = useState(false)
+  const [pwError,        setPwError]        = useState("")
+  const [pwDone,         setPwDone]         = useState(false)
+
+  const handlePwChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwError("")
+    if (pwNew.length < 6) { setPwError("비밀번호는 6자 이상이어야 합니다."); return }
+    if (pwNew !== pwConfirm) { setPwError("비밀번호가 일치하지 않습니다."); return }
+    setPwLoading(true)
+    try {
+      const res = await fetch("/api/parent/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: pwNew }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setPwError(data.error ?? "오류가 발생했습니다."); return }
+      setPwDone(true)
+      setPwNew(""); setPwConfirm("")
+      setTimeout(() => { setShowPwModal(false); setPwDone(false) }, 1500)
+    } catch { setPwError("서버 오류가 발생했습니다.") }
+    finally { setPwLoading(false) }
+  }
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     // 미완료 진행 중인 과제 중 마감 가장 임박한 1개만 기본 펼침
     const now = Date.now()
@@ -604,7 +631,13 @@ export default function ParentDashboardClient({
               <GraduationCap className="w-3.5 h-3.5" />
               <span>학부모 대시보드</span>
             </div>
-            <span className="text-sm text-gray-700 hidden sm:block">{parentName}님</span>
+            <button
+              onClick={() => { setShowPwModal(true); setPwError(""); setPwDone(false) }}
+              className="hidden sm:flex items-center gap-1 text-sm text-gray-600 hover:text-indigo-600 font-medium transition-colors rounded-lg px-2 py-1 hover:bg-indigo-50"
+              title="비밀번호 변경"
+            >
+              {parentName}님
+            </button>
             <button onClick={() => signOut({ callbackUrl: "/login" })} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 font-medium transition-colors">
               <LogOut className="w-4 h-4" /><span className="hidden sm:inline">로그아웃</span>
             </button>
@@ -1365,6 +1398,61 @@ export default function ParentDashboardClient({
 
       {showConsult && <ConsultModal onClose={() => setShowConsult(false)} />}
       {showHistory  && <SubHistoryPanel onClose={() => setShowHistory(false)} initialTotal={stats.total} />}
+
+      {/* ── 비밀번호 변경 모달 ── */}
+      {showPwModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-extrabold text-gray-900">비밀번호 변경</h3>
+              <button onClick={() => setShowPwModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {pwDone ? (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <CheckCircle2 className="w-10 h-10 text-green-500" />
+                <p className="text-sm font-semibold text-gray-700">비밀번호가 변경되었습니다.</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePwChange} className="space-y-3">
+                <input
+                  type="password"
+                  value={pwNew}
+                  onChange={e => setPwNew(e.target.value)}
+                  placeholder="새 비밀번호 (6자 이상)"
+                  required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400"
+                />
+                <input
+                  type="password"
+                  value={pwConfirm}
+                  onChange={e => setPwConfirm(e.target.value)}
+                  placeholder="비밀번호 확인"
+                  required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400"
+                />
+                {pwError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />{pwError}
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setShowPwModal(false)}
+                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">
+                    취소
+                  </button>
+                  <button type="submit" disabled={pwLoading}
+                    className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {pwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "변경"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
