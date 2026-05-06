@@ -694,6 +694,78 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       const initFontSize = (!isNaN(savedFs) && savedFs >= 11 && savedFs <= 20) ? savedFs : 13
       if (initFontSize !== fontSize) setFontSize(initFontSize)
 
+      // ── Python 자동완성 provider (전역 1회 등록) ────────────────────────────
+      if (!(window as any).__pythonCompletionRegistered) {
+        ;(window as any).__pythonCompletionRegistered = true
+
+        const PY_KEYWORDS = [
+          'False','None','True','and','as','assert','async','await',
+          'break','class','continue','def','del','elif','else','except',
+          'finally','for','from','global','if','import','in','is','lambda',
+          'nonlocal','not','or','pass','raise','return','try','while','with','yield',
+        ]
+        const PY_BUILTINS = [
+          'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
+          'dict','dir','divmod','enumerate','eval','exec','filter','float',
+          'format','frozenset','getattr','globals','hasattr','hash','hex',
+          'id','input','int','isinstance','issubclass','iter','len','list',
+          'locals','map','max','min','next','object','oct','open','ord',
+          'pow','print','range','repr','reversed','round','set','setattr',
+          'slice','sorted','str','sum','super','tuple','type','vars','zip',
+        ]
+        const PY_SNIPPETS: { label: string; insert: string; detail: string }[] = [
+          { label: 'if',       insert: 'if ${1:condition}:\n\t${2:pass}',                                    detail: 'if 문' },
+          { label: 'if/else',  insert: 'if ${1:condition}:\n\t${2:pass}\nelse:\n\t${3:pass}',                detail: 'if/else 문' },
+          { label: 'elif',     insert: 'elif ${1:condition}:\n\t${2:pass}',                                  detail: 'elif 절' },
+          { label: 'for',      insert: 'for ${1:i} in ${2:range(10)}:\n\t${3:pass}',                        detail: 'for 반복문' },
+          { label: 'while',    insert: 'while ${1:condition}:\n\t${2:pass}',                                 detail: 'while 반복문' },
+          { label: 'def',      insert: 'def ${1:func_name}(${2:}):\n\t${3:pass}',                           detail: '함수 정의' },
+          { label: 'class',    insert: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',        detail: '클래스 정의' },
+          { label: 'try',      insert: 'try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:pass}',  detail: 'try/except' },
+          { label: 'with',     insert: 'with ${1:expr} as ${2:f}:\n\t${3:pass}',                            detail: 'with 문' },
+          { label: 'print',    insert: 'print(${1})',                                                        detail: '출력' },
+          { label: 'input',    insert: 'input(${1:""})',                                                     detail: '입력' },
+          { label: 'range',    insert: 'range(${1:n})',                                                      detail: 'range(n)' },
+          { label: 'len',      insert: 'len(${1:obj})',                                                      detail: '길이 반환' },
+          { label: 'int',      insert: 'int(${1})',                                                          detail: '정수 변환' },
+          { label: 'str',      insert: 'str(${1})',                                                          detail: '문자열 변환' },
+          { label: 'float',    insert: 'float(${1})',                                                        detail: '실수 변환' },
+          { label: 'list',     insert: 'list(${1})',                                                         detail: '리스트 변환' },
+          { label: 'enumerate',insert: 'enumerate(${1:iterable})',                                           detail: 'enumerate' },
+          { label: 'zip',      insert: 'zip(${1:a}, ${2:b})',                                                detail: 'zip' },
+          { label: 'map',      insert: 'map(${1:func}, ${2:iterable})',                                      detail: 'map' },
+          { label: 'sorted',   insert: 'sorted(${1:iterable})',                                              detail: '정렬된 리스트 반환' },
+          { label: 'split',    insert: 'split(${1:" "})',                                                    detail: '문자열 분할' },
+          { label: 'join',     insert: '"${1: }".join(${2:iterable})',                                       detail: '문자열 결합' },
+        ]
+
+        monaco.languages.registerCompletionItemProvider("python", {
+          triggerCharacters: ["."],
+          provideCompletionItems(model: any, position: any) {
+            const word = model.getWordUntilPosition(position)
+            const range = {
+              startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,         endColumn: word.endColumn,
+            }
+            const KW   = monaco.languages.CompletionItemKind.Keyword
+            const FN   = monaco.languages.CompletionItemKind.Function
+            const SNIP = monaco.languages.CompletionItemKind.Snippet
+            const RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+
+            return {
+              suggestions: [
+                ...PY_KEYWORDS.map((k: string) => ({ label: k, kind: KW, insertText: k, range })),
+                ...PY_BUILTINS.map((b: string) => ({ label: b, kind: FN,   insertText: b, range })),
+                ...PY_SNIPPETS.map(s => ({
+                  label: s.label, kind: SNIP, detail: s.detail,
+                  insertText: s.insert, insertTextRules: RULE, range,
+                })),
+              ],
+            }
+          },
+        })
+      }
+
       const editor = monaco.editor.create(editorContainerRef.current, {
         value:                   problem.initial_code ?? "",
         language:                "python",
@@ -709,10 +781,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         insertSpaces:            true,
         padding:                 { top: 14, bottom: 14 },
         lineNumbers:             "on",
-        quickSuggestions:        true,
+        quickSuggestions:        { other: true, comments: false, strings: false },
         acceptSuggestionOnEnter: "on",
         suggestOnTriggerCharacters: true,
-        wordBasedSuggestions:    "currentDocument",
+        wordBasedSuggestions:    "off",
         overviewRulerLanes:      0,
       })
 
@@ -723,11 +795,40 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
       )
 
-      // Ctrl+Enter → 현재 줄 아래에 새 줄 삽입 후 커서 이동
+      // Shift+Enter → 현재 줄 아래에 새 줄 삽입 후 커서 이동
       editor.addCommand(
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+        monaco.KeyMod.Shift | monaco.KeyCode.Enter,
         () => editor.trigger("keyboard", "editor.action.insertLineAfter", null)
       )
+
+      // ── else / elif / except / finally 자동 들여쓰기 정렬 ─────────────────────
+      editor.onDidChangeModelContent((e: any) => {
+        if (e.changes.length !== 1 || e.changes[0].text !== ":") return
+        const model = editor.getModel()
+        const pos   = editor.getPosition()
+        if (!model || !pos) return
+
+        const lineContent = model.getLineContent(pos.lineNumber)
+        const trimmed     = lineContent.trim()
+        if (!/^(else\s*:|elif\b.*:|except(\s.*)?:|finally\s*:)\s*$/.test(trimmed)) return
+
+        const currentIndentLen = (lineContent.match(/^(\s*)/) as any)[1].length
+
+        // 위로 스캔하며 현재보다 들여쓰기가 짧은 첫 번째 비어있지 않은 줄 찾기
+        for (let ln = pos.lineNumber - 1; ln >= 1; ln--) {
+          const prev       = model.getLineContent(ln)
+          if (!prev.trim()) continue
+          const prevIndent = (prev.match(/^(\s*)/) as any)[1]
+          if (prevIndent.length < currentIndentLen) {
+            editor.executeEdits("align-else", [{
+              range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber, currentIndentLen + 1),
+              text:  prevIndent,
+            }])
+            editor.setPosition({ lineNumber: pos.lineNumber, column: prevIndent.length + trimmed.length + 1 })
+            return
+          }
+        }
+      })
 
       // ── 빈칸 채우기 (@ 마커) ───────────────────────────────────────────────
 
