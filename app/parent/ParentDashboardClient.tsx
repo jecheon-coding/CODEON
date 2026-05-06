@@ -131,8 +131,26 @@ function resolveCategory(topic: string | null): string | null {
    CONSULT MODAL
 ───────────────────────────────────────────── */
 function ConsultModal({ onClose }: { onClose: () => void }) {
-  const [sent, setSent] = useState(false)
-  const [msg,  setMsg]  = useState("")
+  const [sent,    setSent]    = useState(false)
+  const [msg,     setMsg]     = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState("")
+
+  const handleSubmit = async () => {
+    if (!msg.trim()) return
+    setLoading(true); setError("")
+    try {
+      const res  = await fetch("/api/parent/consult", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? "오류가 발생했습니다."); return }
+      setSent(true)
+    } catch { setError("네트워크 오류가 발생했습니다.") }
+    finally  { setLoading(false) }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
@@ -149,6 +167,11 @@ function ConsultModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
+            {error && (
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />{error}
+              </div>
+            )}
             <textarea
               value={msg} onChange={e => setMsg(e.target.value)}
               placeholder="문의하실 내용을 입력해주세요."
@@ -158,10 +181,11 @@ function ConsultModal({ onClose }: { onClose: () => void }) {
             <div className="flex gap-2">
               <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors">취소</button>
               <button
-                onClick={() => msg.trim() && setSent(true)} disabled={!msg.trim()}
+                onClick={handleSubmit} disabled={!msg.trim() || loading}
                 className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-40 transition-colors"
               >
-                <Send className="w-3.5 h-3.5" /> 신청하기
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                신청하기
               </button>
             </div>
           </>

@@ -8,7 +8,7 @@ import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock, Upload, ListChecks, Bell, UserCog,
+  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -46,7 +46,13 @@ type LinkRequest = {
 
 type Summary = {
   totalStudents: number; pendingStudents: number; unsubmittedCount: number
-  pendingProblems: number; pendingLinks: number; unwrittenReviews: number
+  pendingProblems: number; pendingLinks: number; pendingConsults: number; unwrittenReviews: number
+}
+
+type ConsultRequest = {
+  id: string; parent_name: string; student_name: string | null
+  message: string; status: string; admin_memo: string | null
+  created_at: string; resolved_at: string | null
 }
 
 type Problem = { id: string; title: string; category: string; difficulty: string; topic: string | null }
@@ -176,13 +182,18 @@ function SummaryCards({ summary, liveUnsub }: {
       icon: Link2Off, sub: "연결 대기",
     },
     {
+      label: "상담 대기", value: summary?.pendingConsults ?? "…",
+      color: "text-violet-700", bg: "bg-violet-50", border: "border-l-violet-500",
+      icon: MessageSquare, sub: "학부모 신청",
+    },
+    {
       label: "총평 미작성", value: summary?.unwrittenReviews ?? "…",
       color: "text-rose-600", bg: "bg-rose-50", border: "border-l-rose-500",
       icon: FileCheck, sub: "이번 달",
     },
   ]
   return (
-    <div className="grid grid-cols-5 gap-4 mb-7">
+    <div className="grid grid-cols-6 gap-4 mb-7">
       {cards.map(({ label, value, color, bg, border, icon: Icon, sub }) => (
         <div key={label}
           className={`bg-white border border-gray-200 border-l-4 ${border} rounded-xl px-4 py-4 shadow-sm hover:shadow-md transition-shadow`}>
@@ -1761,6 +1772,127 @@ function ParentLinkSection({ onRefreshSummary }: { onRefreshSummary: () => void 
   )
 }
 
+// ── 강사 상담 신청 관리 ───────────────────────────────────────────────────────
+
+function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) {
+  const [list,      setList]      = useState<ConsultRequest[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [memoId,    setMemoId]    = useState<string | null>(null)
+  const [memoText,  setMemoText]  = useState("")
+  const [saving,    setSaving]    = useState(false)
+  const [filter,    setFilter]    = useState<"all" | "pending" | "resolved">("pending")
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch("/api/admin/consult")
+    if (res.ok) setList(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const resolve = async (id: string) => {
+    await fetch("/api/admin/consult", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: "resolved" }),
+    })
+    await load(); onRefreshSummary()
+  }
+
+  const saveMemo = async (id: string) => {
+    setSaving(true)
+    await fetch("/api/admin/consult", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, admin_memo: memoText }),
+    })
+    setSaving(false); setMemoId(null); load()
+  }
+
+  const filtered = list.filter(c => filter === "all" ? true : c.status === filter)
+  const pendingCount = list.filter(c => c.status === "pending").length
+
+  return (
+    <SectionCard
+      title="강사 상담 신청"
+      desc={pendingCount > 0 ? `대기 ${pendingCount}건` : "신규 신청 없음"}
+      action={
+        <div className="flex gap-1">
+          {(["pending", "resolved", "all"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${
+                filter === f ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}>
+              {f === "pending" ? "대기" : f === "resolved" ? "완료" : "전체"}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {loading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={MessageSquare} title="상담 신청이 없습니다." />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map(c => (
+            <div key={c.id} className={`border rounded-xl p-4 flex flex-col gap-2 ${
+              c.status === "resolved" ? "bg-gray-50 border-gray-200 opacity-70" : "bg-white border-indigo-100"
+            }`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-gray-900">{c.parent_name}</span>
+                  {c.student_name && (
+                    <Badge variant="blue">학생: {c.student_name}</Badge>
+                  )}
+                  <Badge variant={c.status === "pending" ? "amber" : "green"}>
+                    {c.status === "pending" ? "대기중" : "처리완료"}
+                  </Badge>
+                  <span className="text-[11px] text-gray-400">
+                    {new Date(c.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                {c.status === "pending" && (
+                  <button onClick={() => resolve(c.id)} className={Btn.green + " shrink-0"}>
+                    <CheckCheck className="w-3.5 h-3.5" /> 처리완료
+                  </button>
+                )}
+              </div>
+
+              <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">{c.message}</p>
+
+              {/* 메모 */}
+              {memoId === c.id ? (
+                <div className="flex gap-2 items-end">
+                  <textarea value={memoText} onChange={e => setMemoText(e.target.value)}
+                    rows={2} placeholder="관리자 메모 (내부용)"
+                    className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-indigo-400" />
+                  <div className="flex flex-col gap-1">
+                    <button onClick={() => saveMemo(c.id)} disabled={saving} className={Btn.primary}>
+                      {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} 저장
+                    </button>
+                    <button onClick={() => setMemoId(null)} className={Btn.ghost}>취소</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {c.admin_memo
+                    ? <p className="text-xs text-indigo-600 bg-indigo-50 rounded px-2 py-1 flex-1">메모: {c.admin_memo}</p>
+                    : <span className="text-[11px] text-gray-400">메모 없음</span>
+                  }
+                  <button onClick={() => { setMemoId(c.id); setMemoText(c.admin_memo ?? "") }}
+                    className={Btn.ghost + " text-[11px]"}>
+                    <Pencil className="w-3 h-3" /> 메모
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
 // ── 학부모 월 총평 ────────────────────────────────────────────────────────────
 
 function MonthlyReviewSection() {
@@ -2088,6 +2220,7 @@ export default function AdminPage() {
           {/* 우측 */}
           <div className="flex flex-col gap-6">
             <SubmissionSection onUnsubChange={handleUnsubChange} />
+            <ConsultSection onRefreshSummary={loadSummary} />
             <ProblemApprovalSection onRefreshSummary={loadSummary} />
             <MonthlyReviewSection />
           </div>

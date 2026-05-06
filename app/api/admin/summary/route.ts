@@ -14,6 +14,7 @@ export async function GET() {
     { data: students },
     { count: pendingProblems },
     { count: pendingLinks },
+    { count: pendingConsults },
     { data: feedbackData },
     { data: asData },
     { data: subData },
@@ -22,6 +23,8 @@ export async function GET() {
     supabaseServer.from("problems").select("*", { count: "exact", head: true })
       .eq("is_community", true).eq("status", "pending"),
     supabaseServer.from("parent_link_requests").select("*", { count: "exact", head: true })
+      .eq("status", "pending"),
+    supabaseServer.from("consult_requests").select("*", { count: "exact", head: true })
       .eq("status", "pending"),
     supabaseServer.from("teacher_feedback").select("student_id").eq("month", currentMonth),
     supabaseServer.from("assignment_students").select("student_user_id"),
@@ -47,8 +50,9 @@ export async function GET() {
     totalStudents,
     pendingStudents,
     unsubmittedCount,
-    pendingProblems:   pendingProblems ?? 0,
-    pendingLinks:      pendingLinks    ?? 0,
+    pendingProblems:   pendingProblems  ?? 0,
+    pendingLinks:      pendingLinks     ?? 0,
+    pendingConsults:   pendingConsults  ?? 0,
     unwrittenReviews,
   })
 }
