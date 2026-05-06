@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   Sparkles, Menu, X,
   Brain, CheckCircle2,
@@ -96,8 +97,18 @@ const KEY_FEATURES = [
 
 export default function Landing() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notices, setNotices] = useState<Notice[]>([])
+
+  // 로그인 상태면 역할에 맞는 대시보드로 이동
+  useEffect(() => {
+    if (status !== "authenticated") return
+    const role = (session?.user as any)?.role
+    if      (role === "admin")  router.replace("/admin")
+    else if (role === "parent") router.replace("/parent")
+    else                        router.replace("/dashboard")
+  }, [status, session, router])
 
   useEffect(() => {
     fetch("/api/notices")
