@@ -844,6 +844,15 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             padding      : 1px 6px !important;
             font-size    : 12px !important;
             cursor       : pointer !important;
+          }
+          .numbered-blank {
+            background      : #f59e0b !important;
+            color           : #1a1a1a !important;
+            border-radius   : 4px !important;
+            padding         : 1px 5px !important;
+            font-weight     : bold !important;
+            cursor          : pointer !important;
+            text-decoration : none !important;
           }`
         document.head.appendChild(s)
       }
@@ -874,35 +883,79 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       updateBlanks()
       editor.onDidChangeModelContent(updateBlanks)
 
-      // 클릭 → blank-marker decoration 위 클릭이면 전체 @ 제거 후 커서 이동
+      // ── 번호 빈칸 (①___ 형식) ─────────────────────────────────────────────
+      const nbDecoIds: string[] = []
+
+      const updateNumberedBlanks = () => {
+        const model = editor.getModel()
+        if (!model) return
+        const newDecos: any[] = []
+        model.getValue().split("\n").forEach((line: string, li: number) => {
+          const re = /[①②③④⑤⑥⑦⑧⑨⑩]_{1,}/g
+          let match: RegExpExecArray | null
+          while ((match = re.exec(line)) !== null) {
+            newDecos.push({
+              range  : new monaco.Range(li + 1, match.index + 1, li + 1, match.index + 1 + match[0].length),
+              options: { inlineClassName: "numbered-blank" },
+            })
+          }
+        })
+        const next = editor.deltaDecorations(nbDecoIds.slice(), newDecos)
+        nbDecoIds.length = 0
+        nbDecoIds.push(...next)
+      }
+
+      updateNumberedBlanks()
+      editor.onDidChangeModelContent(updateNumberedBlanks)
+
+      // 클릭 → 빈칸 마커 클릭 처리
       editor.onMouseDown((e: any) => {
         const pos = e.target.position
         if (!pos) return
-
-        // 클릭 컬럼 주변 ±1 범위에서 blank-marker decoration 탐색
-        const hit = (editor.getDecorationsInRange(
-          new monaco.Range(pos.lineNumber, Math.max(1, pos.column - 1),
-                           pos.lineNumber, pos.column + 1)
-        ) ?? []).find((d: any) => d.options?.inlineClassName === "blank-marker")
-        if (!hit) return
-
         const model = editor.getModel()
         if (!model) return
 
-        // 클릭된 @ 의 위치 (라인 내에서 몇 번째 @ 인지 계산 → 제거 후 커서 위치 보정)
+        const clickRange = new monaco.Range(
+          pos.lineNumber, Math.max(1, pos.column - 1),
+          pos.lineNumber, pos.column + 1,
+        )
+
+        // ── 번호 빈칸 클릭 (①___ 형식): 클릭 라인 텍스트에서 직접 탐색 ──
+        const lineText = model.getLineContent(pos.lineNumber)
+        const nbRe = /[①②③④⑤⑥⑦⑧⑨⑩]_{1,}/g
+        let nbMatch: RegExpExecArray | null
+        let hitNbRange: any = null
+        while ((nbMatch = nbRe.exec(lineText)) !== null) {
+          const startCol = nbMatch.index + 1        // 1-indexed
+          const endCol   = startCol + nbMatch[0].length
+          if (pos.column >= startCol && pos.column <= endCol) {
+            hitNbRange = new monaco.Range(pos.lineNumber, startCol, pos.lineNumber, endCol)
+            break
+          }
+        }
+        if (hitNbRange) {
+          editor.executeEdits("nb-clear", [{ range: hitNbRange, text: "" }])
+          editor.setPosition({ lineNumber: pos.lineNumber, column: hitNbRange.startColumn })
+          editor.focus()
+          return
+        }
+
+        // ── @ 마커 클릭: 전체 @ 제거 ─────────────────────────────────────
+        const hit = (editor.getDecorationsInRange(clickRange) ?? [])
+          .find((d: any) => d.options?.inlineClassName === "blank-marker")
+        if (!hit) return
+
         const clickLine = hit.range.startLineNumber
-        const clickCol  = hit.range.startColumn          // 1-indexed
+        const clickCol  = hit.range.startColumn
         const lineText  = model.getLineContent(clickLine)
         const atsBefore = (lineText.slice(0, clickCol - 1).match(/@/g) ?? []).length
 
-        // 전체 코드에서 @ 를 모두 제거
         const cleaned = model.getValue().replace(/@/g, "")
         editor.executeEdits("blank-clear-all", [{
           range: model.getFullModelRange(),
           text : cleaned,
         }])
 
-        // 같은 줄 앞쪽 @ 개수만큼 컬럼 보정
         editor.setPosition({ lineNumber: clickLine, column: clickCol - atsBefore })
         editor.focus()
       })
