@@ -78,7 +78,7 @@ export default function Dashboard({ userName, userEmail, userGrade, userClass }:
       {/* ── Navbar ─────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-gray-100 bg-white/90 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <CodeOnLogo href="/dashboard" />
+          <CodeOnLogo />
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-400">{userGrade} {userClass}</span>
             <button

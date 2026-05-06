@@ -338,7 +338,7 @@ export default function CourseClient({
       <nav className="fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-100 h-14">
         <PageLayout className="h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CodeOnLogo href="/dashboard" />
+            <CodeOnLogo />
             <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
               <Link href="/dashboard" className="hover:text-gray-600 transition-colors">학습 홈</Link>
               <ChevronRight className="w-3.5 h-3.5" />

@@ -151,7 +151,7 @@ export default function HistoryClient() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="hidden sm:block">
-              <CodeOnLogo href="/dashboard" />
+              <CodeOnLogo />
             </div>
           </div>
           <div className="flex items-center gap-4">

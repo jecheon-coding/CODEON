@@ -561,7 +561,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
       {/* ── 네비게이션 ────────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-100">
         <PageLayout className="h-14 flex items-center justify-between">
-          <CodeOnLogo href="/dashboard" />
+          <CodeOnLogo />
           <div className="flex items-center gap-4">
             <button
               onClick={() => { setPwModal(true); setPwNew(""); setPwConfirm(""); setPwError(""); setPwDone(false) }}
