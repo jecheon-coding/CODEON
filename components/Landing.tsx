@@ -101,15 +101,6 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notices, setNotices] = useState<Notice[]>([])
 
-  // 로그인 상태면 역할에 맞는 대시보드로 이동
-  useEffect(() => {
-    if (status !== "authenticated") return
-    const role = (session?.user as any)?.role
-    if      (role === "admin")  router.replace("/admin")
-    else if (role === "parent") router.replace("/parent")
-    else                        router.replace("/dashboard")
-  }, [status, session, router])
-
   useEffect(() => {
     fetch("/api/notices")
       .then(r => r.ok ? r.json() : [])
@@ -132,15 +123,7 @@ export default function Landing() {
 
   const handleLoginClick = () => {
     if (status === "authenticated") router.push(dashboardPath)
-    else handleLoginClick()
-  }
-
-  if (status === "loading" || status === "authenticated") {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    else router.push("/login")
   }
 
   return (
@@ -183,7 +166,7 @@ export default function Landing() {
               className="px-5 py-2 bg-[#534AB7] text-white text-sm font-bold rounded-lg
                 hover:bg-[#443DA0] active:scale-95 transition-all duration-200"
             >
-              로그인
+              {status === "authenticated" ? "대시보드" : "로그인"}
             </button>
 
             <button
