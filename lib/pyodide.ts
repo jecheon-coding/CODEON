@@ -115,7 +115,7 @@ _result = _out.getvalue()
     throw new Error(msg);
   }
 
-  const result = (pyodide.runPython("_result") as string).trim();
+  const result = (pyodide.runPython("_result") as string).trimEnd();
   console.log("[Pyodide] 실행 완료 — 출력 길이:", result.length);
   return result;
 }

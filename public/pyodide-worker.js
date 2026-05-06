@@ -53,7 +53,7 @@ self.onmessage = async (e) => {
     pyodide.globals.set("_user_code", code);
     pyodide.runPython(WRAPPER);
 
-    const result = String(pyodide.runPython("_result")).trim();
+    const result = String(pyodide.runPython("_result")).trimEnd();
     self.postMessage({ id, result, error: null });
   } catch (err) {
     self.postMessage({ id, result: null, error: err.message ?? String(err) });

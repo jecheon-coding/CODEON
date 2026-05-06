@@ -13,7 +13,7 @@ function lastErrorLine(msg: string): string {
 }
 
 function normalizeOutput(s: string): string {
-  return s.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").trim()
+  return s.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").trimEnd()
 }
 
 export function useSubmission(problem: Problem) {
