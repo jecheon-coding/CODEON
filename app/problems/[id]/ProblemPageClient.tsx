@@ -945,10 +945,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           .find((d: any) => d.options?.inlineClassName === "blank-marker")
         if (!hit) return
 
-        const clickLine = hit.range.startLineNumber
-        const clickCol  = hit.range.startColumn
-        const lineText  = model.getLineContent(clickLine)
-        const atsBefore = (lineText.slice(0, clickCol - 1).match(/@/g) ?? []).length
+        const clickLine    = hit.range.startLineNumber
+        const clickCol     = hit.range.startColumn
+        const clickLineText = model.getLineContent(clickLine)
+        const atsBefore    = (clickLineText.slice(0, clickCol - 1).match(/@/g) ?? []).length
 
         const cleaned = model.getValue().replace(/@/g, "")
         editor.executeEdits("blank-clear-all", [{
