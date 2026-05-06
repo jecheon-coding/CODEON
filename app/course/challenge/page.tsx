@@ -617,24 +617,8 @@ export default function ChallengeHubPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const { data: rawProblems } = await supabase
-        .from("problems")
-        .select("*")
-        .eq("category", "파이썬도전");
-
-      const probs = (rawProblems ?? []) as ChallengeProb[];
-
-      const authorIds = [...new Set(probs.filter(p => p.author_user_id).map(p => p.author_user_id!))];
-      const authorMap: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: authors } = await supabase.from("users").select("id, name").in("id", authorIds);
-        for (const a of authors ?? []) authorMap[a.id] = a.name ?? "학생";
-      }
-
-      const enriched: ChallengeProb[] = probs.map(p => ({
-        ...p,
-        author_name: p.author_user_id ? (authorMap[p.author_user_id] ?? "학생") : null,
-      }));
+      const res = await fetch("/api/challenge/problems");
+      const enriched: ChallengeProb[] = res.ok ? await res.json() : [];
 
       setProblems(enriched);
 

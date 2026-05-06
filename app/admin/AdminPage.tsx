@@ -1564,25 +1564,9 @@ function ProblemApprovalSection({ onRefreshSummary }: { onRefreshSummary: () => 
   const [acting,       setActing]       = useState(false)
 
   const load = useCallback(async () => {
-    const { data } = await supabase
-      .from("problems")
-      .select("id, title, content, difficulty, topic, problem_type, author_user_id, created_at, status, input_description, output_description, hint")
-      .eq("is_community", true)
-      .order("created_at", { ascending: true })
-
-    const probs = data ?? []
-    const authorIds = [...new Set(probs.map(p => p.author_user_id).filter(Boolean))]
-    const authorMap: Record<string, string> = {}
-    if (authorIds.length > 0) {
-      const { data: authors } = await supabase
-        .from("users").select("id, name").in("id", authorIds as string[])
-      for (const a of authors ?? []) authorMap[a.id] = a.name
-    }
-    setProblems(probs.map(p => ({
-      ...p,
-      problem_type: p.problem_type ?? "output",
-      author_name: p.author_user_id ? (authorMap[p.author_user_id] ?? "알 수 없음") : null,
-    })))
+    const res = await fetch("/api/admin/challenge-review")
+    const data = res.ok ? await res.json() : []
+    setProblems(data)
   }, [])
 
   useEffect(() => { load() }, [load])

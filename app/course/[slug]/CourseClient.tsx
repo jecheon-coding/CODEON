@@ -45,6 +45,7 @@ const MINIMAP_COURSES = [
   { slug: "algorithm",   label: "알고리즘 과정" },
   { slug: "certificate", label: "자격증 과정" },
   { slug: "practical",   label: "실전 문제" },
+  { slug: "challenge",   label: "도전 문제" },
   { slug: "competition", label: "대회 준비" },
 ]
 

@@ -6,6 +6,8 @@ import { buildProblemStatusMap } from "@/lib/submissionStatus"
 import type { SubmissionSummaryRow } from "@/lib/submissionStatus"
 import CourseClient from "./CourseClient"
 
+export const dynamic = "force-dynamic"
+
 const COURSE_CATEGORY: Record<string, string> = {
   basic:       "파이썬기초",
   algorithm:   "파이썬알고리즘",
@@ -35,9 +37,7 @@ export default async function CoursePage({
     .eq("category", category)
     .order("id")
 
-  const { data: problems } = await (
-    slug === "challenge" ? baseQuery.eq("status", "published") : baseQuery
-  )
+  const { data: problems } = await baseQuery
 
   const problemIds = (problems ?? []).map((p: { id: string }) => p.id)
 
