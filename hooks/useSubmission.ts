@@ -18,10 +18,11 @@ function normalizeOutput(s: string): string {
 
 export function useSubmission(problem: Problem) {
   const { data: session } = useSession();
-  const [caseResults, setCaseResults] = useState<CaseResult[] | null>(null)
-  const [status,      setStatus]      = useState<SubmissionStatus>("");
-  const [submitting,  setSubmitting]  = useState(false);
-  const [progress,    setProgress]    = useState<{ current: number; total: number } | null>(null);
+  const [caseResults,      setCaseResults]      = useState<CaseResult[] | null>(null)
+  const [status,           setStatus]           = useState<SubmissionStatus>("");
+  const [submitting,       setSubmitting]        = useState(false);
+  const [progress,         setProgress]          = useState<{ current: number; total: number } | null>(null);
+  const [submissionOutput, setSubmissionOutput]  = useState<string | null>(null);
 
   const submit = async (code: string): Promise<SubmissionStatus> => {
     setSubmitting(true);
@@ -30,6 +31,7 @@ export function useSubmission(problem: Problem) {
     setProgress(null);
 
     const timeoutMs = problem.time_limit_ms ?? undefined;
+    setSubmissionOutput(null);
 
     const { data: fetchedCases, error: fetchError } = await supabase
       .from("test_cases")
@@ -52,6 +54,7 @@ export function useSubmission(problem: Problem) {
       if (allCases.length > 0) {
         const results: CaseResult[] = [];
         setProgress({ current: 0, total: allCases.length });
+        let firstPublicOutput: string | null = null;
 
         for (let i = 0; i < allCases.length; i++) {
           const tc = allCases[i];
@@ -64,6 +67,7 @@ export function useSubmission(problem: Problem) {
             actual = await runPythonInWorker(code, tc.input ?? "", timeoutMs);
             const passed = normalizeOutput(actual) === normalizeOutput(tc.expected_output);
             caseStatus = passed ? "passed" : "wrong";
+            if (!tc.is_hidden && firstPublicOutput === null) firstPublicOutput = actual;
           } catch (execErr: any) {
             const msg = execErr?.message ?? String(execErr);
             if (msg === "TIME_LIMIT_EXCEEDED") {
@@ -103,6 +107,7 @@ export function useSubmission(problem: Problem) {
 
         setCaseResults(results);
         setStatus(overallStatus);
+        setSubmissionOutput(firstPublicOutput);
 
         const passedCount = results.filter(r => r.status === "passed").length;
         const dbResult =
@@ -119,6 +124,7 @@ export function useSubmission(problem: Problem) {
         let actual = "";
         try {
           actual = await runPythonInWorker(code, "", timeoutMs);
+          setSubmissionOutput(actual);
         } catch (execErr: any) {
           const msg = execErr?.message ?? String(execErr);
           const isTimeout = msg === "TIME_LIMIT_EXCEEDED";
@@ -168,7 +174,7 @@ export function useSubmission(problem: Problem) {
     } catch {}
   };
 
-  const reset = () => { setCaseResults(null); setStatus(""); setProgress(null); };
+  const reset = () => { setCaseResults(null); setStatus(""); setProgress(null); setSubmissionOutput(null); };
 
-  return { caseResults, status, submitting, progress, submit, reset };
+  return { caseResults, status, submitting, progress, submit, reset, submissionOutput };
 }

@@ -521,7 +521,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
   // ── 실행 / 채점 훅 ──────────────────────────────────────────────────────────
   const { output: runOutput, error: runError, running, pyodideStatus, run, reset: resetRun } = useCodeExecution()
-  const { caseResults, status: subStatus, submitting, progress: subProgress, submit } = useSubmission(problem)
+  const { caseResults, status: subStatus, submitting, progress: subProgress, submit, submissionOutput } = useSubmission(problem)
 
   // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
   useEffect(() => { preloadWorker() }, [])
@@ -690,12 +690,16 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       monacoInstanceRef.current?.dispose()
       monacoInstanceRef.current = null
 
+      const savedFs = parseInt(localStorage.getItem("editorFontSize") ?? "")
+      const initFontSize = (!isNaN(savedFs) && savedFs >= 11 && savedFs <= 20) ? savedFs : 13
+      if (initFontSize !== fontSize) setFontSize(initFontSize)
+
       const editor = monaco.editor.create(editorContainerRef.current, {
         value:                   problem.initial_code ?? "",
         language:                "python",
         theme:                   bgKey === "dark" || bgKey === "black" ? "vs-dark" : "vs",
         automaticLayout:         true,
-        fontSize:                fontSize,
+        fontSize:                initFontSize,
         fontFamily:              "var(--font-fira-code), 'Fira Code', Consolas, monospace",
         fontLigatures:           true,
         minimap:                 { enabled: false },
@@ -841,6 +845,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const handleSubmit = async () => {
     const code   = getCode()
     setActiveTab("result")
+    resetRun()
     const result = await submit(code)
     setSubmissionStatus(result)
     setHistory(prev => [{ id: Date.now(), time: new Date(), result, code }, ...prev])
@@ -1165,6 +1170,11 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   <ErrorOutput error={runError} isDark={isDark} />
                 ) : runOutput ? (
                   <pre className="text-sm font-mono whitespace-pre-wrap" style={{ color: isDark ? "#d1d5db" : "#374151" }}>{runOutput}</pre>
+                ) : submissionOutput ? (
+                  <div>
+                    <p className="text-xs font-semibold mb-2" style={{ color: isDark ? "#6b7280" : "#9ca3af" }}>제출 케이스 1 출력:</p>
+                    <pre className="text-sm font-mono whitespace-pre-wrap" style={{ color: isDark ? "#d1d5db" : "#374151" }}>{submissionOutput}</pre>
+                  </div>
                 ) : (
                   <p className="text-sm font-mono" style={{ color: isDark ? "#6b7280" : "#9ca3af" }}>코드를 실행하면 결과가 여기에 표시됩니다.</p>
                 )

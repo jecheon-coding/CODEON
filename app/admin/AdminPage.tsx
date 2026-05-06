@@ -1931,6 +1931,32 @@ export default function AdminPage() {
   const [summary,   setSummary]   = useState<Summary | null>(null)
   const [liveUnsub, setLiveUnsub] = useState<{ count: number; tab: string } | null>(null)
 
+  // 비밀번호 변경 모달
+  const [pwModal,   setPwModal]   = useState(false)
+  const [pwNew,     setPwNew]     = useState("")
+  const [pwConfirm, setPwConfirm] = useState("")
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError,   setPwError]   = useState("")
+  const [pwDone,    setPwDone]    = useState(false)
+
+  const handlePwChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (pwNew !== pwConfirm) { setPwError("비밀번호가 일치하지 않습니다."); return }
+    if (pwNew.length < 6)    { setPwError("비밀번호는 6자 이상이어야 합니다."); return }
+    setPwLoading(true); setPwError("")
+    try {
+      const res  = await fetch("/api/admin/change-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: pwNew }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setPwError(data.error ?? "오류가 발생했습니다."); return }
+      setPwDone(true)
+      setTimeout(() => { setPwModal(false); setPwNew(""); setPwConfirm(""); setPwDone(false) }, 1500)
+    } catch { setPwError("네트워크 오류가 발생했습니다.") }
+    finally  { setPwLoading(false) }
+  }
+
   const handleUnsubChange = useCallback((count: number, tab: string) => {
     setLiveUnsub({ count, tab })
   }, [])
@@ -1990,6 +2016,12 @@ export default function AdminPage() {
             <UserCog className="w-4 h-4" /> 학부모 관리
           </button>
           <button
+            onClick={() => { setPwModal(true); setPwNew(""); setPwConfirm(""); setPwError(""); setPwDone(false) }}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <UserCog className="w-4 h-4" /> 비밀번호 변경
+          </button>
+          <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium"
           >
@@ -1997,6 +2029,50 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {/* 비밀번호 변경 모달 */}
+      {pwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-7 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-gray-900">비밀번호 변경</h3>
+              <button onClick={() => setPwModal(false)} className="text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {pwDone ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <CheckCheck className="w-10 h-10 text-emerald-500" />
+                <p className="text-sm font-bold text-emerald-600">비밀번호가 변경되었습니다.</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePwChange} className="flex flex-col gap-4">
+                {pwError && (
+                  <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />{pwError}
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-600">새 비밀번호</label>
+                  <input type="password" value={pwNew} onChange={e => setPwNew(e.target.value)}
+                    placeholder="6자 이상" required minLength={6}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-600">비밀번호 확인</label>
+                  <input type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)}
+                    placeholder="위와 동일하게" required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                </div>
+                <button type="submit" disabled={pwLoading}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {pwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "변경하기"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-[1400px] mx-auto px-8 py-8">
         <SummaryCards summary={summary} liveUnsub={liveUnsub} />
