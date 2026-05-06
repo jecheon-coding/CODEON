@@ -219,7 +219,7 @@ export default function GoalsClient() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="hidden sm:block">
-              <CodeOnLogo />
+              <CodeOnLogo href="/dashboard" />
             </div>
           </div>
           <div className="flex items-center gap-4">

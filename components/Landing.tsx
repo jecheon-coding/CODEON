@@ -122,6 +122,27 @@ export default function Landing() {
     setMobileMenuOpen(false)
   }
 
+  // 세션 확인 중이거나 이미 로그인됐으면 빈 화면 (리다이렉트 전 플리커 방지)
+  const dashboardPath = (() => {
+    const role = (session?.user as any)?.role
+    if (role === "admin")  return "/admin"
+    if (role === "parent") return "/parent"
+    return "/dashboard"
+  })()
+
+  const handleLoginClick = () => {
+    if (status === "authenticated") router.push(dashboardPath)
+    else handleLoginClick()
+  }
+
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
 
@@ -158,7 +179,7 @@ export default function Landing() {
             </nav>
 
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => handleLoginClick()}
               className="px-5 py-2 bg-[#534AB7] text-white text-sm font-bold rounded-lg
                 hover:bg-[#443DA0] active:scale-95 transition-all duration-200"
             >
@@ -226,7 +247,7 @@ export default function Landing() {
               학원 관리자 문의
             </button>
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => handleLoginClick()}
               className="px-7 py-3.5 border-2 border-white/60 text-white rounded-xl
                 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all duration-200"
             >
@@ -408,7 +429,7 @@ export default function Landing() {
                   <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
                 </div>
                 <button
-                  onClick={() => router.push("/login")}
+                  onClick={() => handleLoginClick()}
                   className="flex items-center gap-1 text-xs font-semibold transition-colors"
                   style={{ color }}
                 >
@@ -456,7 +477,7 @@ export default function Landing() {
                 ))}
               </div>
               <button
-                onClick={() => router.push("/login")}
+                onClick={() => handleLoginClick()}
                 className="flex items-center gap-2 px-6 py-3 bg-[#534AB7] text-white
                   text-sm font-bold rounded-xl hover:bg-[#443DA0] active:scale-95 transition-all duration-200"
               >
@@ -565,7 +586,7 @@ export default function Landing() {
               학원 관리자 문의 <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => router.push("/login")}
+              onClick={() => handleLoginClick()}
               className="flex items-center gap-2 px-8 py-4 border-2 border-white/50 text-white
                 rounded-xl text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all duration-200"
             >
