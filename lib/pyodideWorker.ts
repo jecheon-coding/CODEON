@@ -45,6 +45,13 @@ function killWorker() {
   pending.clear();
 }
 
+/** 사용자가 수동으로 실행을 중지할 때 호출 */
+export function stopExecution() {
+  if (worker) { worker.terminate(); worker = null; }
+  for (const [, p] of pending) p.reject(new Error("EXECUTION_STOPPED"));
+  pending.clear();
+}
+
 /** 문제 페이지 진입 시 미리 Worker + Pyodide 로드 (첫 제출 지연 제거) */
 export function preloadWorker() {
   if (typeof window === "undefined") return;

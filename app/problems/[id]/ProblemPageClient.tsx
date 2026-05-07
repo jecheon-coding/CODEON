@@ -520,7 +520,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [cursorPos, setCursorPos] = useState({ ln: 1, col: 1 })
 
   // ── 실행 / 채점 훅 ──────────────────────────────────────────────────────────
-  const { output: runOutput, error: runError, running, pyodideStatus, run, reset: resetRun } = useCodeExecution()
+  const { output: runOutput, error: runError, running, pyodideStatus, run, stop: stopRun, reset: resetRun } = useCodeExecution()
   const { caseResults, status: subStatus, submitting, progress: subProgress, submit, submissionOutput } = useSubmission(problem)
 
   // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
@@ -781,6 +781,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         insertSpaces:            true,
         padding:                 { top: 14, bottom: 14 },
         lineNumbers:             "on",
+        autoClosingQuotes:       "always",
         quickSuggestions:        { other: true, comments: false, strings: false },
         acceptSuggestionOnEnter: "on",
         tabCompletion:           "on",
@@ -1323,9 +1324,18 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               테스트 입력 {inputOpen ? <SvgChevronUp /> : <SvgChevronDown />}
             </button>
             <div className="flex items-center gap-2">
-              <button onClick={handleRun} disabled={running || submitting}
-                className="flex items-center gap-1.5 px-5 py-2 bg-[#639922] text-white text-sm font-bold rounded-lg hover:bg-[#52821a] transition-colors disabled:opacity-50"
-              ><SvgPlay /> {running ? "실행 중..." : "실행"}</button>
+              {running ? (
+                <button onClick={stopRun}
+                  className="flex items-center gap-1.5 px-5 py-2 bg-[#dc2626] text-white text-sm font-bold rounded-lg hover:bg-[#b91c1c] transition-colors animate-pulse"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+                  정지
+                </button>
+              ) : (
+                <button onClick={handleRun} disabled={submitting}
+                  className="flex items-center gap-1.5 px-5 py-2 bg-[#639922] text-white text-sm font-bold rounded-lg hover:bg-[#52821a] transition-colors disabled:opacity-50"
+                ><SvgPlay /> 실행</button>
+              )}
               <button onClick={handleSubmit} disabled={running || submitting}
                 className="flex items-center gap-1.5 px-5 py-2 bg-[#534AB7] text-white text-sm font-bold rounded-lg hover:bg-[#443da0] transition-colors disabled:opacity-50"
               ><SvgSend /> {submitting ? "채점 중..." : "제출"}</button>
