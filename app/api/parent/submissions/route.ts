@@ -54,17 +54,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 날짜 필터
+  // 날짜 필터 (KST 기준 — 서버는 UTC이므로 +9h 보정)
   if (dateRange !== "all") {
-    const now = new Date()
+    const KST_OFFSET = 9 * 60 * 60 * 1000
+    const nowKST = new Date(Date.now() + KST_OFFSET)
+    const kstDate = nowKST.toISOString().slice(0, 10) // "YYYY-MM-DD" in KST
     if (dateRange === "today") {
-      const start = new Date(now); start.setHours(0, 0, 0, 0)
+      const start = new Date(`${kstDate}T00:00:00+09:00`)
       query = query.gte("created_at", start.toISOString())
     } else if (dateRange === "week") {
-      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       query = query.gte("created_at", start.toISOString())
     } else if (dateRange === "month") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const [y, m] = kstDate.split("-")
+      const start = new Date(`${y}-${m}-01T00:00:00+09:00`)
       query = query.gte("created_at", start.toISOString())
     }
   }

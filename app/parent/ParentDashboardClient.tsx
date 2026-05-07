@@ -91,14 +91,12 @@ function formatRelativeTime(dateStr: string) {
 }
 
 function formatDateTime(dateStr: string) {
-  const d      = new Date(toUTC(dateStr))
-  const month  = d.getMonth() + 1
-  const day    = d.getDate()
-  const hours  = d.getHours()
-  const mins   = String(d.getMinutes()).padStart(2, "0")
-  const period = hours < 12 ? "오전" : "오후"
-  const h12    = hours % 12 || 12
-  return `${month}월 ${day}일 ${period} ${h12}:${mins}`
+  return new Date(toUTC(dateStr)).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+    hour12: true,
+  })
 }
 
 const TOPIC_KEYWORDS: [string, string][] = [

@@ -132,6 +132,7 @@ export default function HistoryClient() {
   const formatDate = (dateStr: string) => {
     const utcStr = /Z|[+-]\d{2}:?\d{2}$/.test(dateStr) ? dateStr : dateStr + "Z"
     return new Date(utcStr).toLocaleString("ko-KR", {
+      timeZone: "Asia/Seoul",
       year: "numeric", month: "short", day: "numeric",
       hour: "2-digit", minute: "2-digit",
     })
