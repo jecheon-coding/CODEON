@@ -150,19 +150,13 @@ export default function CodeEditor({
   };
 
   const busy      = execution.running || submission.submitting;
-  const pyLoading = execution.pyodideStatus === "loading";
-  const pyFailed  = execution.pyodideStatus === "failed";
   const D         = (dark: string, light: string) => isDark ? dark : light;
 
   const statusLabel =
-    pyLoading           ? "● Python 로딩 중..."  :
-    pyFailed            ? "● 로드 실패"           :
     execution.running   ? "● 실행 중..."          :
     runState === "done" ? "● 완료"               :
     "● 준비됨";
   const statusColor =
-    pyLoading           ? "text-indigo-400"   :
-    pyFailed            ? "text-red-400"      :
     execution.running   ? "text-amber-400"    :
     runState === "done" ? "text-emerald-400"  :
     "text-gray-600";
@@ -231,21 +225,14 @@ export default function CodeEditor({
         <div className="flex items-center gap-2">
           <button
             onClick={handleRun}
-            disabled={busy || pyLoading || pyFailed}
-            title={pyFailed ? "Python 엔진 로드 실패 — 새로고침하세요" : undefined}
+            disabled={busy}
             className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-1.5
               rounded-lg transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed
-              ${pyFailed
-                ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                : D("bg-emerald-600 hover:bg-emerald-500 text-white",
-                    "bg-emerald-500 hover:bg-emerald-600 text-white")}`}
+              ${D("bg-emerald-600 hover:bg-emerald-500 text-white",
+                  "bg-emerald-500 hover:bg-emerald-600 text-white")}`}
           >
             {execution.running ? (
               <><Loader2 size={13} className="animate-spin" /> 실행 중...</>
-            ) : pyLoading ? (
-              <><Loader2 size={13} className="animate-spin" /> 로딩 중...</>
-            ) : pyFailed ? (
-              <><AlertCircle size={13} /> 로드 실패</>
             ) : (
               <><Play size={13} className="fill-current" /> 실행</>
             )}
@@ -345,18 +332,7 @@ export default function CodeEditor({
         <div className="flex-1 px-4 py-3 overflow-y-auto font-mono min-h-0">
 
           {activeTab === "output" && (
-            pyFailed
-              ? <p className="text-xs text-red-400 leading-relaxed flex items-start gap-1">
-                  <XCircle size={11} className="mt-0.5 shrink-0" />
-                  <span>Python 실행 엔진을 불러오지 못했습니다.<br />
-                  인터넷 연결을 확인한 뒤 페이지를 새로고침하세요.</span>
-                </p>
-              : pyLoading
-              ? <p className="text-xs text-indigo-400 leading-relaxed flex items-center gap-1.5">
-                  <Loader2 size={11} className="animate-spin" />
-                  Python 실행 엔진 준비 중... 잠시만 기다려주세요.
-                </p>
-              : execution.output
+            execution.output
               ? <pre className="text-sm text-green-400 whitespace-pre-wrap leading-relaxed">
                   <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
                   {execution.output}
