@@ -1282,10 +1282,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           <div className="h-7 flex items-center justify-between px-4 text-[11px] font-mono shrink-0"
             style={{ background: bg.panel, borderTop: `1px solid ${editorBorderColor}`, color: isDark ? "rgba(255,255,255,0.3)" : "#9ca3af" }}
           >
-            <span style={{ color: running ? "#f59e0b" : submitting ? "#a78bfa" : pyodideStatus === "loading" ? "#60a5fa" : "#4ade80" }}>
+            <span style={{ color: running ? "#f59e0b" : submitting ? "#a78bfa" : "#4ade80" }}>
               {running ? "실행 중..." :
                submitting ? (subProgress ? `채점 중... ${subProgress.current}/${subProgress.total}` : "채점 중...") :
-               pyodideStatus === "loading" ? "로딩 중..." : "Ready"}
+               "Ready"}
             </span>
             <div className="flex items-center gap-4">
               <span>Ln {cursorPos.ln}, Col {cursorPos.col}</span>
