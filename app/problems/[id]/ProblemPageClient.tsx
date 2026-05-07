@@ -783,6 +783,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         lineNumbers:             "on",
         quickSuggestions:        { other: true, comments: false, strings: false },
         acceptSuggestionOnEnter: "on",
+        tabCompletion:           "on",
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions:    "off",
         overviewRulerLanes:      0,
@@ -800,6 +801,53 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         monaco.KeyMod.Shift | monaco.KeyCode.Enter,
         () => editor.trigger("keyboard", "editor.action.insertLineAfter", null)
       )
+
+      // ── Tab → 함수명 뒤에서 () 자동 삽입 ────────────────────────────────────────
+      const PY_CALLABLES = new Set([
+        'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
+        'dict','dir','divmod','enumerate','eval','exec','filter','float',
+        'format','frozenset','getattr','globals','hasattr','hash','hex',
+        'id','input','int','isinstance','issubclass','iter','len','list',
+        'locals','map','max','min','next','object','oct','open','ord',
+        'pow','print','range','repr','reversed','round','set','setattr',
+        'slice','sorted','split','str','sum','super','tuple','type','vars','zip',
+      ])
+      editor.onKeyDown((e: any) => {
+        if (e.keyCode !== monaco.KeyCode.Tab) return
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+        const model = editor.getModel()
+        const pos   = editor.getPosition()
+        if (!model || !pos) return
+        const word = model.getWordUntilPosition(pos)
+        if (!word.word || pos.column !== word.endColumn) return
+        // 이미 ( 가 바로 뒤에 있으면 무시
+        const lineText = model.getLineContent(pos.lineNumber)
+        if (lineText[pos.column - 1] === "(") return
+
+        // 정확히 일치하는 함수명: () 삽입, 커서를 괄호 안으로
+        if (PY_CALLABLES.has(word.word)) {
+          e.preventDefault()
+          e.stopPropagation()
+          editor.executeEdits("tab-fn", [{
+            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+            text: "()",
+          }])
+          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
+          return
+        }
+        // 접두사가 단 하나의 함수에만 매칭: 함수명 완성 후 () 삽입
+        const matches = [...PY_CALLABLES].filter(fn => fn.startsWith(word.word) && fn !== word.word)
+        if (matches.length === 1) {
+          e.preventDefault()
+          e.stopPropagation()
+          const fn = matches[0]
+          editor.executeEdits("tab-fn", [{
+            range: new monaco.Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn),
+            text: fn + "()",
+          }])
+          editor.setPosition({ lineNumber: pos.lineNumber, column: word.startColumn + fn.length + 1 })
+        }
+      })
 
       // ── else / elif / except / finally 자동 들여쓰기 정렬 ─────────────────────
       editor.onDidChangeModelContent((e: any) => {
