@@ -786,7 +786,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         acceptSuggestionOnEnter: "on",
         tabCompletion:           "on",
         suggestOnTriggerCharacters: true,
-        wordBasedSuggestions:    "off",
+        wordBasedSuggestions:    "currentDocument",
         overviewRulerLanes:      0,
       })
 
