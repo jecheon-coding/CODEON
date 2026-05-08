@@ -969,9 +969,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           pos.lineNumber, pos.column + 1,
         )
 
-        // ── 번호 빈칸 클릭 (①___ 형식): 클릭 라인 텍스트에서 직접 탐색 ──
+        // ── 번호 빈칸 클릭 (①___ 형식) 또는 순수 밑줄 (____) 클릭 ──
         const lineText = model.getLineContent(pos.lineNumber)
-        const nbRe = /[①②③④⑤⑥⑦⑧⑨⑩]_{1,}/g
+        const nbRe = /(?:[①②③④⑤⑥⑦⑧⑨⑩]_{1,}|_{4,})/g
         let nbMatch: RegExpExecArray | null
         let hitNbRange: any = null
         while ((nbMatch = nbRe.exec(lineText)) !== null) {
