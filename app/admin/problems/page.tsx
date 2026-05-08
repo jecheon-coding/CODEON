@@ -287,7 +287,7 @@ export default function ProblemsPage() {
       // 이전 내용을 이력에 저장 (현재 content가 있을 때만)
       if (form.content?.trim()) {
         setDraftHistory(prev => [{
-          createdAt: new Date().toLocaleTimeString("ko-KR"),
+          createdAt: new Date().toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul" }),
           inputType: aiInputType,
           content:            form.content ?? "",
           input_description:  form.input_description ?? null,

@@ -1312,7 +1312,7 @@ function SubmissionSection({ onUnsubChange }: {
                                     <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
                                     <td className={TD}>
                                       {lastSub?.submittedAt
-                                        ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                        ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                                         : <span className="text-gray-300 text-xs">없음</span>}
                                     </td>
                                     <td className="px-3 py-3 text-center">
@@ -1328,7 +1328,7 @@ function SubmissionSection({ onUnsubChange }: {
                                       <td className="px-3 py-2">{submissionBadge(p)}</td>
                                       <td className="px-3 py-2" colSpan={2}>
                                         <span className="text-xs text-gray-500">
-                                          {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                                          {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                                         </span>
                                       </td>
                                     </tr>
@@ -1511,7 +1511,7 @@ function SubmissionSection({ onUnsubChange }: {
                         <td className="px-3 py-3">{submissionBadge(r)}</td>
                         <td className={TD}>
                           {r.submittedAt
-                            ? <span className="text-gray-700">{new Date(r.submittedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                            ? <span className="text-gray-700">{new Date(r.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                             : <span className="text-red-400 font-semibold">미제출</span>}
                         </td>
                       </tr>
@@ -1619,7 +1619,7 @@ function ProblemApprovalSection({ onRefreshSummary }: { onRefreshSummary: () => 
                   </div>
                   <p className="text-sm font-bold text-gray-900 truncate">{p.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {p.author_name ?? "학생"} · {new Date(p.created_at).toLocaleDateString("ko-KR")}
+                    {p.author_name ?? "학생"} · {new Date(p.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
                   </p>
                 </div>
                 <Eye className="w-4 h-4 text-gray-400 shrink-0" />
@@ -1735,7 +1735,7 @@ function ParentLinkSection({ onRefreshSummary }: { onRefreshSummary: () => void 
                     <span className="text-gray-700">{r.parent_name}</span>
                     <span className="ml-1.5 text-xs text-gray-400">({r.relationship})</span>
                   </td>
-                  <td className={TD}>{new Date(r.created_at).toLocaleDateString("ko-KR")}</td>
+                  <td className={TD}>{new Date(r.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       <button className={Btn.green} onClick={() => act(r.id, "approve")} disabled={acting[r.id]}>
@@ -1832,7 +1832,7 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                     {c.status === "pending" ? "대기중" : "처리완료"}
                   </Badge>
                   <span className="text-[11px] text-gray-400">
-                    {new Date(c.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(c.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
                 {c.status === "pending" && (

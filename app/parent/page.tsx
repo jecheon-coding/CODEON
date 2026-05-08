@@ -155,6 +155,7 @@ export default async function ParentPage() {
   // ── 마지막 학습일 ────────────────────────────────────────────────────────
   const lastStudyDate = subs.length > 0
     ? new Date(toUTC(subs[subs.length - 1].created_at)).toLocaleDateString("ko-KR", {
+        timeZone: "Asia/Seoul",
         month: "long", day: "numeric", weekday: "short",
       })
     : null
@@ -171,7 +172,7 @@ export default async function ParentPage() {
     })
     return {
       day:     DAY_KO[day.getDay()],
-      date:    day.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }),
+      date:    day.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" }),
       count:   daySubs.length,
       correct: daySubs.filter(s => s.is_correct).length,
     }

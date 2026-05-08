@@ -71,7 +71,7 @@ function formatRelative(dateStr: string) {
   if (diff < 3600)  return `${Math.floor(diff / 60)}분 전`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}일 전`;
-  return new Date(toUTC(dateStr)).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  return new Date(toUTC(dateStr)).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric" });
 }
 
 // ── 커뮤니티 문제 카드 ────────────────────────────────────────────────────────

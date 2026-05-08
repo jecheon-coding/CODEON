@@ -249,7 +249,7 @@ export default function AdminParentsPage() {
                           : <span className="text-gray-300">미연결</span>}
                       </td>
                       <td className="py-3 pr-4 text-gray-400 text-xs">
-                        {new Date(p.createdAt).toLocaleDateString("ko-KR")}
+                        {new Date(p.createdAt).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
                       </td>
                       <td className="py-3 pr-4">
                         <button

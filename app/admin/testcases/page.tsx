@@ -701,7 +701,7 @@ function TestCasesPage() {
                                               className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 transition-colors">
                                               <p className="text-xs font-semibold text-gray-800">{sub.userName}</p>
                                               <p className="text-[10px] text-gray-400 mt-0.5">
-                                                {new Date(sub.createdAt).toLocaleDateString("ko-KR")}
+                                                {new Date(sub.createdAt).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
                                               </p>
                                             </button>
                                           </li>
