@@ -239,6 +239,9 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const [resumeTab,          setResumeTab]          = useState<"continue" | "next" | "retry">("continue")
   const [wrongProblemDetailsMap, setWrongProblemDetailsMap] = useState<Record<string, { title: string; category: string | null; topic: string | null }>>({})
 
+  const [myRank,  setMyRank]  = useState<number | null>(null)
+  const [myScore, setMyScore] = useState<number>(0)
+
   const [lastProblemDetail,  setLastProblemDetail]  = useState<{ title: string; category: string; topic: string | null } | null>(null)
   const [nextProblemFromApi, setNextProblemFromApi] = useState<{ id: string; title: string } | null | undefined>(undefined)
   const [loadingProblemDetail, setLoadingProblemDetail] = useState(false)
@@ -312,6 +315,19 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
       setLoadingProgress(false)
     })()
   }, [userId])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await fetch("/api/leaderboard")
+        if (res.ok) {
+          const data = await res.json()
+          setMyRank(data.myRank)
+          setMyScore(data.myScore)
+        }
+      } catch {}
+    })()
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -776,6 +792,29 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
           </button>
 
         </div>
+
+        {/* ── 랭킹 배너 ───────────────────────────────────────────────────── */}
+        <button
+          onClick={() => router.push("/leaderboard")}
+          className="group w-full bg-gradient-to-r from-[#534AB7] to-[#185FA5] rounded-2xl p-5
+            flex items-center justify-between hover:opacity-90 transition-all text-left"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+              <Trophy className="w-5 h-5 text-white" strokeWidth={1.75} />
+            </div>
+            <div>
+              <p className="text-xs text-white/70 font-medium">내 랭킹</p>
+              <p className="text-2xl font-black text-white tabular-nums leading-none">
+                {myRank ? `${myRank}위` : "—"}
+                {myRank && <span className="text-sm font-medium text-white/60 ml-2">{myScore.toLocaleString()}점</span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-bold text-white/80 group-hover:gap-2 transition-all">
+            전체 랭킹 보기 <ChevronRight className="w-4 h-4" />
+          </div>
+        </button>
 
         {/* ══════════════════════════════════════════════════════
             3. 2컬럼 메인 레이아웃
