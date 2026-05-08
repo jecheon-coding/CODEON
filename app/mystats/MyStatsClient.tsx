@@ -155,7 +155,11 @@ export default function MyStatsClient() {
                   {data?.myRank ? `${data.myRank}위` : "—"}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {data?.percentile ? `상위 ${data.percentile}%` : "기록 없음"}
+                  {data?.myRank === 1
+                    ? "최상위 🏆"
+                    : data?.percentile
+                      ? `상위 ${data.percentile}%`
+                      : "기록 없음"}
                 </p>
               </div>
 
