@@ -793,26 +793,30 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
         </div>
 
-        {/* ── 랭킹 배너 ───────────────────────────────────────────────────── */}
+        {/* ── 랭킹 카드 ───────────────────────────────────────────────────── */}
         <button
           onClick={() => router.push("/leaderboard")}
-          className="group w-full bg-gradient-to-r from-[#534AB7] to-[#185FA5] rounded-2xl p-5
-            flex items-center justify-between hover:opacity-90 transition-all text-left"
+          className="group w-full bg-white rounded-2xl p-5 border border-gray-100
+            hover:shadow-md transition-all text-left flex items-center justify-between
+            relative overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-              <Trophy className="w-5 h-5 text-white" strokeWidth={1.75} />
+          {/* 왼쪽 포인트 라인 */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#534AB7] rounded-l-2xl" />
+
+          <div className="flex items-center gap-4 pl-3">
+            <div className="w-10 h-10 bg-[#534AB7]/10 rounded-xl flex items-center justify-center shrink-0">
+              <Trophy className="w-5 h-5 text-[#534AB7]" strokeWidth={1.75} />
             </div>
             <div>
-              <p className="text-xs text-white/70 font-medium">내 랭킹</p>
-              <p className="text-2xl font-black text-white tabular-nums leading-none">
+              <p className="text-xs text-gray-500 font-medium mb-0.5">내 랭킹</p>
+              <p className="text-2xl font-black text-gray-900 tabular-nums leading-none">
                 {myRank ? `${myRank}위` : "—"}
-                {myRank && <span className="text-sm font-medium text-white/60 ml-2">{myScore.toLocaleString()}점</span>}
+                {myRank && <span className="text-sm font-medium text-gray-400 ml-2">{myScore.toLocaleString()}점</span>}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-xs font-bold text-white/80 group-hover:gap-2 transition-all">
-            전체 랭킹 보기 <ChevronRight className="w-4 h-4" />
+          <div className="flex items-center gap-0.5 text-xs font-bold text-[#534AB7] group-hover:gap-1 transition-all">
+            전체 랭킹 보기 <ChevronRight className="w-3.5 h-3.5" />
           </div>
         </button>
 
