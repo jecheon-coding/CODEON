@@ -239,10 +239,6 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const [resumeTab,          setResumeTab]          = useState<"continue" | "next" | "retry">("continue")
   const [wrongProblemDetailsMap, setWrongProblemDetailsMap] = useState<Record<string, { title: string; category: string | null; topic: string | null }>>({})
 
-  const [myRank,       setMyRank]       = useState<number | null>(null)
-  const [myScore,      setMyScore]      = useState<number>(0)
-  const [totalRankers, setTotalRankers] = useState<number>(0)
-
   const [lastProblemDetail,  setLastProblemDetail]  = useState<{ title: string; category: string; topic: string | null } | null>(null)
   const [nextProblemFromApi, setNextProblemFromApi] = useState<{ id: string; title: string } | null | undefined>(undefined)
   const [loadingProblemDetail, setLoadingProblemDetail] = useState(false)
@@ -316,20 +312,6 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
       setLoadingProgress(false)
     })()
   }, [userId])
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await fetch("/api/leaderboard")
-        if (res.ok) {
-          const data = await res.json()
-          setMyRank(data.myRank)
-          setMyScore(data.myScore)
-          setTotalRankers(data.total ?? 0)
-        }
-      } catch {}
-    })()
-  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -588,6 +570,13 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
               {userName}님
             </button>
             <button
+              onClick={() => router.push("/mystats")}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#534AB7] font-medium transition-colors"
+            >
+              <BarChart2 className="w-4 h-4" />
+              내 통계
+            </button>
+            <button
               onClick={() => signOut({ callbackUrl: "/" })}
               className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 font-medium transition-colors"
             >
@@ -703,7 +692,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
         {/* ══════════════════════════════════════════════════════
             2. 스탯 카드 4개
         ══════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
           {/* 오답 노트 */}
           <button
@@ -790,32 +779,6 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                 ? <span className="flex items-center gap-1">목표 달성 <Sparkles className="w-3.5 h-3.5" /></span>
                 : `${todayRemaining}개 남음`}
               {todaySolved < dailyGoal && <ChevronRight className="w-3.5 h-3.5" />}
-            </div>
-          </button>
-
-          {/* 랭킹 */}
-          <button
-            onClick={() => router.push("/leaderboard")}
-            className="group bg-white rounded-2xl p-5 text-left hover:shadow-md transition-all border border-gray-100 relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#534AB7] rounded-t-2xl" />
-            <div className="w-10 h-10 bg-[#534AB7]/10 rounded-xl flex items-center justify-center mb-4">
-              <Trophy className="w-5 h-5 text-[#534AB7]" strokeWidth={1.75} />
-            </div>
-            <p className="text-2xl font-black text-gray-900 tabular-nums leading-none mb-1">
-              {myRank ? `${myRank}위` : "—"}
-            </p>
-            <p className="text-xs text-gray-500 mb-0.5">
-              {myScore > 0 ? `${myScore.toLocaleString()}점` : "아직 기록 없음"}
-            </p>
-            {myRank && totalRankers > 0 && (
-              <p className="text-[10px] text-[#534AB7] font-bold mb-3">
-                상위 {Math.ceil(myRank / totalRankers * 100)}%
-              </p>
-            )}
-            {(!myRank || !totalRankers) && <div className="mb-3" />}
-            <div className="flex items-center gap-0.5 text-xs font-bold text-[#534AB7] group-hover:gap-1 transition-all">
-              전체 랭킹 <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </button>
 

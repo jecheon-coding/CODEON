@@ -8,7 +8,7 @@ import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare,
+  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -1879,6 +1879,66 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
 // ── 학부모 월 총평 ────────────────────────────────────────────────────────────
 
+function LeaderboardSection() {
+  const [data, setData] = useState<{
+    leaderboard: { rank: number; maskedName: string; score: number; solvedCount: number }[]
+    total: number
+  } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/leaderboard").then(r => r.json()).then(setData).catch(() => {})
+  }, [])
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <Trophy className="w-4 h-4 text-amber-500" />
+        <h3 className="font-bold text-gray-800 text-sm">
+          학생 랭킹
+          {data ? ` (전체 ${data.total}명)` : ""}
+        </h3>
+      </div>
+      <div className="overflow-y-auto max-h-96">
+        {!data ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+          </div>
+        ) : data.leaderboard.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-400">아직 기록이 없습니다.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-xs text-gray-400">
+                <th className="px-4 py-2 text-left w-10">순위</th>
+                <th className="px-4 py-2 text-left">이름</th>
+                <th className="px-4 py-2 text-right">점수</th>
+                <th className="px-4 py-2 text-right">정답수</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.leaderboard.map(e => (
+                <tr key={e.rank} className="border-t border-gray-50 hover:bg-gray-50">
+                  <td className="px-4 py-2 font-bold text-gray-400 tabular-nums">
+                    {e.rank <= 3
+                      ? ["🥇","🥈","🥉"][e.rank - 1]
+                      : e.rank}
+                  </td>
+                  <td className="px-4 py-2 font-semibold text-gray-800">{e.maskedName}</td>
+                  <td className="px-4 py-2 text-right font-bold tabular-nums text-gray-900">
+                    {e.score.toLocaleString()}
+                    <span className="text-xs font-normal text-gray-400">점</span>
+                  </td>
+                  <td className="px-4 py-2 text-right text-gray-400 tabular-nums">{e.solvedCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function MonthlyReviewSection() {
   const [activeStudents, setActiveStudents] = useState<Student[]>([])
   const [studentId, setStudentId] = useState("")
@@ -2207,6 +2267,7 @@ export default function AdminPage() {
             <ConsultSection onRefreshSummary={loadSummary} />
             <ProblemApprovalSection onRefreshSummary={loadSummary} />
             <MonthlyReviewSection />
+            <LeaderboardSection />
           </div>
         </div>
       </div>
