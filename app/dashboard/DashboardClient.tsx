@@ -239,8 +239,9 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const [resumeTab,          setResumeTab]          = useState<"continue" | "next" | "retry">("continue")
   const [wrongProblemDetailsMap, setWrongProblemDetailsMap] = useState<Record<string, { title: string; category: string | null; topic: string | null }>>({})
 
-  const [myRank,  setMyRank]  = useState<number | null>(null)
-  const [myScore, setMyScore] = useState<number>(0)
+  const [myRank,       setMyRank]       = useState<number | null>(null)
+  const [myScore,      setMyScore]      = useState<number>(0)
+  const [totalRankers, setTotalRankers] = useState<number>(0)
 
   const [lastProblemDetail,  setLastProblemDetail]  = useState<{ title: string; category: string; topic: string | null } | null>(null)
   const [nextProblemFromApi, setNextProblemFromApi] = useState<{ id: string; title: string } | null | undefined>(undefined)
@@ -324,6 +325,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
           const data = await res.json()
           setMyRank(data.myRank)
           setMyScore(data.myScore)
+          setTotalRankers(data.total ?? 0)
         }
       } catch {}
     })()
@@ -648,7 +650,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
         {/* ══════════════════════════════════════════════════════
             1. 히어로 배너
         ══════════════════════════════════════════════════════ */}
-        <div className="bg-gradient-to-br from-[#534AB7] to-[#185FA5] rounded-3xl px-8 py-7 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-[#534AB7] to-[#185FA5] rounded-3xl px-8 py-5 text-white relative overflow-hidden">
           {/* 배경 장식 */}
           <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/5 rounded-full pointer-events-none" />
           <div className="absolute right-16 -bottom-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
@@ -661,13 +663,13 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                 {userName}님의 오늘 목표
                 {currentCourse && <span className="ml-2 text-white/50">· {currentCourse.label} 진행 중</span>}
               </p>
-              <h1 className="text-2xl font-black tracking-tight leading-tight mb-5">
+              <h1 className="text-2xl font-black tracking-tight leading-tight mb-3">
                 {todayRemaining > 0
                   ? <>오늘 문제 <span className="text-yellow-300">{todayRemaining}개</span> 더 풀면<br />목표 달성!</>
                   : <span className="flex items-center gap-2">오늘 학습 목표를 달성했어요! <Sparkles className="w-5 h-5 text-yellow-300" /></span>
                 }
               </h1>
-              <div className="flex items-center gap-2.5 mb-6">
+              <div className="flex items-center gap-2.5 mb-4">
                 {Array.from({ length: dailyGoal }).map((_, i) => <GoalDot key={i} filled={i < todaySolved} />)}
                 <span className="text-xs text-white/50 font-medium ml-1">{todaySolved}/{dailyGoal} 완료</span>
               </div>
@@ -701,7 +703,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
         {/* ══════════════════════════════════════════════════════
             2. 스탯 카드 4개
         ══════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
 
           {/* 오답 노트 */}
           <button
@@ -791,34 +793,33 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
             </div>
           </button>
 
-        </div>
-
-        {/* ── 랭킹 카드 ───────────────────────────────────────────────────── */}
-        <button
-          onClick={() => router.push("/leaderboard")}
-          className="group w-full bg-white rounded-2xl p-5 border border-gray-100
-            hover:shadow-md transition-all text-left flex items-center justify-between
-            relative overflow-hidden"
-        >
-          {/* 왼쪽 포인트 라인 */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#534AB7] rounded-l-2xl" />
-
-          <div className="flex items-center gap-4 pl-3">
-            <div className="w-10 h-10 bg-[#534AB7]/10 rounded-xl flex items-center justify-center shrink-0">
+          {/* 랭킹 */}
+          <button
+            onClick={() => router.push("/leaderboard")}
+            className="group bg-white rounded-2xl p-5 text-left hover:shadow-md transition-all border border-gray-100 relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#534AB7] rounded-t-2xl" />
+            <div className="w-10 h-10 bg-[#534AB7]/10 rounded-xl flex items-center justify-center mb-4">
               <Trophy className="w-5 h-5 text-[#534AB7]" strokeWidth={1.75} />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium mb-0.5">내 랭킹</p>
-              <p className="text-2xl font-black text-gray-900 tabular-nums leading-none">
-                {myRank ? `${myRank}위` : "—"}
-                {myRank && <span className="text-sm font-medium text-gray-400 ml-2">{myScore.toLocaleString()}점</span>}
+            <p className="text-2xl font-black text-gray-900 tabular-nums leading-none mb-1">
+              {myRank ? `${myRank}위` : "—"}
+            </p>
+            <p className="text-xs text-gray-500 mb-0.5">
+              {myScore > 0 ? `${myScore.toLocaleString()}점` : "아직 기록 없음"}
+            </p>
+            {myRank && totalRankers > 0 && (
+              <p className="text-[10px] text-[#534AB7] font-bold mb-3">
+                상위 {Math.ceil(myRank / totalRankers * 100)}%
               </p>
+            )}
+            {(!myRank || !totalRankers) && <div className="mb-3" />}
+            <div className="flex items-center gap-0.5 text-xs font-bold text-[#534AB7] group-hover:gap-1 transition-all">
+              전체 랭킹 <ChevronRight className="w-3.5 h-3.5" />
             </div>
-          </div>
-          <div className="flex items-center gap-0.5 text-xs font-bold text-[#534AB7] group-hover:gap-1 transition-all">
-            전체 랭킹 보기 <ChevronRight className="w-3.5 h-3.5" />
-          </div>
-        </button>
+          </button>
+
+        </div>
 
         {/* ══════════════════════════════════════════════════════
             3. 2컬럼 메인 레이아웃
