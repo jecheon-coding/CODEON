@@ -940,7 +940,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         if (!model) return
         const newDecos: any[] = []
         model.getValue().split("\n").forEach((line: string, li: number) => {
-          const re = /[①②③④⑤⑥⑦⑧⑨⑩]_{1,}/g
+          const re = /(?:[①②③④⑤⑥⑦⑧⑨⑩]_{1,}|_{4,})/g
           let match: RegExpExecArray | null
           while ((match = re.exec(line)) !== null) {
             newDecos.push({
