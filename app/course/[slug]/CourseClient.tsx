@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
@@ -147,8 +147,9 @@ export default function CourseClient({
   globalStats: Record<string, { solvers: number; submissions: number; successRate: number | null }>
   userName: string
 }) {
-  const router = useRouter()
-  const meta   = COURSE_META[slug] ?? { label: slug, description: "", color: "#534AB7", Icon: Layers }
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const meta         = COURSE_META[slug] ?? { label: slug, description: "", color: "#534AB7", Icon: Layers }
   const { Icon: CourseIcon } = meta
 
   const [activeTab,        setActiveTab]        = useState(() =>
@@ -160,15 +161,48 @@ export default function CourseClient({
 
   const LIMIT = 20
 
-  // ── 자격증 과정 전용 필터 상태 ───────────────────────────────────────────────
-  const [certGrade,   setCertGrade]   = useState<1 | 2 | 3>(3)
-  const [certTypeMap, setCertTypeMap] = useState<Record<number, "exam" | "mock">>({ 1: "exam", 2: "exam", 3: "exam" })
-  const [certRound,   setCertRound]   = useState<number | null>(null)
+  // ── 자격증 과정 전용 필터 상태 (URL params로 초기화) ─────────────────────────
+  const [certGrade, setCertGrade] = useState<1 | 2 | 3>(() => {
+    const g = Number(searchParams.get("grade"))
+    return (g === 1 || g === 2 || g === 3) ? g : 3
+  })
+  const [certTypeMap, setCertTypeMap] = useState<Record<number, "exam" | "mock">>(() => {
+    const base: Record<number, "exam" | "mock"> = { 1: "exam", 2: "exam", 3: "exam" }
+    const g = Number(searchParams.get("grade")) || 3
+    const t = searchParams.get("type")
+    if (t === "exam" || t === "mock") base[g] = t
+    return base
+  })
+  const [certRound, setCertRound] = useState<number | null>(() => {
+    const r = Number(searchParams.get("round"))
+    return r > 0 ? r : null
+  })
   const certType = certTypeMap[certGrade]
 
-  // ── 대회 과정 전용 필터 상태 ────────────────────────────────────────────────
-  const [compYear,     setCompYear]     = useState<number | null>(null)
-  const [compDivision, setCompDivision] = useState<string | null>(null)
+  // ── 대회 과정 전용 필터 상태 (URL params로 초기화) ───────────────────────────
+  const [compYear, setCompYear] = useState<number | null>(() => {
+    const y = Number(searchParams.get("year"))
+    return y > 0 ? y : null
+  })
+  const [compDivision, setCompDivision] = useState<string | null>(() => {
+    return searchParams.get("div") ?? null
+  })
+
+  // ── URL 업데이트 헬퍼 ────────────────────────────────────────────────────────
+  const updateCertUrl = useCallback((grade: number, type: string, round: number | null) => {
+    const p = new URLSearchParams()
+    p.set("grade", String(grade))
+    p.set("type", type)
+    if (round !== null) p.set("round", String(round))
+    router.replace(`/course/${slug}?${p.toString()}`, { scroll: false })
+  }, [router, slug])
+
+  const updateCompUrl = useCallback((year: number | null, div: string | null) => {
+    const p = new URLSearchParams()
+    if (year !== null) p.set("year", String(year))
+    if (div  !== null) p.set("div",  div)
+    router.replace(`/course/${slug}?${p.toString()}`, { scroll: false })
+  }, [router, slug])
 
   // ── 집계 ──────────────────────────────────────────────────────────────────
   const completedCount  = useMemo(() => problems.filter(p => statusMap[p.id]?.status === "정답").length,   [problems, statusMap])
@@ -238,7 +272,9 @@ export default function CourseClient({
   // 급수·유형 변경 시 certRound가 null이면 첫 번째 회차 자동 선택
   useEffect(() => {
     if (availableRounds.length > 0 && (certRound === null || !availableRounds.includes(certRound))) {
-      setCertRound(availableRounds[0])
+      const r = availableRounds[0]
+      setCertRound(r)
+      updateCertUrl(certGrade, certType, r)
     }
   }, [availableRounds])
 
@@ -312,14 +348,18 @@ export default function CourseClient({
   // 연도 변경 시 부문 자동 선택
   useEffect(() => {
     if (availableDivisions.length > 0 && (compDivision === null || !availableDivisions.includes(compDivision))) {
-      setCompDivision(availableDivisions[0])
+      const div = availableDivisions[0]
+      setCompDivision(div)
+      updateCompUrl(compYear, div)
     }
   }, [availableDivisions])
 
   // 첫 진입 시 첫 번째 연도 자동 선택
   useEffect(() => {
     if (availableYears.length > 0 && (compYear === null || !availableYears.includes(compYear))) {
-      setCompYear(availableYears[0])
+      const y = availableYears[0]
+      setCompYear(y)
+      updateCompUrl(y, compDivision)
     }
   }, [availableYears])
 
@@ -519,7 +559,7 @@ export default function CourseClient({
                       const hasDone    = stat.completed > 0
                       return (
                         <button key={y}
-                          onClick={() => { setCompYear(y); setCompDivision(null) }}
+                          onClick={() => { setCompYear(y); setCompDivision(null); updateCompUrl(y, null) }}
                           className="flex items-center gap-1 px-5 py-3.5 border-b-2 transition-all font-semibold"
                           style={{ fontSize: "15px", color: isActive ? "#BA7517" : "#9ca3af", borderColor: isActive ? "#BA7517" : "transparent" }}
                         >
@@ -541,7 +581,7 @@ export default function CourseClient({
                       const hasDone  = stat.completed > 0
                       return (
                         <button key={div}
-                          onClick={() => setCompDivision(div)}
+                          onClick={() => { setCompDivision(div); updateCompUrl(compYear, div) }}
                           className="flex items-center gap-1 px-4 py-2.5 text-sm border-b-2 transition-all font-medium"
                           style={{ color: isActive ? "#BA7517" : "#9ca3af", borderColor: isActive ? "#BA7517" : "transparent" }}
                         >
@@ -563,7 +603,7 @@ export default function CourseClient({
                     {([3, 2, 1] as const).map(g => (
                       <button
                         key={g}
-                        onClick={() => { setCertGrade(g); setCertRound(null) }}
+                        onClick={() => { setCertGrade(g); setCertRound(null); updateCertUrl(g, certTypeMap[g] ?? "exam", null) }}
                         className={`px-5 py-3.5 border-b-2 transition-all font-semibold`}
                         style={{
                           fontSize: "16px",
@@ -579,7 +619,7 @@ export default function CourseClient({
                       {(["exam", "mock"] as const).map(t => (
                         <button
                           key={t}
-                          onClick={() => { setCertTypeMap(prev => ({ ...prev, [certGrade]: t })); setCertRound(null) }}
+                          onClick={() => { setCertTypeMap(prev => ({ ...prev, [certGrade]: t })); setCertRound(null); updateCertUrl(certGrade, t, null) }}
                           className={`px-4 py-2.5 text-sm border-b-2 transition-all font-medium`}
                           style={{
                             color:       certType === t ? "#534AB7" : "#9ca3af",
@@ -594,7 +634,7 @@ export default function CourseClient({
                         {availableRounds.map(r => (
                           <button
                             key={r}
-                            onClick={() => setCertRound(r)}
+                            onClick={() => { setCertRound(r); updateCertUrl(certGrade, certType, r) }}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all
                               ${certRound === r ? "bg-[#534AB7] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
                           >{r}차</button>
