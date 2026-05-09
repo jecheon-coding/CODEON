@@ -739,9 +739,101 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           { label: 'join',     insert: '"${1: }".join(${2:iterable})',                                       detail: '문자열 결합' },
         ]
 
+        // ── 타입 추론 기반 메서드 자동완성 ─────────────────────────────────────
+        const PY_TYPE_METHODS: Record<string, Array<{label:string;insert:string;detail:string}>> = {
+          list: [
+            { label:'append',  insert:'append(${1:item})',            detail:'끝에 항목 추가' },
+            { label:'extend',  insert:'extend(${1:iterable})',        detail:'리스트 이어붙이기' },
+            { label:'insert',  insert:'insert(${1:i}, ${2:item})',    detail:'특정 위치에 삽입' },
+            { label:'remove',  insert:'remove(${1:item})',            detail:'첫 번째 항목 제거' },
+            { label:'pop',     insert:'pop(${1:-1})',                 detail:'항목 꺼내기 (기본: 마지막)' },
+            { label:'clear',   insert:'clear()',                      detail:'모든 항목 제거' },
+            { label:'index',   insert:'index(${1:item})',             detail:'항목의 인덱스 반환' },
+            { label:'count',   insert:'count(${1:item})',             detail:'항목 개수 반환' },
+            { label:'sort',    insert:'sort()',                       detail:'오름차순 정렬' },
+            { label:'reverse', insert:'reverse()',                    detail:'역순으로 뒤집기' },
+            { label:'copy',    insert:'copy()',                       detail:'얕은 복사 반환' },
+          ],
+          dict: [
+            { label:'keys',       insert:'keys()',                          detail:'키 목록 반환' },
+            { label:'values',     insert:'values()',                        detail:'값 목록 반환' },
+            { label:'items',      insert:'items()',                         detail:'(키,값) 쌍 반환' },
+            { label:'get',        insert:'get(${1:key}, ${2:default})',     detail:'키로 값 가져오기' },
+            { label:'update',     insert:'update(${1:other})',              detail:'딕셔너리 업데이트' },
+            { label:'pop',        insert:'pop(${1:key})',                   detail:'키 삭제 후 값 반환' },
+            { label:'clear',      insert:'clear()',                         detail:'모든 항목 제거' },
+            { label:'copy',       insert:'copy()',                          detail:'얕은 복사 반환' },
+            { label:'setdefault', insert:'setdefault(${1:key}, ${2:val})',  detail:'키 없으면 기본값 설정' },
+            { label:'popitem',    insert:'popitem()',                       detail:'마지막 (키,값) 제거·반환' },
+          ],
+          str: [
+            { label:'split',      insert:'split(${1:" "})',        detail:'문자열 분리' },
+            { label:'strip',      insert:'strip()',                 detail:'양쪽 공백 제거' },
+            { label:'lstrip',     insert:'lstrip()',                detail:'왼쪽 공백 제거' },
+            { label:'rstrip',     insert:'rstrip()',                detail:'오른쪽 공백 제거' },
+            { label:'upper',      insert:'upper()',                 detail:'대문자로 변환' },
+            { label:'lower',      insert:'lower()',                 detail:'소문자로 변환' },
+            { label:'replace',    insert:'replace(${1:old}, ${2:new})', detail:'문자열 교체' },
+            { label:'find',       insert:'find(${1:sub})',          detail:'위치 반환 (없으면 -1)' },
+            { label:'count',      insert:'count(${1:sub})',         detail:'부분 문자열 개수' },
+            { label:'startswith', insert:'startswith(${1:prefix})', detail:'접두사 확인' },
+            { label:'endswith',   insert:'endswith(${1:suffix})',   detail:'접미사 확인' },
+            { label:'join',       insert:'join(${1:iterable})',     detail:'구분자로 연결' },
+            { label:'format',     insert:'format(${1})',            detail:'문자열 포맷' },
+            { label:'isdigit',    insert:'isdigit()',               detail:'숫자로만 구성 여부' },
+            { label:'isalpha',    insert:'isalpha()',               detail:'알파벳으로만 구성 여부' },
+            { label:'isalnum',    insert:'isalnum()',               detail:'알파벳+숫자 여부' },
+            { label:'capitalize', insert:'capitalize()',            detail:'첫 글자 대문자' },
+            { label:'title',      insert:'title()',                 detail:'각 단어 첫 글자 대문자' },
+            { label:'zfill',      insert:'zfill(${1:width})',      detail:'왼쪽 0 채우기' },
+          ],
+          set: [
+            { label:'add',          insert:'add(${1:elem})',          detail:'요소 추가' },
+            { label:'remove',       insert:'remove(${1:elem})',       detail:'요소 제거 (없으면 오류)' },
+            { label:'discard',      insert:'discard(${1:elem})',      detail:'요소 제거 (없어도 무시)' },
+            { label:'pop',          insert:'pop()',                   detail:'임의 요소 꺼내기' },
+            { label:'clear',        insert:'clear()',                 detail:'모든 요소 제거' },
+            { label:'union',        insert:'union(${1:other})',       detail:'합집합' },
+            { label:'intersection', insert:'intersection(${1:other})',detail:'교집합' },
+            { label:'difference',   insert:'difference(${1:other})',  detail:'차집합' },
+            { label:'issubset',     insert:'issubset(${1:other})',    detail:'부분집합 여부' },
+            { label:'issuperset',   insert:'issuperset(${1:other})',  detail:'상위집합 여부' },
+            { label:'copy',         insert:'copy()',                  detail:'복사' },
+          ],
+          int: [
+            { label:'bit_length', insert:'bit_length()', detail:'이진 표현 비트 수' },
+          ],
+          float: [
+            { label:'is_integer', insert:'is_integer()', detail:'정수 여부 확인' },
+          ],
+        }
+
+        function inferPyType(varName: string, code: string): string | null {
+          const esc = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          for (const line of code.split('\n')) {
+            if (new RegExp(`\\b${esc}\\s*=\\s*\\[`).test(line))          return 'list'
+            if (new RegExp(`\\b${esc}\\s*=\\s*list\\b`).test(line))      return 'list'
+            if (new RegExp(`\\b${esc}\\s*=\\s*dict\\b`).test(line))      return 'dict'
+            if (new RegExp(`\\b${esc}\\s*=\\s*set\\s*\\(`).test(line))   return 'set'
+            if (new RegExp(`\\b${esc}\\s*=\\s*["'\`]`).test(line))       return 'str'
+            if (new RegExp(`\\b${esc}\\s*=\\s*input\\s*\\(`).test(line)) return 'str'
+            if (new RegExp(`\\b${esc}\\s*=\\s*str\\s*\\(`).test(line))   return 'str'
+            if (new RegExp(`\\b${esc}\\s*=\\s*int\\s*\\(`).test(line))   return 'int'
+            if (new RegExp(`\\b${esc}\\s*=\\s*float\\s*\\(`).test(line)) return 'float'
+            if (new RegExp(`\\b${esc}\\s*\\.append\\s*\\(`).test(line))  return 'list'
+            if (new RegExp(`\\b${esc}\\s*\\.keys\\s*\\(`).test(line))    return 'dict'
+            if (new RegExp(`\\b${esc}\\s*\\.add\\s*\\(`).test(line))     return 'set'
+            if (new RegExp(`\\b${esc}\\s*=\\s*\\{`).test(line)) {
+              const m = line.match(new RegExp(`\\b${esc}\\s*=\\s*\\{([^}]*)`))
+              return (m && m[1].trim() && !m[1].includes(':')) ? 'set' : 'dict'
+            }
+          }
+          return null
+        }
+
         monaco.languages.registerCompletionItemProvider("python", {
           triggerCharacters: ["."],
-          provideCompletionItems(model: any, position: any) {
+          provideCompletionItems(model: any, position: any, context: any) {
             const word = model.getWordUntilPosition(position)
             const range = {
               startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
@@ -750,8 +842,30 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             const KW   = monaco.languages.CompletionItemKind.Keyword
             const FN   = monaco.languages.CompletionItemKind.Function
             const SNIP = monaco.languages.CompletionItemKind.Snippet
+            const MTH  = monaco.languages.CompletionItemKind.Method
             const RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
 
+            // ── 점(.) 트리거: 타입 추론 후 메서드 목록 반환 ────────────────────
+            if (context.triggerCharacter === ".") {
+              const lineText  = model.getLineContent(position.lineNumber)
+              const before    = lineText.slice(0, position.column - 1) // cursor 앞 텍스트
+              const dotIdx    = before.lastIndexOf('.')
+              if (dotIdx === -1) return { suggestions: [] }
+              const beforeDot = before.slice(0, dotIdx)
+              const varMatch  = beforeDot.match(/(\w+)$/)
+              if (!varMatch) return { suggestions: [] }
+              const varName   = varMatch[1]
+              const pyType    = inferPyType(varName, model.getValue())
+              const methods   = pyType ? (PY_TYPE_METHODS[pyType] ?? []) : []
+              return {
+                suggestions: methods.map(m => ({
+                  label: m.label, kind: MTH, detail: m.detail,
+                  insertText: m.insert, insertTextRules: RULE, range,
+                })),
+              }
+            }
+
+            // ── 일반 트리거: 키워드 / 빌트인 / 스니펫 ──────────────────────────
             return {
               suggestions: [
                 ...PY_KEYWORDS.map((k: string) => ({ label: k, kind: KW, insertText: k, range })),
