@@ -865,9 +865,28 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               }
             }
 
-            // ── 일반 트리거: 키워드 / 빌트인 / 스니펫 ──────────────────────────
+            // ── 일반 트리거: 변수명 + 키워드 / 빌트인 / 스니펫 ─────────────────
+            const VAR = monaco.languages.CompletionItemKind.Variable
+            const code = model.getValue()
+            const varSet = new Set<string>()
+            const kwSet  = new Set(PY_KEYWORDS)
+            for (const line of code.split('\n')) {
+              // 일반 대입: name = ...  /  a, b = ...
+              const lhs = line.match(/^\s*([\w,\s]+?)\s*(?:\+|-|\*|\/|\/\/|%|\*\*)?=(?!=)/)
+              if (lhs) lhs[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+              // for 루프: for x in ...  /  for i, v in ...
+              const forM = line.match(/^\s*for\s+([\w,\s]+)\s+in\b/)
+              if (forM) forM[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+              // def 함수명 + 파라미터
+              const defM = line.match(/^\s*def\s+(\w+)\s*\(([^)]*)\)/)
+              if (defM) {
+                varSet.add(defM[1])
+                defM[2].split(',').forEach(p => { const t = p.trim().split('=')[0].trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+              }
+            }
             return {
               suggestions: [
+                ...[...varSet].map(v => ({ label: v, kind: VAR, insertText: v, range, sortText: '0' + v })),
                 ...PY_KEYWORDS.map((k: string) => ({ label: k, kind: KW, insertText: k, range })),
                 ...PY_BUILTINS.map((b: string) => ({ label: b, kind: FN,   insertText: b, range })),
                 ...PY_SNIPPETS.map(s => ({
