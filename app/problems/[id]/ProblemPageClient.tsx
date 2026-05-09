@@ -1296,22 +1296,22 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
           {/* 테스트 입력 */}
           {inputOpen && (
-            <div className="shrink-0 border-t p-3" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="shrink-0 border-t px-3 py-2" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
+              <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-gray-700">테스트 입력</span>
                 <button
                   onClick={() => setInputOpen(false)}
                   className="flex items-center justify-center transition-colors"
-                  style={{ width: "24px", height: "24px", background: "rgba(0,0,0,0.06)", borderRadius: "4px" }}
+                  style={{ width: "22px", height: "22px", background: "rgba(0,0,0,0.06)", borderRadius: "4px" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.14)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
-                ><SvgX size={14} /></button>
+                ><SvgX size={13} /></button>
               </div>
               <textarea
-                value={testInput} onChange={e => setTestInput(e.target.value)} rows={3}
+                value={testInput} onChange={e => setTestInput(e.target.value)} rows={2}
                 placeholder="입력값을 입력하세요..."
                 className="w-full text-sm font-mono bg-white border border-[#86efac] rounded-lg px-3 py-2 resize-none outline-none focus:border-[#22c55e] text-gray-700"
-                style={{ maxHeight: "120px", overflowY: "auto" }}
+                style={{ maxHeight: "96px", overflowY: "auto" }}
               />
             </div>
           )}
@@ -1437,7 +1437,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               {coachOpen ? <SvgChevronUp /> : <SvgChevronDown />}
             </button>
             {coachOpen && (
-              <HintPanel problem={problem} code={getCode()} submissionStatus={submissionStatus} isDark={isDark} />
+              <div className="overflow-y-auto" style={{ maxHeight: "220px" }}>
+                <HintPanel problem={problem} code={getCode()} submissionStatus={submissionStatus} isDark={isDark} />
+              </div>
             )}
           </div>
         </div>
