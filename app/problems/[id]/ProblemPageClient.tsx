@@ -831,6 +831,56 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           return null
         }
 
+        // ── 함수 키워드 인수 목록 ──────────────────────────────────────────────
+        const PY_FUNC_KWARGS: Record<string, Array<{label:string;insert:string;detail:string}>> = {
+          print:  [
+            { label:'end=',   insert:'end="${1:\\n}"',       detail:'끝 문자 (기본: \\n)' },
+            { label:'sep=',   insert:'sep="${1: }"',         detail:'구분자 (기본: 공백)' },
+            { label:'file=',  insert:'file=${1:sys.stdout}', detail:'출력 대상 파일' },
+            { label:'flush=', insert:'flush=${1:False}',     detail:'즉시 출력 여부' },
+          ],
+          range:  [
+            { label:'start=', insert:'start=${1:0}', detail:'시작값 (기본: 0)' },
+            { label:'stop=',  insert:'stop=${1}',    detail:'끝값' },
+            { label:'step=',  insert:'step=${1:1}',  detail:'간격 (기본: 1)' },
+          ],
+          sorted: [
+            { label:'key=',     insert:'key=${1:lambda x: x}', detail:'정렬 기준 함수' },
+            { label:'reverse=', insert:'reverse=${1:True}',     detail:'역순 정렬 여부' },
+          ],
+          sort: [
+            { label:'key=',     insert:'key=${1:lambda x: x}', detail:'정렬 기준 함수' },
+            { label:'reverse=', insert:'reverse=${1:True}',     detail:'역순 정렬 여부' },
+          ],
+          open: [
+            { label:'mode=',     insert:'mode="${1:r}"',        detail:'파일 모드 (r/w/a)' },
+            { label:'encoding=', insert:'encoding="${1:utf-8}"', detail:'파일 인코딩' },
+          ],
+          int: [
+            { label:'base=', insert:'base=${1:10}', detail:'진수 (기본: 10진수)' },
+          ],
+          enumerate: [
+            { label:'start=', insert:'start=${1:0}', detail:'시작 인덱스 (기본: 0)' },
+          ],
+        }
+
+        function detectFuncContext(lineText: string, col: number): string | null {
+          const before = lineText.slice(0, col - 1)
+          let depth = 0
+          for (let i = before.length - 1; i >= 0; i--) {
+            const ch = before[i]
+            if (ch === ')' || ch === ']') depth++
+            else if (ch === '(' || ch === '[') {
+              if (depth === 0) {
+                const m = before.slice(0, i).match(/(\w+)\s*$/)
+                return m ? m[1] : null
+              }
+              depth--
+            }
+          }
+          return null
+        }
+
         monaco.languages.registerCompletionItemProvider("python", {
           triggerCharacters: ["."],
           provideCompletionItems(model: any, position: any, context: any) {
@@ -843,12 +893,13 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             const FN   = monaco.languages.CompletionItemKind.Function
             const SNIP = monaco.languages.CompletionItemKind.Snippet
             const MTH  = monaco.languages.CompletionItemKind.Method
+            const VAR  = monaco.languages.CompletionItemKind.Variable
             const RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
 
             // ── 점(.) 트리거: 타입 추론 후 메서드 목록 반환 ────────────────────
             if (context.triggerCharacter === ".") {
               const lineText  = model.getLineContent(position.lineNumber)
-              const before    = lineText.slice(0, position.column - 1) // cursor 앞 텍스트
+              const before    = lineText.slice(0, position.column - 1)
               const dotIdx    = before.lastIndexOf('.')
               if (dotIdx === -1) return { suggestions: [] }
               const beforeDot = before.slice(0, dotIdx)
@@ -865,33 +916,45 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               }
             }
 
-            // ── 일반 트리거: 변수명 + 키워드 / 빌트인 / 스니펫 ─────────────────
-            const VAR = monaco.languages.CompletionItemKind.Variable
+            // ── 일반 트리거: 변수명 / 함수 키워드 인수 / 키워드 / 스니펫 ─────────
             const code = model.getValue()
+
+            // 1. 문서에서 변수명 추출
             const varSet = new Set<string>()
             const kwSet  = new Set(PY_KEYWORDS)
             for (const line of code.split('\n')) {
-              // 일반 대입: name = ...  /  a, b = ...
               const lhs = line.match(/^\s*([\w,\s]+?)\s*(?:\+|-|\*|\/|\/\/|%|\*\*)?=(?!=)/)
               if (lhs) lhs[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
-              // for 루프: for x in ...  /  for i, v in ...
               const forM = line.match(/^\s*for\s+([\w,\s]+)\s+in\b/)
               if (forM) forM[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
-              // def 함수명 + 파라미터
               const defM = line.match(/^\s*def\s+(\w+)\s*\(([^)]*)\)/)
               if (defM) {
                 varSet.add(defM[1])
                 defM[2].split(',').forEach(p => { const t = p.trim().split('=')[0].trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
               }
             }
+
+            // 2. 함수 컨텍스트 감지 → 키워드 인수 제안
+            const lineText = model.getLineContent(position.lineNumber)
+            const funcName = detectFuncContext(lineText, position.column)
+            const kwargs   = funcName ? (PY_FUNC_KWARGS[funcName] ?? []) : []
+
             return {
               suggestions: [
-                ...[...varSet].map(v => ({ label: v, kind: VAR, insertText: v, range, sortText: '0' + v })),
-                ...PY_KEYWORDS.map((k: string) => ({ label: k, kind: KW, insertText: k, range })),
-                ...PY_BUILTINS.map((b: string) => ({ label: b, kind: FN,   insertText: b, range })),
+                // 함수 키워드 인수 최우선 (end=, sep= 등)
+                ...kwargs.map(k => ({
+                  label: k.label, kind: VAR, detail: k.detail,
+                  insertText: k.insert, insertTextRules: RULE, range,
+                  sortText: '0' + k.label,
+                })),
+                // 변수명
+                ...[...varSet].map(v => ({ label: v, kind: VAR, insertText: v, range, sortText: '1' + v })),
+                // 키워드 / 빌트인 / 스니펫
+                ...PY_KEYWORDS.map((k: string) => ({ label: k, kind: KW, insertText: k, range, sortText: '2' + k })),
+                ...PY_BUILTINS.map((b: string) => ({ label: b, kind: FN,   insertText: b, range, sortText: '3' + b })),
                 ...PY_SNIPPETS.map(s => ({
                   label: s.label, kind: SNIP, detail: s.detail,
-                  insertText: s.insert, insertTextRules: RULE, range,
+                  insertText: s.insert, insertTextRules: RULE, range, sortText: '4' + s.label,
                 })),
               ],
             }
@@ -919,7 +982,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         acceptSuggestionOnEnter: "on",
         tabCompletion:           "on",
         suggestOnTriggerCharacters: true,
-        wordBasedSuggestions:    "currentDocument",
+        wordBasedSuggestions:    "off",
+        quickSuggestionsDelay:   0,
         overviewRulerLanes:      0,
       })
 
