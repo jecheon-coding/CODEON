@@ -22,7 +22,7 @@ export async function GET() {
 
   const myId = (session.user as any).id as string
 
-  const [{ data: subs }, { data: problems }, { data: users }] = await Promise.all([
+  const [{ data: subs }, { data: problems }, { data: users }, { data: bonusRows }] = await Promise.all([
     supabaseServer
       .from("submissions")
       .select("user_id, problem_id, is_correct, created_at")
@@ -35,11 +35,21 @@ export async function GET() {
       .select("id, name")
       .eq("role", "student")
       .eq("status", "active"),
+    supabaseServer
+      .from("comprehension_checks")
+      .select("user_id, bonus_score")
+      .eq("skipped", false),
   ])
 
   const probMap    = new Map((problems ?? []).map(p => [p.id, p]))
   const userMap    = new Map((users ?? []).map(u => [u.id, u.name as string]))
   const studentIds = new Set(userMap.keys())
+
+  // 유저별 이해 확인 가산점 합산
+  const bonusMap = new Map<string, number>()
+  for (const row of bonusRows ?? []) {
+    bonusMap.set(row.user_id, (bonusMap.get(row.user_id) ?? 0) + Number(row.bonus_score))
+  }
 
   type SubInfo = { attempts: number; solved: boolean; firstCorrectIdx: number }
   const subGroups = new Map<string, SubInfo>()
@@ -72,6 +82,12 @@ export async function GET() {
     cur.score       = Math.round((cur.score + score) * 10) / 10
     cur.solvedCount++
     userScores.set(userId, cur)
+  }
+
+  // 이해 확인 가산점 반영
+  for (const [userId, bonus] of bonusMap) {
+    const cur = userScores.get(userId)
+    if (cur) cur.score = Math.round((cur.score + bonus) * 10) / 10
   }
 
   const ranked = [...userScores.entries()]

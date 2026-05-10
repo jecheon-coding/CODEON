@@ -8,7 +8,7 @@ import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy,
+  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -1939,6 +1939,105 @@ function LeaderboardSection() {
   )
 }
 
+// ── 이해 확인 통계 섹션 ──────────────────────────────────────────────────────
+type ComprehensionStat = {
+  userId: string
+  name: string
+  total: number
+  answered: number
+  skipped: number
+  skipRate: number
+  bonusTotal: number
+}
+
+function ComprehensionStatsSection() {
+  const [stats, setStats] = useState<ComprehensionStat[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from("comprehension_checks").select("user_id, skipped, bonus_score"),
+      supabase.from("users").select("id, name").eq("role", "student").eq("status", "active"),
+    ]).then(([{ data: checks }, { data: users }]) => {
+      const userMap = new Map((users ?? []).map(u => [u.id, u.name as string]))
+      const statMap = new Map<string, ComprehensionStat>()
+
+      for (const c of checks ?? []) {
+        if (!userMap.has(c.user_id)) continue
+        const cur = statMap.get(c.user_id) ?? {
+          userId: c.user_id,
+          name: userMap.get(c.user_id) ?? "—",
+          total: 0, answered: 0, skipped: 0, skipRate: 0, bonusTotal: 0,
+        }
+        cur.total++
+        if (c.skipped) cur.skipped++
+        else { cur.answered++; cur.bonusTotal = Math.round((cur.bonusTotal + Number(c.bonus_score)) * 10) / 10 }
+        statMap.set(c.user_id, cur)
+      }
+
+      const result = [...statMap.values()]
+        .map(s => ({ ...s, skipRate: s.total > 0 ? Math.round(s.skipped / s.total * 100) : 0 }))
+        .sort((a, b) => a.skipRate - b.skipRate)
+
+      setStats(result)
+      setLoading(false)
+    })
+  }, [])
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <Brain className="w-4 h-4 text-violet-500" />
+        <h3 className="font-bold text-gray-800 text-sm">이해 확인 참여율</h3>
+        <span className="ml-auto text-xs text-gray-400">{stats.length}명</span>
+      </div>
+      <div className="overflow-y-auto max-h-80">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+          </div>
+        ) : stats.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-400">아직 기록이 없습니다.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-xs text-gray-400">
+                <th className="px-4 py-2 text-left">이름</th>
+                <th className="px-4 py-2 text-right">총</th>
+                <th className="px-4 py-2 text-right">답변</th>
+                <th className="px-4 py-2 text-right">건너뜀</th>
+                <th className="px-4 py-2 text-right">건너뛰기율</th>
+                <th className="px-4 py-2 text-right">가산점</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map(s => (
+                <tr key={s.userId} className="border-t border-gray-50 hover:bg-gray-50">
+                  <td className="px-4 py-2 font-semibold text-gray-800">{s.name}</td>
+                  <td className="px-4 py-2 text-right text-gray-400 tabular-nums">{s.total}</td>
+                  <td className="px-4 py-2 text-right text-emerald-500 font-semibold tabular-nums">{s.answered}</td>
+                  <td className="px-4 py-2 text-right text-rose-400 tabular-nums">{s.skipped}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    <span className={`font-bold ${
+                      s.skipRate >= 70 ? "text-rose-500" :
+                      s.skipRate >= 40 ? "text-amber-500" : "text-gray-500"
+                    }`}>
+                      {s.skipRate}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right text-violet-500 font-semibold tabular-nums">
+                    +{s.bonusTotal}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function MonthlyReviewSection() {
   const [activeStudents, setActiveStudents] = useState<Student[]>([])
   const [studentId, setStudentId] = useState("")
@@ -2100,12 +2199,22 @@ function MonthlyReviewSection() {
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
+type AdminTab = "students" | "learning" | "assignments" | "consult"
+
+const ADMIN_TABS: { id: AdminTab; label: string; Icon: any }[] = [
+  { id: "students",    label: "학생 관리",   Icon: Users },
+  { id: "learning",    label: "학습 현황",   Icon: BarChart2 },
+  { id: "assignments", label: "과제 / 문제", Icon: ClipboardList },
+  { id: "consult",     label: "상담 / 리뷰", Icon: MessageSquare },
+]
+
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false)
   const session = useSession()?.data
   const router = useRouter()
-  const [summary,   setSummary]   = useState<Summary | null>(null)
-  const [liveUnsub, setLiveUnsub] = useState<{ count: number; tab: string } | null>(null)
+  const [summary,    setSummary]    = useState<Summary | null>(null)
+  const [liveUnsub,  setLiveUnsub]  = useState<{ count: number; tab: string } | null>(null)
+  const [activeTab,  setActiveTab]  = useState<AdminTab>("students")
 
   // 비밀번호 변경 모달
   const [pwModal,   setPwModal]   = useState(false)
@@ -2253,23 +2362,64 @@ export default function AdminPage() {
       <div className="max-w-[1400px] mx-auto px-8 py-8">
         <SummaryCards summary={summary} liveUnsub={liveUnsub} />
 
-        <div className="grid grid-cols-2 gap-6 items-start">
-          {/* 좌측 */}
-          <div className="flex flex-col gap-6">
+        {/* 탭 바 */}
+        <div className="flex gap-1 bg-white border border-gray-200 rounded-2xl p-1.5 mb-6 shadow-sm">
+          {ADMIN_TABS.map(({ id, label, Icon }) => {
+            const isActive = activeTab === id
+            const badge = id === "learning" && liveUnsub?.count ? liveUnsub.count : null
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all
+                  ${isActive
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                  }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+                {badge && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white leading-none">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* 탭 콘텐츠 */}
+        {activeTab === "students" && (
+          <div className="grid grid-cols-2 gap-6 items-start">
             <StudentSection onRefreshSummary={loadSummary} />
-            <AssignmentSection />
             <ParentLinkSection onRefreshSummary={loadSummary} />
           </div>
+        )}
 
-          {/* 우측 */}
+        {activeTab === "learning" && (
           <div className="flex flex-col gap-6">
             <SubmissionSection onUnsubChange={handleUnsubChange} />
-            <ConsultSection onRefreshSummary={loadSummary} />
-            <ProblemApprovalSection onRefreshSummary={loadSummary} />
-            <MonthlyReviewSection />
-            <LeaderboardSection />
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <ComprehensionStatsSection />
+              <LeaderboardSection />
+            </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === "assignments" && (
+          <div className="grid grid-cols-2 gap-6 items-start">
+            <AssignmentSection />
+            <ProblemApprovalSection onRefreshSummary={loadSummary} />
+          </div>
+        )}
+
+        {activeTab === "consult" && (
+          <div className="grid grid-cols-2 gap-6 items-start">
+            <ConsultSection onRefreshSummary={loadSummary} />
+            <MonthlyReviewSection />
+          </div>
+        )}
       </div>
     </div>
   )

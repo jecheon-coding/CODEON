@@ -8,6 +8,7 @@ import { useCodeExecution } from "@/hooks/useCodeExecution"
 import { useSubmission } from "@/hooks/useSubmission"
 import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
+import ComprehensionPanel from "@/components/problem/ComprehensionPanel"
 import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/problem"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
@@ -629,6 +630,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
   // ── 제출 상태 (HintPanel용) ─────────────────────────────────────────────────
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>("")
+
+  // ── 이해 확인 패널 (정답 제출 후) ───────────────────────────────────────────
+  const [lastCorrectCode, setLastCorrectCode]   = useState<string | null>(null)
+  const [comprehensionKey, setComprehensionKey] = useState(0)
 
   // ── 유저 상태 ───────────────────────────────────────────────────────────────
   const [userState, setUserState] = useState<ProblemUserState>({ status: "미제출", count: 0 })
@@ -1255,7 +1260,18 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       if (prev.status === "정답") return { ...prev, count: newCount }
       return { status: "시도중", count: newCount }
     })
-    if (result === "correct") router.refresh()
+    if (result === "correct") {
+      setLastCorrectCode(code)
+      setComprehensionKey(k => k + 1)
+      setCoachOpen(false)
+      setResultCollapsed(false)
+      setResultPanelHeight(h => Math.max(h, 400))
+      router.refresh()
+    } else {
+      setCoachOpen(true)
+      setResultCollapsed(false)
+      setResultPanelHeight(h => Math.max(h, 220))
+    }
   }
 
   const handleReset = () => {
@@ -1606,10 +1622,20 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 </div>
               )}
               {activeTab === "result" && (
-                <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
-                  submitting={submitting} progress={subProgress}
-                  onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
-                />
+                <>
+                  <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
+                    submitting={submitting} progress={subProgress}
+                    onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
+                  />
+                  {lastCorrectCode && subStatus === "correct" && (
+                    <ComprehensionPanel
+                      key={comprehensionKey}
+                      problem={problem}
+                      code={lastCorrectCode}
+                      isDark={isDark}
+                    />
+                  )}
+                </>
               )}
               {activeTab === "history" && (
                 <HistoryTab history={history} isDark={isDark}
@@ -1633,11 +1659,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               </div>
               {coachOpen ? <SvgChevronUp /> : <SvgChevronDown />}
             </button>
-            {coachOpen && (
-              <div className="overflow-y-auto" style={{ maxHeight: "220px" }}>
-                <HintPanel problem={problem} code={getCode()} submissionStatus={submissionStatus} isDark={isDark} />
-              </div>
-            )}
+            <div className="overflow-y-auto" style={{ maxHeight: "220px", display: coachOpen ? "block" : "none" }}>
+              <HintPanel problem={problem} code={getCode()} submissionStatus={submissionStatus} isDark={isDark} />
+            </div>
           </div>
         </div>
       </div>

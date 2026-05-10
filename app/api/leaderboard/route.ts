@@ -28,27 +28,40 @@ export async function GET() {
 
   const myId = (session.user as any).id as string
 
-  // 전체 제출 내역 조회 (문제 정보 포함)
-  const { data: subs, error: subErr } = await supabaseServer
-    .from("submissions")
-    .select("user_id, problem_id, is_correct, created_at")
-    .order("created_at", { ascending: true })
+  // 전체 제출 내역 + 이해 확인 가산점 조회
+  const [
+    { data: subs, error: subErr },
+    { data: problems },
+    { data: users },
+    { data: bonusRows },
+  ] = await Promise.all([
+    supabaseServer
+      .from("submissions")
+      .select("user_id, problem_id, is_correct, created_at")
+      .order("created_at", { ascending: true }),
+    supabaseServer
+      .from("problems")
+      .select("id, difficulty, category"),
+    supabaseServer
+      .from("users")
+      .select("id, name")
+      .eq("role", "student")
+      .eq("status", "active"),
+    supabaseServer
+      .from("comprehension_checks")
+      .select("user_id, bonus_score")
+      .eq("skipped", false),
+  ])
 
   if (subErr) return NextResponse.json({ error: subErr.message }, { status: 500 })
 
-  // 문제 난이도·카테고리 조회
-  const { data: problems } = await supabaseServer
-    .from("problems")
-    .select("id, difficulty, category")
-
   const probMap = new Map((problems ?? []).map(p => [p.id, p]))
 
-  // 유저 정보 조회 (student만)
-  const { data: users } = await supabaseServer
-    .from("users")
-    .select("id, name")
-    .eq("role", "student")
-    .eq("status", "active")
+  // 유저별 이해 확인 가산점 합산
+  const bonusMap = new Map<string, number>()
+  for (const row of bonusRows ?? []) {
+    bonusMap.set(row.user_id, (bonusMap.get(row.user_id) ?? 0) + Number(row.bonus_score))
+  }
 
   const userMap = new Map((users ?? []).map(u => [u.id, u.name as string]))
   const studentIds = new Set(userMap.keys())
@@ -87,6 +100,12 @@ export async function GET() {
     cur.score = Math.round((cur.score + score) * 10) / 10
     cur.solvedCount++
     userScores.set(userId, cur)
+  }
+
+  // 이해 확인 가산점 반영
+  for (const [userId, bonus] of bonusMap) {
+    const cur = userScores.get(userId)
+    if (cur) cur.score = Math.round((cur.score + bonus) * 10) / 10
   }
 
   // 랭킹 정렬
