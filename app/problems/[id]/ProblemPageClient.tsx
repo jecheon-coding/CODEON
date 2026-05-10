@@ -929,13 +929,13 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             const kwSet  = new Set(PY_KEYWORDS)
             for (const line of code.split('\n')) {
               const lhs = line.match(/^\s*([\w,\s]+?)\s*(?:\+|-|\*|\/|\/\/|%|\*\*)?=(?!=)/)
-              if (lhs) lhs[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+              if (lhs) lhs[1].split(',').forEach((v: string) => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
               const forM = line.match(/^\s*for\s+([\w,\s]+)\s+in\b/)
-              if (forM) forM[1].split(',').forEach(v => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+              if (forM) forM[1].split(',').forEach((v: string) => { const t = v.trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
               const defM = line.match(/^\s*def\s+(\w+)\s*\(([^)]*)\)/)
               if (defM) {
                 varSet.add(defM[1])
-                defM[2].split(',').forEach(p => { const t = p.trim().split('=')[0].trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
+                defM[2].split(',').forEach((p: string) => { const t = p.trim().split('=')[0].trim(); if (/^\w+$/.test(t) && !kwSet.has(t)) varSet.add(t) })
               }
             }
 
