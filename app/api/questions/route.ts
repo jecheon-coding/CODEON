@@ -14,14 +14,34 @@ export async function GET(req: Request) {
   const problemId = searchParams.get("problemId")
   if (!problemId) return NextResponse.json({ error: "problemId required" }, { status: 400 })
 
-  const { data, error } = await supabaseServer
+  const { data: questions, error } = await supabaseServer
     .from("problem_questions")
-    .select("id, nickname, question, answer, answered_at, created_at")
+    .select("id, nickname, question, created_at")
     .eq("problem_id", problemId)
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+
+  if (!questions || questions.length === 0) return NextResponse.json([])
+
+  // 답변 수 집계
+  const qIds = questions.map(q => q.id)
+  const { data: counts } = await supabaseServer
+    .from("problem_question_answers")
+    .select("question_id")
+    .in("question_id", qIds)
+
+  const countMap: Record<string, number> = {}
+  for (const r of counts ?? []) {
+    countMap[r.question_id] = (countMap[r.question_id] ?? 0) + 1
+  }
+
+  const result = questions.map(q => ({
+    ...q,
+    answer_count: countMap[q.id] ?? 0,
+  }))
+
+  return NextResponse.json(result)
 }
 
 // POST /api/questions
@@ -36,7 +56,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 })
   }
 
-  // 닉네임 확인
   const { data: user } = await supabaseServer
     .from("users")
     .select("nickname")
@@ -55,9 +74,9 @@ export async function POST(req: Request) {
       nickname:   user.nickname,
       question:   question.trim(),
     })
-    .select("id, nickname, question, answer, answered_at, created_at")
+    .select("id, nickname, question, created_at")
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ ...data, answer_count: 0 })
 }

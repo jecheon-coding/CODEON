@@ -428,19 +428,20 @@ function ResultTab({
   )
 }
 
-// ── QnaTab ────────────────────────────────────────────────────────────────────
-type QnaItem = {
+// ── QnaListSection — 문제 하단 묻고 답하기 목록 ──────────────────────────────
+type QnaListItem = {
   id: string
   nickname: string
   question: string
-  answer: string | null
-  answered_at: string | null
+  answer_count: number
   created_at: string
 }
 
-function QnaTab({ problemId, isDark }: { problemId: string; isDark: boolean }) {
-  const [items,      setItems]      = useState<QnaItem[]>([])
+function QnaListSection({ problemId, isDark }: { problemId: string; isDark: boolean }) {
+  const router = useRouter()
+  const [items,      setItems]      = useState<QnaListItem[]>([])
   const [loading,    setLoading]    = useState(true)
+  const [showForm,   setShowForm]   = useState(false)
   const [input,      setInput]      = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState("")
@@ -451,15 +452,13 @@ function QnaTab({ problemId, isDark }: { problemId: string; isDark: boolean }) {
     new Date(str.endsWith("Z") || str.includes("+") ? str : str + "Z")
       .toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
 
-  const load = () => {
+  useEffect(() => {
     setLoading(true)
     fetch(`/api/questions?problemId=${problemId}`)
       .then(r => r.json())
       .then(d => { setItems(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [problemId])
+  }, [problemId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -473,69 +472,100 @@ function QnaTab({ problemId, isDark }: { problemId: string; isDark: boolean }) {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? "오류가 발생했습니다."); return }
       setItems(prev => [data, ...prev])
-      setInput("")
+      setInput(""); setShowForm(false)
     } catch { setError("네트워크 오류가 발생했습니다.") }
     finally  { setSubmitting(false) }
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* 질문 입력 */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="이 문제에 대해 궁금한 점을 질문하세요..."
-          rows={2}
-          className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors
-            ${D("bg-slate-800/60 border-slate-600 text-gray-200 placeholder:text-slate-500 focus:border-[#534AB7]",
-                "bg-white border-gray-200 text-gray-700 placeholder:text-gray-400 focus:border-[#534AB7]")}`}
-        />
-        {error && <p className="text-xs text-red-400">{error}</p>}
+    <div className={`rounded-lg border overflow-hidden mt-2
+      ${D("border-slate-600/50 bg-slate-800/30", "border-gray-200 bg-white")}`}>
+      {/* 헤더 */}
+      <div className={`flex items-center justify-between px-4 py-2.5 border-b
+        ${D("border-slate-600/40 bg-slate-700/30", "border-gray-100 bg-gray-50")}`}>
+        <span className={`text-sm font-bold ${D("text-gray-200", "text-gray-700")}`}>
+          묻고 답하기
+          {items.length > 0 && (
+            <span className={`ml-1.5 text-xs font-normal ${D("text-slate-400", "text-gray-400")}`}>
+              {items.length}개
+            </span>
+          )}
+        </span>
         <button
-          type="submit"
-          disabled={submitting || !input.trim()}
-          className="self-end flex items-center gap-1.5 px-4 py-1.5 bg-[#534AB7] hover:bg-[#443da0]
-            disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+          onClick={() => setShowForm(v => !v)}
+          className="px-3 py-1 text-xs font-semibold bg-[#534AB7] hover:bg-[#443da0] text-white rounded-lg transition-colors"
         >
-          {submitting ? "전송 중..." : "질문하기"}
+          {showForm ? "취소" : "질문하기"}
         </button>
-      </form>
+      </div>
 
-      {/* 질문 목록 */}
+      {/* 질문 작성 폼 */}
+      {showForm && (
+        <form onSubmit={handleSubmit} className={`px-4 py-3 border-b ${D("border-slate-600/40", "border-gray-100")}`}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="이 문제에 대해 궁금한 점을 질문하세요..."
+            rows={3}
+            autoFocus
+            className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors mb-2
+              ${D("bg-slate-800/60 border-slate-600 text-gray-200 placeholder:text-slate-500 focus:border-[#534AB7]",
+                  "bg-white border-gray-200 text-gray-700 placeholder:text-gray-400 focus:border-[#534AB7]")}`}
+          />
+          {error && <p className="text-xs text-red-400 mb-1">{error}</p>}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={submitting || !input.trim()}
+              className="px-4 py-1.5 text-xs font-semibold bg-[#534AB7] hover:bg-[#443da0]
+                disabled:opacity-40 text-white rounded-lg transition-colors"
+            >
+              {submitting ? "등록 중..." : "질문 등록"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* 질문 목록 테이블 */}
       {loading ? (
-        <div className={`text-xs text-center py-6 ${D("text-gray-500", "text-gray-400")}`}>불러오는 중...</div>
+        <div className={`text-xs text-center py-5 ${D("text-gray-500", "text-gray-400")}`}>불러오는 중...</div>
       ) : items.length === 0 ? (
-        <div className={`text-xs text-center py-6 ${D("text-gray-500", "text-gray-400")}`}>아직 질문이 없습니다. 첫 질문을 남겨보세요!</div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {items.map(item => (
-            <div key={item.id} className={`rounded-xl border overflow-hidden
-              ${D("border-slate-600/50 bg-slate-800/40", "border-gray-200 bg-gray-50")}`}>
-              {/* 질문 */}
-              <div className="px-3 py-2.5 flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-bold ${D("text-violet-300", "text-violet-600")}`}>{item.nickname}</span>
-                  <span className={`text-[10px] ${D("text-slate-500", "text-gray-400")}`}>{toKST(item.created_at)}</span>
-                </div>
-                <p className={`text-xs leading-relaxed ${D("text-gray-200", "text-gray-700")}`}>{item.question}</p>
-              </div>
-              {/* 답변 */}
-              {item.answer && (
-                <div className={`px-3 py-2.5 border-t flex gap-2
-                  ${D("border-slate-600/40 bg-indigo-900/20", "border-gray-200 bg-indigo-50/60")}`}>
-                  <span className={`text-[11px] font-bold shrink-0 ${D("text-indigo-300", "text-indigo-600")}`}>선생님</span>
-                  <p className={`text-xs leading-relaxed ${D("text-gray-300", "text-gray-600")}`}>{item.answer}</p>
-                </div>
-              )}
-              {!item.answer && (
-                <div className={`px-3 py-1.5 border-t ${D("border-slate-600/40", "border-gray-200")}`}>
-                  <span className={`text-[10px] ${D("text-slate-500", "text-gray-400")}`}>답변 대기 중...</span>
-                </div>
-              )}
-            </div>
-          ))}
+        <div className={`text-xs text-center py-5 ${D("text-gray-500", "text-gray-400")}`}>
+          아직 질문이 없습니다. 첫 질문을 남겨보세요!
         </div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className={D("bg-slate-700/30", "bg-gray-50")}>
+              <th className={`px-4 py-2 text-left font-bold w-20 ${D("text-slate-400", "text-gray-500")}`}>작성자</th>
+              <th className={`px-4 py-2 text-left font-bold ${D("text-slate-400", "text-gray-500")}`}>제목</th>
+              <th className={`px-4 py-2 text-right font-bold w-16 ${D("text-slate-400", "text-gray-500")}`}>날짜</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr
+                key={item.id}
+                onClick={() => router.push(`/questions/${item.id}`)}
+                className={`cursor-pointer border-t transition-colors
+                  ${D("border-slate-600/30 hover:bg-slate-700/30", "border-gray-100 hover:bg-indigo-50/60")}`}
+              >
+                <td className={`px-4 py-2.5 font-semibold ${D("text-violet-300", "text-violet-600")}`}>
+                  {item.nickname}
+                </td>
+                <td className={`px-4 py-2.5 ${D("text-gray-200", "text-gray-700")}`}>
+                  <span className="line-clamp-1">{item.question}</span>
+                  {item.answer_count > 0 && (
+                    <span className="ml-1.5 text-[#534AB7] font-bold">[{item.answer_count}]</span>
+                  )}
+                </td>
+                <td className={`px-4 py-2.5 text-right ${D("text-slate-400", "text-gray-400")}`}>
+                  {toKST(item.created_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   )
@@ -735,7 +765,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [inputOpen, setInputOpen] = useState(false)
 
   // ── 결과 탭 ─────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history" | "qna">("output")
+  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history">("output")
 
   // ── 제출 기록 ───────────────────────────────────────────────────────────────
   const [history, setHistory]         = useState<HistoryEntry[]>([])
@@ -1474,6 +1504,11 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
             {/* 제목 + 배지 (같은 행) */}
             <div className="flex items-center gap-2 flex-wrap">
+              {problem.number != null && (
+                <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                  #{problem.number}
+                </span>
+              )}
               <h2 className="text-2xl font-bold text-gray-900">{problem.title}</h2>
               <div className="flex items-center gap-1.5 shrink-0">
                 {userState.status === "미제출" && (
@@ -1564,6 +1599,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 </div>
               </div>
             )}
+
+            {/* 묻고 답하기 */}
+            <QnaListSection problemId={problem.id} isDark={isDark} />
 
           </div>
         </div>
@@ -1680,8 +1718,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             <div className="flex items-center gap-1 px-3 shrink-0 overflow-x-auto"
               style={{ background: isDark ? "#181825" : "#f3f4f6", borderBottom: resultCollapsed ? "none" : `1px solid ${editorBorderColor}` }}
             >
-              {(["output", "example", "result", "history", "qna"] as const).map(tab => {
-                const labels = { output: "출력", example: "예제", result: "제출 결과", history: "제출 기록", qna: "Q&A" }
+              {(["output", "example", "result", "history"] as const).map(tab => {
+                const labels = { output: "출력", example: "예제", result: "제출 결과", history: "제출 기록" }
                 return (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className={`px-4 py-2.5 text-xs font-bold transition-colors whitespace-nowrap border-t-2 ${
@@ -1754,9 +1792,6 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 <HistoryTab history={history} isDark={isDark}
                   onViewCode={(code, time) => setHistoryModal({ open: true, code, time })}
                 />
-              )}
-              {activeTab === "qna" && (
-                <QnaTab problemId={problem.id} isDark={isDark} />
               )}
             </div>
           </div>

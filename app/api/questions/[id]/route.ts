@@ -5,37 +5,45 @@ import { supabaseServer } from "@/lib/supabaseServer"
 
 export const dynamic = "force-dynamic"
 
-// PATCH /api/questions/[id] — 어드민 답변
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// GET /api/questions/[id] — 질문 단건 + 답변 목록 + 문제 정보
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const adminId = (session.user as any).id as string
-  const { answer } = await req.json()
 
-  if (!answer?.trim()) {
-    return NextResponse.json({ error: "답변 내용이 없습니다." }, { status: 400 })
-  }
-
-  const { data, error } = await supabaseServer
+  const { data: question, error } = await supabaseServer
     .from("problem_questions")
-    .update({
-      answer:      answer.trim(),
-      answered_by: adminId,
-      answered_at: new Date().toISOString(),
-    })
+    .select("id, problem_id, nickname, question, user_id, created_at")
     .eq("id", id)
-    .select("id, nickname, question, answer, answered_at, created_at")
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  if (error || !question) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const [answersResult, problemResult] = await Promise.all([
+    supabaseServer
+      .from("problem_question_answers")
+      .select("id, nickname, content, is_admin, user_id, created_at")
+      .eq("question_id", id)
+      .order("created_at", { ascending: true }),
+    supabaseServer
+      .from("problems")
+      .select("number, title")
+      .eq("id", question.problem_id)
+      .single(),
+  ])
+
+  return NextResponse.json({
+    question: {
+      ...question,
+      problemNumber: problemResult.data?.number ?? null,
+      problemTitle:  problemResult.data?.title  ?? null,
+    },
+    answers: answersResult.data ?? [],
+  })
 }
 
-// DELETE /api/questions/[id] — 어드민 삭제
+// DELETE /api/questions/[id] — 어드민 전용 질문 삭제
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
   if (!session?.user || (session.user as any).role !== "admin") {

@@ -1880,48 +1880,25 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 // ── Q&A 관리 섹션 ────────────────────────────────────────────────────────────
 
 type QnaItem = {
-  id: string; problemId: string; problemTitle: string | null
-  nickname: string; question: string
-  answer: string | null; answered_at: string | null; created_at: string
+  id: string; problemId: string; problemTitle: string | null; problemNumber: number | null
+  nickname: string; question: string; answer_count: number; created_at: string
 }
 
 function QuestionSection() {
+  const router = useRouter()
   const [questions, setQuestions] = useState<QnaItem[]>([])
   const [loading, setLoading]     = useState(true)
-  const [answerMap, setAnswerMap] = useState<Record<string, string>>({})
-  const [saving, setSaving]       = useState<string | null>(null)
   const [filter, setFilter]       = useState<"all" | "unanswered">("unanswered")
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch("/api/admin/questions")
-      if (res.ok) {
-        const data: QnaItem[] = await res.json()
-        setQuestions(data)
-      }
+      if (res.ok) setQuestions(await res.json())
     } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  const handleAnswer = async (id: string) => {
-    const answer = (answerMap[id] ?? "").trim()
-    if (!answer) return
-    setSaving(id)
-    try {
-      const res = await fetch(`/api/questions/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer }),
-      })
-      if (res.ok) {
-        const updated = await res.json()
-        setQuestions(prev => prev.map(q => q.id === id ? { ...q, answer: updated.answer, answered_at: updated.answered_at } : q))
-        setAnswerMap(prev => { const n = { ...prev }; delete n[id]; return n })
-      }
-    } finally { setSaving(null) }
-  }
 
   const handleDelete = async (id: string) => {
     if (!confirm("질문을 삭제하시겠습니까?")) return
@@ -1929,17 +1906,17 @@ function QuestionSection() {
     if (res.ok) setQuestions(prev => prev.filter(q => q.id !== id))
   }
 
-  const filtered = filter === "unanswered" ? questions.filter(q => !q.answer) : questions
-  const unansweredCount = questions.filter(q => !q.answer).length
+  const filtered      = filter === "unanswered" ? questions.filter(q => q.answer_count === 0) : questions
+  const unansweredCnt = questions.filter(q => q.answer_count === 0).length
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
       <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
         <MessageSquare className="w-4 h-4 text-indigo-500" />
         <h3 className="font-bold text-gray-800 text-sm">Q&A 관리</h3>
-        {unansweredCount > 0 && (
+        {unansweredCnt > 0 && (
           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white leading-none">
-            {unansweredCount}
+            {unansweredCnt}
           </span>
         )}
         <div className="ml-auto flex gap-1">
@@ -1960,60 +1937,54 @@ function QuestionSection() {
         ) : filtered.length === 0 ? (
           <EmptyState icon={MessageSquare} title="질문이 없습니다." />
         ) : (
-          <div className="divide-y divide-gray-50">
-            {filtered.map(q => {
-              const kstDate = new Date(new Date(toUTC(q.created_at)).getTime() + 9*60*60*1000)
-              const dateStr = `${kstDate.getFullYear()}.${String(kstDate.getMonth()+1).padStart(2,"0")}.${String(kstDate.getDate()).padStart(2,"0")}`
-              return (
-                <div key={q.id} className="px-5 py-4 hover:bg-gray-50/50">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {q.problemTitle && (
-                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-semibold rounded-full border border-indigo-100">
-                          {q.problemTitle}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-xs text-gray-400 border-b border-gray-100">
+                <th className="px-4 py-2 text-left">문제</th>
+                <th className="px-4 py-2 text-left">작성자</th>
+                <th className="px-4 py-2 text-left">질문</th>
+                <th className="px-4 py-2 text-center w-12">댓글</th>
+                <th className="px-4 py-2 text-right w-24">등록일</th>
+                <th className="px-4 py-2 w-16" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(q => {
+                const kst = new Date(new Date(toUTC(q.created_at)).getTime() + 9*60*60*1000)
+                const dateStr = `${kst.getMonth()+1}/${kst.getDate()}`
+                return (
+                  <tr
+                    key={q.id}
+                    onClick={() => router.push(`/questions/${q.id}`)}
+                    className="border-t border-gray-50 hover:bg-indigo-50/50 cursor-pointer"
+                  >
+                    <td className="px-4 py-2.5">
+                      {q.problemTitle ? (
+                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-semibold rounded border border-indigo-100 whitespace-nowrap">
+                          {q.problemNumber != null ? `#${q.problemNumber} ` : ""}{q.problemTitle}
                         </span>
-                      )}
-                      <span className="text-xs font-bold text-gray-600">{q.nickname}</span>
-                      <span className="text-[11px] text-gray-400">{dateStr}</span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {q.answer
-                        ? <Badge variant="green" size="sm">답변완료</Badge>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 font-semibold text-violet-600 whitespace-nowrap">{q.nickname}</td>
+                    <td className="px-4 py-2.5 text-gray-700 max-w-[260px]">
+                      <span className="line-clamp-1">{q.question}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {q.answer_count > 0
+                        ? <span className="text-indigo-600 font-bold">[{q.answer_count}]</span>
                         : <Badge variant="amber" size="sm">미답변</Badge>}
-                      <button onClick={() => handleDelete(q.id)} className={Btn.danger} title="삭제">
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-gray-400 text-xs whitespace-nowrap">{dateStr}</td>
+                    <td className="px-4 py-2.5 text-right" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => handleDelete(q.id)} className={Btn.danger}>
                         <Trash2 className="w-3 h-3" />
                       </button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-2 leading-relaxed">{q.question}</p>
-                  {q.answer ? (
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-sm text-indigo-800">
-                      <span className="text-[11px] font-bold text-indigo-500 block mb-0.5">관리자 답변</span>
-                      {q.answer}
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 items-end">
-                      <textarea
-                        value={answerMap[q.id] ?? ""}
-                        onChange={e => setAnswerMap(prev => ({ ...prev, [q.id]: e.target.value }))}
-                        placeholder="답변을 입력하세요..."
-                        rows={2}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none placeholder:text-gray-400"
-                      />
-                      <button
-                        onClick={() => handleAnswer(q.id)}
-                        disabled={saving === q.id || !(answerMap[q.id] ?? "").trim()}
-                        className={Btn.primary}
-                      >
-                        {saving === q.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                        답변
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

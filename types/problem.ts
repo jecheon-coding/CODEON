@@ -12,6 +12,7 @@ export type TestCase = {
 
 export type Problem = {
   id: string;
+  number?: number;
   title: string;
   difficulty: Difficulty;
   category: string;
