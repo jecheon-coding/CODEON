@@ -1955,33 +1955,10 @@ function ComprehensionStatsSection() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      supabase.from("comprehension_checks").select("user_id, skipped, bonus_score"),
-      supabase.from("users").select("id, name").eq("role", "student").eq("status", "active"),
-    ]).then(([{ data: checks }, { data: users }]) => {
-      const userMap = new Map((users ?? []).map(u => [u.id, u.name as string]))
-      const statMap = new Map<string, ComprehensionStat>()
-
-      for (const c of checks ?? []) {
-        if (!userMap.has(c.user_id)) continue
-        const cur = statMap.get(c.user_id) ?? {
-          userId: c.user_id,
-          name: userMap.get(c.user_id) ?? "—",
-          total: 0, answered: 0, skipped: 0, skipRate: 0, bonusTotal: 0,
-        }
-        cur.total++
-        if (c.skipped) cur.skipped++
-        else { cur.answered++; cur.bonusTotal = Math.round((cur.bonusTotal + Number(c.bonus_score)) * 10) / 10 }
-        statMap.set(c.user_id, cur)
-      }
-
-      const result = [...statMap.values()]
-        .map(s => ({ ...s, skipRate: s.total > 0 ? Math.round(s.skipped / s.total * 100) : 0 }))
-        .sort((a, b) => a.skipRate - b.skipRate)
-
-      setStats(result)
-      setLoading(false)
-    })
+    fetch("/api/admin/comprehension-stats")
+      .then(r => r.json())
+      .then((data: ComprehensionStat[]) => { setStats(data); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   return (
