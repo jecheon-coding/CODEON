@@ -13,7 +13,7 @@ import {
   LogOut, ClipboardList, Award, Star, Zap,
   Code2, BarChart2, Trophy, MessageSquare, Clock,
   Activity, CheckSquare, ArrowRight, Sparkles,
-  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck,
+  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGoal } from "@/lib/goalContext"
@@ -259,6 +259,14 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   const [pwError,   setPwError]   = useState("")
   const [pwDone,    setPwDone]    = useState(false)
 
+  // 닉네임
+  const [nickname,       setNickname]       = useState<string | null>(null)
+  const [nicknameModal,  setNicknameModal]  = useState(false)
+  const [nicknameInput,  setNicknameInput]  = useState("")
+  const [nicknameError,  setNicknameError]  = useState("")
+  const [nicknameSaving, setNicknameSaving] = useState(false)
+  const [nicknameDone,   setNicknameDone]   = useState(false)
+
   const handlePwChange = async (e: React.FormEvent) => {
     e.preventDefault()
     if (pwNew !== pwConfirm) { setPwError("비밀번호가 일치하지 않습니다."); return }
@@ -278,6 +286,36 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   }
 
   // ── 데이터 로드 ───────────────────────────────────────────────────────
+  // 닉네임 fetch — 미설정 시 모달 자동 표시
+  useEffect(() => {
+    if (!userId) return
+    fetch("/api/user/nickname")
+      .then(r => r.json())
+      .then(d => {
+        setNickname(d.nickname ?? null)
+        if (!d.nickname) setNicknameModal(true)
+      })
+      .catch(() => {})
+  }, [userId])
+
+  const handleNicknameSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setNicknameError("")
+    setNicknameSaving(true)
+    try {
+      const res  = await fetch("/api/user/nickname", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nicknameInput }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setNicknameError(data.error ?? "오류가 발생했습니다."); return }
+      setNickname(data.nickname)
+      setNicknameDone(true)
+      setTimeout(() => { setNicknameModal(false); setNicknameDone(false); setNicknameInput("") }, 1200)
+    } catch { setNicknameError("네트워크 오류가 발생했습니다.") }
+    finally  { setNicknameSaving(false) }
+  }
+
   useEffect(() => {
     if (!userId) return
     ;(async () => {
@@ -563,6 +601,22 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
         <PageLayout className="h-14 flex items-center justify-between">
           <CodeOnLogo />
           <div className="flex items-center gap-4">
+            {/* 닉네임 표시 */}
+            <div className="flex items-center gap-1.5">
+              <UserCircle2 className="w-4 h-4 text-[#534AB7]" />
+              {nickname ? (
+                <span className="text-sm font-bold text-[#534AB7]">{nickname}</span>
+              ) : (
+                <span className="text-sm text-gray-400">닉네임 없음</span>
+              )}
+              <button
+                onClick={() => { setNicknameModal(true); setNicknameInput(nickname ?? ""); setNicknameError("") }}
+                className="p-0.5 text-gray-400 hover:text-[#534AB7] transition-colors"
+                title="닉네임 수정"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
             <button
               onClick={() => { setPwModal(true); setPwNew(""); setPwConfirm(""); setPwError(""); setPwDone(false) }}
               className="text-sm font-medium text-gray-600 hover:text-[#534AB7] transition-colors"
@@ -627,6 +681,62 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                 <button type="submit" disabled={pwLoading}
                   className="w-full py-2.5 bg-[#534AB7] hover:bg-[#443da0] text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                   {pwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "변경하기"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 닉네임 설정 모달 */}
+      {nicknameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-7 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCircle2 className="w-5 h-5 text-[#534AB7]" />
+                <h3 className="text-base font-extrabold text-gray-900">닉네임 설정</h3>
+              </div>
+              {nickname && (
+                <button onClick={() => setNicknameModal(false)} className="text-gray-400 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {!nickname && (
+              <div className="bg-[#534AB7]/5 border border-[#534AB7]/20 rounded-xl px-4 py-3">
+                <p className="text-sm font-semibold text-[#534AB7] mb-1">닉네임을 먼저 설정해주세요!</p>
+                <p className="text-xs text-gray-500">Q&A 질문 시 닉네임으로 표시됩니다. 나중에 수정할 수 있습니다.</p>
+              </div>
+            )}
+
+            {nicknameDone ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <CheckCheck className="w-10 h-10 text-emerald-500" />
+                <p className="text-sm font-bold text-emerald-600">닉네임이 설정되었습니다!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleNicknameSave} className="flex flex-col gap-4">
+                {nicknameError && (
+                  <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />{nicknameError}
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-600">닉네임 <span className="font-normal text-gray-400">(2~10자, 한글/영문/숫자/_)</span></label>
+                  <input
+                    type="text" value={nicknameInput}
+                    onChange={e => setNicknameInput(e.target.value)}
+                    placeholder="예: 코딩왕123"
+                    maxLength={10} required
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#534AB7]"
+                  />
+                  <p className="text-[11px] text-gray-400 text-right">{nicknameInput.length}/10</p>
+                </div>
+                <button type="submit" disabled={nicknameSaving}
+                  className="w-full py-2.5 bg-[#534AB7] hover:bg-[#443da0] text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {nicknameSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "저장하기"}
                 </button>
               </form>
             )}
