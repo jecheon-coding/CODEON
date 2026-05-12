@@ -1881,7 +1881,7 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
 type QnaItem = {
   id: string; problemId: string; problemTitle: string | null; problemNumber: number | null
-  nickname: string; question: string; answer_count: number; created_at: string
+  nickname: string; title: string | null; question: string; answer_count: number; created_at: string
 }
 
 function QuestionSection() {
@@ -1967,7 +1967,7 @@ function QuestionSection() {
                     </td>
                     <td className="px-4 py-2.5 font-semibold text-violet-600 whitespace-nowrap">{q.nickname}</td>
                     <td className="px-4 py-2.5 text-gray-700 max-w-[260px]">
-                      <span className="line-clamp-1">{q.question}</span>
+                      <span className="line-clamp-1">{q.title || q.question}</span>
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {q.answer_count > 0

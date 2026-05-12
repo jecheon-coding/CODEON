@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { data: question, error } = await supabaseServer
     .from("problem_questions")
-    .select("id, problem_id, nickname, question, user_id, created_at")
+    .select("id, problem_id, nickname, title, question, user_id, created_at")
     .eq("id", id)
     .single()
 

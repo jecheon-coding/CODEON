@@ -16,15 +16,13 @@ export async function GET(req: Request) {
 
   const { data: questions, error } = await supabaseServer
     .from("problem_questions")
-    .select("id, nickname, question, created_at")
+    .select("id, nickname, title, question, created_at")
     .eq("problem_id", problemId)
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
   if (!questions || questions.length === 0) return NextResponse.json([])
 
-  // 답변 수 집계
   const qIds = questions.map(q => q.id)
   const { data: counts } = await supabaseServer
     .from("problem_question_answers")
@@ -36,12 +34,7 @@ export async function GET(req: Request) {
     countMap[r.question_id] = (countMap[r.question_id] ?? 0) + 1
   }
 
-  const result = questions.map(q => ({
-    ...q,
-    answer_count: countMap[q.id] ?? 0,
-  }))
-
-  return NextResponse.json(result)
+  return NextResponse.json(questions.map(q => ({ ...q, answer_count: countMap[q.id] ?? 0 })))
 }
 
 // POST /api/questions
@@ -50,7 +43,7 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const userId = (session.user as any).id as string
-  const { problemId, question } = await req.json()
+  const { problemId, title, question } = await req.json()
 
   if (!problemId || !question?.trim()) {
     return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 })
@@ -72,9 +65,10 @@ export async function POST(req: Request) {
       problem_id: problemId,
       user_id:    userId,
       nickname:   user.nickname,
+      title:      title?.trim() || null,
       question:   question.trim(),
     })
-    .select("id, nickname, question, created_at")
+    .select("id, nickname, title, question, created_at")
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

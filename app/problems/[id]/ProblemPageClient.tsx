@@ -432,6 +432,7 @@ function ResultTab({
 type QnaListItem = {
   id: string
   nickname: string
+  title: string | null
   question: string
   answer_count: number
   created_at: string
@@ -442,15 +443,23 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
   const [items,      setItems]      = useState<QnaListItem[]>([])
   const [loading,    setLoading]    = useState(true)
   const [showForm,   setShowForm]   = useState(false)
-  const [input,      setInput]      = useState("")
+  const [titleInput, setTitleInput] = useState("")
+  const [bodyInput,  setBodyInput]  = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState("")
 
   const D = (dark: string, light: string) => isDark ? dark : light
 
-  const toKST = (str: string) =>
-    new Date(str.endsWith("Z") || str.includes("+") ? str : str + "Z")
-      .toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+  // 날짜: M/D HH:MM (줄바꿈 없도록 짧게)
+  const fmtDate = (str: string) => {
+    const d = new Date(str.endsWith("Z") || str.includes("+") ? str : str + "Z")
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+    const mm = String(kst.getUTCMonth() + 1).padStart(2, "0")
+    const dd = String(kst.getUTCDate()).padStart(2, "0")
+    const hh = String(kst.getUTCHours()).padStart(2, "0")
+    const min = String(kst.getUTCMinutes()).padStart(2, "0")
+    return `${mm}/${dd} ${hh}:${min}`
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -462,38 +471,49 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim()) return
+    if (!bodyInput.trim()) return
     setSubmitting(true); setError("")
     try {
-      const res  = await fetch("/api/questions", {
+      const res = await fetch("/api/questions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problemId, question: input }),
+        body: JSON.stringify({ problemId, title: titleInput, question: bodyInput }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? "오류가 발생했습니다."); return }
       setItems(prev => [data, ...prev])
-      setInput(""); setShowForm(false)
+      setTitleInput(""); setBodyInput(""); setShowForm(false)
     } catch { setError("네트워크 오류가 발생했습니다.") }
     finally  { setSubmitting(false) }
   }
 
+  const inputCls = `w-full text-sm rounded-lg px-3 py-2 border outline-none transition-colors
+    ${D("bg-slate-800/60 border-slate-600 text-gray-100 placeholder:text-slate-500 focus:border-[#534AB7]",
+        "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-[#534AB7] focus:ring-2 focus:ring-[#534AB7]/10")}`
+
   return (
-    <div className={`rounded-lg border overflow-hidden mt-2
-      ${D("border-slate-600/50 bg-slate-800/30", "border-gray-200 bg-white")}`}>
+    <div className={`rounded-xl border overflow-hidden mt-4
+      ${D("border-slate-600/60 bg-[#1a1730]", "border-gray-200 bg-white shadow-sm")}`}>
+
       {/* 헤더 */}
-      <div className={`flex items-center justify-between px-4 py-2.5 border-b
-        ${D("border-slate-600/40 bg-slate-700/30", "border-gray-100 bg-gray-50")}`}>
-        <span className={`text-sm font-bold ${D("text-gray-200", "text-gray-700")}`}>
-          묻고 답하기
+      <div className={`flex items-center justify-between px-4 py-3 border-b
+        ${D("border-slate-600/50 bg-[#211d3a]", "border-gray-100 bg-gray-50")}`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-bold ${D("text-gray-100", "text-gray-800")}`}>
+            묻고 답하기
+          </span>
           {items.length > 0 && (
-            <span className={`ml-1.5 text-xs font-normal ${D("text-slate-400", "text-gray-400")}`}>
-              {items.length}개
+            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold
+              ${D("bg-slate-600/60 text-slate-300", "bg-gray-100 text-gray-500")}`}>
+              {items.length}
             </span>
           )}
-        </span>
+        </div>
         <button
-          onClick={() => setShowForm(v => !v)}
-          className="px-3 py-1 text-xs font-semibold bg-[#534AB7] hover:bg-[#443da0] text-white rounded-lg transition-colors"
+          onClick={() => { setShowForm(v => !v); setError("") }}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors
+            ${showForm
+              ? D("bg-slate-600/50 text-slate-300 hover:bg-slate-600", "bg-gray-100 text-gray-600 hover:bg-gray-200")
+              : "bg-[#534AB7] hover:bg-[#443da0] text-white"}`}
         >
           {showForm ? "취소" : "질문하기"}
         </button>
@@ -501,23 +521,30 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
 
       {/* 질문 작성 폼 */}
       {showForm && (
-        <form onSubmit={handleSubmit} className={`px-4 py-3 border-b ${D("border-slate-600/40", "border-gray-100")}`}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="이 문제에 대해 궁금한 점을 질문하세요..."
-            rows={3}
+        <form onSubmit={handleSubmit}
+          className={`px-4 py-4 border-b flex flex-col gap-2.5
+            ${D("border-slate-600/50 bg-[#1e1a38]", "border-gray-100 bg-gray-50/60")}`}>
+          <input
+            value={titleInput}
+            onChange={e => setTitleInput(e.target.value)}
+            placeholder="제목을 입력하세요"
+            maxLength={100}
             autoFocus
-            className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors mb-2
-              ${D("bg-slate-800/60 border-slate-600 text-gray-200 placeholder:text-slate-500 focus:border-[#534AB7]",
-                  "bg-white border-gray-200 text-gray-700 placeholder:text-gray-400 focus:border-[#534AB7]")}`}
+            className={inputCls}
           />
-          {error && <p className="text-xs text-red-400 mb-1">{error}</p>}
+          <textarea
+            value={bodyInput}
+            onChange={e => setBodyInput(e.target.value)}
+            placeholder="궁금한 점을 자세히 작성해주세요..."
+            rows={3}
+            className={`${inputCls} resize-none`}
+          />
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={submitting || !input.trim()}
-              className="px-4 py-1.5 text-xs font-semibold bg-[#534AB7] hover:bg-[#443da0]
+              disabled={submitting || !bodyInput.trim()}
+              className="px-4 py-1.5 text-xs font-bold bg-[#534AB7] hover:bg-[#443da0]
                 disabled:opacity-40 text-white rounded-lg transition-colors"
             >
               {submitting ? "등록 중..." : "질문 등록"}
@@ -526,20 +553,26 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
         </form>
       )}
 
-      {/* 질문 목록 테이블 */}
+      {/* 목록 */}
       {loading ? (
-        <div className={`text-xs text-center py-5 ${D("text-gray-500", "text-gray-400")}`}>불러오는 중...</div>
+        <div className={`text-xs text-center py-6 ${D("text-slate-500", "text-gray-400")}`}>불러오는 중...</div>
       ) : items.length === 0 ? (
-        <div className={`text-xs text-center py-5 ${D("text-gray-500", "text-gray-400")}`}>
+        <div className={`text-xs text-center py-6 ${D("text-slate-500", "text-gray-400")}`}>
           아직 질문이 없습니다. 첫 질문을 남겨보세요!
         </div>
       ) : (
-        <table className="w-full text-xs">
+        <table className="w-full text-xs table-fixed">
+          <colgroup>
+            <col className="w-[18%]" />
+            <col />
+            <col className="w-[22%]" />
+          </colgroup>
           <thead>
-            <tr className={D("bg-slate-700/30", "bg-gray-50")}>
-              <th className={`px-4 py-2 text-left font-bold w-20 ${D("text-slate-400", "text-gray-500")}`}>작성자</th>
-              <th className={`px-4 py-2 text-left font-bold ${D("text-slate-400", "text-gray-500")}`}>제목</th>
-              <th className={`px-4 py-2 text-right font-bold w-16 ${D("text-slate-400", "text-gray-500")}`}>날짜</th>
+            <tr className={`text-[11px] font-bold uppercase tracking-wide
+              ${D("bg-[#211d3a] text-slate-400", "bg-gray-50 text-gray-400")}`}>
+              <th className="px-4 py-2 text-left">작성자</th>
+              <th className="px-4 py-2 text-left">제목</th>
+              <th className="px-4 py-2 text-right">날짜</th>
             </tr>
           </thead>
           <tbody>
@@ -548,19 +581,26 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
                 key={item.id}
                 onClick={() => router.push(`/questions/${item.id}`)}
                 className={`cursor-pointer border-t transition-colors
-                  ${D("border-slate-600/30 hover:bg-slate-700/30", "border-gray-100 hover:bg-indigo-50/60")}`}
+                  ${D("border-slate-700/50 hover:bg-slate-700/30", "border-gray-100 hover:bg-indigo-50/70")}`}
               >
-                <td className={`px-4 py-2.5 font-semibold ${D("text-violet-300", "text-violet-600")}`}>
+                <td className={`px-4 py-3 font-semibold truncate ${D("text-violet-300", "text-violet-600")}`}>
                   {item.nickname}
                 </td>
-                <td className={`px-4 py-2.5 ${D("text-gray-200", "text-gray-700")}`}>
-                  <span className="line-clamp-1">{item.question}</span>
-                  {item.answer_count > 0 && (
-                    <span className="ml-1.5 text-[#534AB7] font-bold">[{item.answer_count}]</span>
-                  )}
+                <td className={`px-4 py-3 ${D("text-gray-200", "text-gray-800")}`}>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="truncate font-medium">
+                      {item.title || item.question}
+                    </span>
+                    {item.answer_count > 0 && (
+                      <span className={`shrink-0 font-bold ${D("text-violet-300", "text-[#534AB7]")}`}>
+                        [{item.answer_count}]
+                      </span>
+                    )}
+                  </div>
                 </td>
-                <td className={`px-4 py-2.5 text-right ${D("text-slate-400", "text-gray-400")}`}>
-                  {toKST(item.created_at)}
+                <td className={`px-4 py-3 text-right whitespace-nowrap tabular-nums
+                  ${D("text-slate-500", "text-gray-400")}`}>
+                  {fmtDate(item.created_at)}
                 </td>
               </tr>
             ))}

@@ -14,14 +14,12 @@ export async function GET() {
 
   const { data: questions, error } = await supabaseServer
     .from("problem_questions")
-    .select("id, problem_id, nickname, question, created_at")
+    .select("id, problem_id, nickname, title, question, created_at")
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
   if (!questions || questions.length === 0) return NextResponse.json([])
 
-  // 문제 제목 조회
   const problemIds = [...new Set(questions.map(q => q.problem_id))]
   const { data: problems } = await supabaseServer
     .from("problems")
@@ -33,7 +31,6 @@ export async function GET() {
     problemMap[p.id] = { title: p.title, number: p.number ?? null }
   }
 
-  // 답변 수 집계
   const qIds = questions.map(q => q.id)
   const { data: counts } = await supabaseServer
     .from("problem_question_answers")
@@ -45,12 +42,10 @@ export async function GET() {
     countMap[r.question_id] = (countMap[r.question_id] ?? 0) + 1
   }
 
-  const result = questions.map(q => ({
+  return NextResponse.json(questions.map(q => ({
     ...q,
     problemTitle:  problemMap[q.problem_id]?.title  ?? null,
     problemNumber: problemMap[q.problem_id]?.number ?? null,
     answer_count:  countMap[q.id] ?? 0,
-  }))
-
-  return NextResponse.json(result)
+  })))
 }
