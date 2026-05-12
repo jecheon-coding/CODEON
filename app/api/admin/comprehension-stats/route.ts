@@ -34,15 +34,17 @@ export async function GET() {
     bonusTotal: number
   }
 
-  const statMap = new Map<string, Stat>()
+  // 모든 활성 학생을 0으로 초기화
+  const statMap = new Map<string, Stat>(
+    (users ?? []).map(u => [u.id, {
+      userId: u.id, name: u.name,
+      total: 0, answered: 0, skipped: 0, skipRate: 0, bonusTotal: 0,
+    }])
+  )
 
   for (const c of checks ?? []) {
-    if (!userMap.has(c.user_id)) continue
-    const cur = statMap.get(c.user_id) ?? {
-      userId: c.user_id,
-      name: userMap.get(c.user_id) ?? "—",
-      total: 0, answered: 0, skipped: 0, skipRate: 0, bonusTotal: 0,
-    }
+    const cur = statMap.get(c.user_id)
+    if (!cur) continue
     cur.total++
     if (c.skipped) {
       cur.skipped++
@@ -50,7 +52,6 @@ export async function GET() {
       cur.answered++
       cur.bonusTotal = Math.round((cur.bonusTotal + Number(c.bonus_score)) * 10) / 10
     }
-    statMap.set(c.user_id, cur)
   }
 
   const result = [...statMap.values()]
