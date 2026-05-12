@@ -428,6 +428,119 @@ function ResultTab({
   )
 }
 
+// ── QnaTab ────────────────────────────────────────────────────────────────────
+type QnaItem = {
+  id: string
+  nickname: string
+  question: string
+  answer: string | null
+  answered_at: string | null
+  created_at: string
+}
+
+function QnaTab({ problemId, isDark }: { problemId: string; isDark: boolean }) {
+  const [items,      setItems]      = useState<QnaItem[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [input,      setInput]      = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [error,      setError]      = useState("")
+
+  const D = (dark: string, light: string) => isDark ? dark : light
+
+  const toKST = (str: string) =>
+    new Date(str.endsWith("Z") || str.includes("+") ? str : str + "Z")
+      .toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+
+  const load = () => {
+    setLoading(true)
+    fetch(`/api/questions?problemId=${problemId}`)
+      .then(r => r.json())
+      .then(d => { setItems(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [problemId])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim()) return
+    setSubmitting(true); setError("")
+    try {
+      const res  = await fetch("/api/questions", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ problemId, question: input }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? "오류가 발생했습니다."); return }
+      setItems(prev => [data, ...prev])
+      setInput("")
+    } catch { setError("네트워크 오류가 발생했습니다.") }
+    finally  { setSubmitting(false) }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 질문 입력 */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        <textarea
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="이 문제에 대해 궁금한 점을 질문하세요..."
+          rows={2}
+          className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors
+            ${D("bg-slate-800/60 border-slate-600 text-gray-200 placeholder:text-slate-500 focus:border-[#534AB7]",
+                "bg-white border-gray-200 text-gray-700 placeholder:text-gray-400 focus:border-[#534AB7]")}`}
+        />
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <button
+          type="submit"
+          disabled={submitting || !input.trim()}
+          className="self-end flex items-center gap-1.5 px-4 py-1.5 bg-[#534AB7] hover:bg-[#443da0]
+            disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+        >
+          {submitting ? "전송 중..." : "질문하기"}
+        </button>
+      </form>
+
+      {/* 질문 목록 */}
+      {loading ? (
+        <div className={`text-xs text-center py-6 ${D("text-gray-500", "text-gray-400")}`}>불러오는 중...</div>
+      ) : items.length === 0 ? (
+        <div className={`text-xs text-center py-6 ${D("text-gray-500", "text-gray-400")}`}>아직 질문이 없습니다. 첫 질문을 남겨보세요!</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {items.map(item => (
+            <div key={item.id} className={`rounded-xl border overflow-hidden
+              ${D("border-slate-600/50 bg-slate-800/40", "border-gray-200 bg-gray-50")}`}>
+              {/* 질문 */}
+              <div className="px-3 py-2.5 flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-bold ${D("text-violet-300", "text-violet-600")}`}>{item.nickname}</span>
+                  <span className={`text-[10px] ${D("text-slate-500", "text-gray-400")}`}>{toKST(item.created_at)}</span>
+                </div>
+                <p className={`text-xs leading-relaxed ${D("text-gray-200", "text-gray-700")}`}>{item.question}</p>
+              </div>
+              {/* 답변 */}
+              {item.answer && (
+                <div className={`px-3 py-2.5 border-t flex gap-2
+                  ${D("border-slate-600/40 bg-indigo-900/20", "border-gray-200 bg-indigo-50/60")}`}>
+                  <span className={`text-[11px] font-bold shrink-0 ${D("text-indigo-300", "text-indigo-600")}`}>선생님</span>
+                  <p className={`text-xs leading-relaxed ${D("text-gray-300", "text-gray-600")}`}>{item.answer}</p>
+                </div>
+              )}
+              {!item.answer && (
+                <div className={`px-3 py-1.5 border-t ${D("border-slate-600/40", "border-gray-200")}`}>
+                  <span className={`text-[10px] ${D("text-slate-500", "text-gray-400")}`}>답변 대기 중...</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 날짜 포맷 (M월 D일 오전/오후 H:MM) ───────────────────────────────────────
 function formatSubmitTime(date: Date): string {
   const month  = date.getMonth() + 1
@@ -622,7 +735,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [inputOpen, setInputOpen] = useState(false)
 
   // ── 결과 탭 ─────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history">("output")
+  const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history" | "qna">("output")
 
   // ── 제출 기록 ───────────────────────────────────────────────────────────────
   const [history, setHistory]         = useState<HistoryEntry[]>([])
@@ -1567,8 +1680,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             <div className="flex items-center gap-1 px-3 shrink-0 overflow-x-auto"
               style={{ background: isDark ? "#181825" : "#f3f4f6", borderBottom: resultCollapsed ? "none" : `1px solid ${editorBorderColor}` }}
             >
-              {(["output", "example", "result", "history"] as const).map(tab => {
-                const labels = { output: "출력", example: "예제", result: "제출 결과", history: "제출 기록" }
+              {(["output", "example", "result", "history", "qna"] as const).map(tab => {
+                const labels = { output: "출력", example: "예제", result: "제출 결과", history: "제출 기록", qna: "Q&A" }
                 return (
                   <button key={tab} onClick={() => setActiveTab(tab)}
                     className={`px-4 py-2.5 text-xs font-bold transition-colors whitespace-nowrap border-t-2 ${
@@ -1641,6 +1754,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 <HistoryTab history={history} isDark={isDark}
                   onViewCode={(code, time) => setHistoryModal({ open: true, code, time })}
                 />
+              )}
+              {activeTab === "qna" && (
+                <QnaTab problemId={problem.id} isDark={isDark} />
               )}
             </div>
           </div>

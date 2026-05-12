@@ -1877,6 +1877,149 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
   )
 }
 
+// ── Q&A 관리 섹션 ────────────────────────────────────────────────────────────
+
+type QnaItem = {
+  id: string; problemId: string; problemTitle: string | null
+  nickname: string; question: string
+  answer: string | null; answered_at: string | null; created_at: string
+}
+
+function QuestionSection() {
+  const [questions, setQuestions] = useState<QnaItem[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [answerMap, setAnswerMap] = useState<Record<string, string>>({})
+  const [saving, setSaving]       = useState<string | null>(null)
+  const [filter, setFilter]       = useState<"all" | "unanswered">("unanswered")
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/admin/questions")
+      if (res.ok) {
+        const data: QnaItem[] = await res.json()
+        setQuestions(data)
+      }
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleAnswer = async (id: string) => {
+    const answer = (answerMap[id] ?? "").trim()
+    if (!answer) return
+    setSaving(id)
+    try {
+      const res = await fetch(`/api/questions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setQuestions(prev => prev.map(q => q.id === id ? { ...q, answer: updated.answer, answered_at: updated.answered_at } : q))
+        setAnswerMap(prev => { const n = { ...prev }; delete n[id]; return n })
+      }
+    } finally { setSaving(null) }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("질문을 삭제하시겠습니까?")) return
+    const res = await fetch(`/api/questions/${id}`, { method: "DELETE" })
+    if (res.ok) setQuestions(prev => prev.filter(q => q.id !== id))
+  }
+
+  const filtered = filter === "unanswered" ? questions.filter(q => !q.answer) : questions
+  const unansweredCount = questions.filter(q => !q.answer).length
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-indigo-500" />
+        <h3 className="font-bold text-gray-800 text-sm">Q&A 관리</h3>
+        {unansweredCount > 0 && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white leading-none">
+            {unansweredCount}
+          </span>
+        )}
+        <div className="ml-auto flex gap-1">
+          {(["unanswered", "all"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors
+                ${filter === f ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+              {f === "unanswered" ? "미답변" : "전체"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-y-auto max-h-[480px]">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={MessageSquare} title="질문이 없습니다." />
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {filtered.map(q => {
+              const kstDate = new Date(new Date(toUTC(q.created_at)).getTime() + 9*60*60*1000)
+              const dateStr = `${kstDate.getFullYear()}.${String(kstDate.getMonth()+1).padStart(2,"0")}.${String(kstDate.getDate()).padStart(2,"0")}`
+              return (
+                <div key={q.id} className="px-5 py-4 hover:bg-gray-50/50">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {q.problemTitle && (
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-semibold rounded-full border border-indigo-100">
+                          {q.problemTitle}
+                        </span>
+                      )}
+                      <span className="text-xs font-bold text-gray-600">{q.nickname}</span>
+                      <span className="text-[11px] text-gray-400">{dateStr}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {q.answer
+                        ? <Badge variant="green" size="sm">답변완료</Badge>
+                        : <Badge variant="amber" size="sm">미답변</Badge>}
+                      <button onClick={() => handleDelete(q.id)} className={Btn.danger} title="삭제">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-2 leading-relaxed">{q.question}</p>
+                  {q.answer ? (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-sm text-indigo-800">
+                      <span className="text-[11px] font-bold text-indigo-500 block mb-0.5">관리자 답변</span>
+                      {q.answer}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={answerMap[q.id] ?? ""}
+                        onChange={e => setAnswerMap(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        placeholder="답변을 입력하세요..."
+                        rows={2}
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none placeholder:text-gray-400"
+                      />
+                      <button
+                        onClick={() => handleAnswer(q.id)}
+                        disabled={saving === q.id || !(answerMap[q.id] ?? "").trim()}
+                        className={Btn.primary}
+                      >
+                        {saving === q.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        답변
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── 학부모 월 총평 ────────────────────────────────────────────────────────────
 
 function LeaderboardSection() {
@@ -2385,9 +2528,12 @@ export default function AdminPage() {
         )}
 
         {activeTab === "assignments" && (
-          <div className="grid grid-cols-2 gap-6 items-start">
-            <AssignmentSection />
-            <ProblemApprovalSection onRefreshSummary={loadSummary} />
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <AssignmentSection />
+              <ProblemApprovalSection onRefreshSummary={loadSummary} />
+            </div>
+            <QuestionSection />
           </div>
         )}
 
