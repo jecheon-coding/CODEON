@@ -1474,7 +1474,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       <header className="h-14 shrink-0 border-b border-gray-200 bg-white flex items-center justify-between px-4 gap-3 z-20">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              const slug = CATEGORY_SLUG[problem.category]
+              router.push(slug ? `/course/${slug}` : "/dashboard")
+            }}
             className="flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors shrink-0"
           >
             <SvgChevronLeft /> 목록으로
