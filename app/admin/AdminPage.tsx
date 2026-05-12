@@ -1964,7 +1964,7 @@ function QuestionSection() {
                 return (
                   <tr
                     key={q.id}
-                    onClick={() => router.push(`/questions/${q.id}`)}
+                    onClick={() => router.push(`/questions/${q.id}?from=admin`)}
                     className="border-t border-gray-100 hover:bg-indigo-50/60 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3 overflow-hidden">

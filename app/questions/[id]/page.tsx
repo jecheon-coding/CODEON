@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/authOptions"
@@ -11,5 +12,9 @@ export default async function QuestionThreadPage({ params }: Props) {
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/login")
   const { id } = await params
-  return <QuestionThreadClient questionId={id} />
+  return (
+    <Suspense fallback={null}>
+      <QuestionThreadClient questionId={id} />
+    </Suspense>
+  )
 }

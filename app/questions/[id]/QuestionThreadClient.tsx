@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { ArrowLeft, Trash2, Loader2, MessageSquare, Send } from "lucide-react"
 
@@ -39,7 +39,9 @@ function fmtKST(str: string) {
 }
 
 export default function QuestionThreadClient({ questionId }: { questionId: string }) {
-  const router = useRouter()
+  const router      = useRouter()
+  const searchParams = useSearchParams()
+  const fromAdmin   = searchParams.get("from") === "admin"
   const { data: session } = useSession()
   const userId  = (session?.user as any)?.id as string | undefined
   const isAdmin = (session?.user as any)?.role === "admin"
@@ -120,24 +122,35 @@ export default function QuestionThreadClient({ questionId }: { questionId: strin
 
       {/* 상단 네비바 */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm text-gray-500">
+        <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm text-gray-500 min-w-0">
+          {/* 뒤로가기: 어드민에서 왔으면 대시보드, 아니면 문제 페이지 */}
           <button
-            onClick={() => router.push(`/problems/${question.problem_id}`)}
-            className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors font-medium"
+            onClick={() => fromAdmin
+              ? router.push("/admin")
+              : router.push(`/problems/${question.problem_id}`)
+            }
+            className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors font-medium shrink-0"
           >
             <ArrowLeft className="w-4 h-4 shrink-0" />
-            {question.problemNumber != null
-              ? <span className="font-bold text-indigo-600">문제 #{question.problemNumber}</span>
-              : "문제로 돌아가기"}
+            <span className="font-bold text-indigo-600">
+              {fromAdmin ? "관리자 대시보드" : (question.problemNumber != null ? `문제 #${question.problemNumber}` : "돌아가기")}
+            </span>
           </button>
-          {question.problemTitle && (
+          {/* 브레드크럼 (어드민일 때만 문제 정보 표시) */}
+          {fromAdmin && question.problemTitle && (
             <>
-              <span className="text-gray-300">/</span>
-              <span className="text-gray-500 truncate max-w-[200px]">{question.problemTitle}</span>
+              <span className="text-gray-300 shrink-0">/</span>
+              <span className="text-gray-400 truncate max-w-[160px] text-xs">{question.problemTitle}</span>
             </>
           )}
-          <span className="text-gray-300">/</span>
-          <span className="text-gray-700 font-medium truncate max-w-[160px]">{displayTitle}</span>
+          {!fromAdmin && question.problemTitle && (
+            <>
+              <span className="text-gray-300 shrink-0">/</span>
+              <span className="text-gray-500 truncate max-w-[160px]">{question.problemTitle}</span>
+            </>
+          )}
+          <span className="text-gray-300 shrink-0">/</span>
+          <span className="text-gray-700 font-medium truncate max-w-[140px]">{displayTitle}</span>
         </div>
       </div>
 
