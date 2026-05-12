@@ -934,7 +934,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             { label:'extend',  insert:'extend(${1:iterable})',        detail:'리스트 이어붙이기' },
             { label:'insert',  insert:'insert(${1:i}, ${2:item})',    detail:'특정 위치에 삽입' },
             { label:'remove',  insert:'remove(${1:item})',            detail:'첫 번째 항목 제거' },
-            { label:'pop',     insert:'pop(${1:-1})',                 detail:'항목 꺼내기 (기본: 마지막)' },
+            { label:'pop',     insert:'pop($1)',                      detail:'항목 꺼내기 (기본: 마지막)' },
             { label:'clear',   insert:'clear()',                      detail:'모든 항목 제거' },
             { label:'index',   insert:'index(${1:item})',             detail:'항목의 인덱스 반환' },
             { label:'count',   insert:'count(${1:item})',             detail:'항목 개수 반환' },
