@@ -1312,7 +1312,7 @@ function SubmissionSection({ onUnsubChange }: {
                                     <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
                                     <td className={TD}>
                                       {lastSub?.submittedAt
-                                        ? <span className="text-gray-600 text-xs">{new Date(lastSub.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                        ? <span className="text-gray-600 text-xs">{new Date(toUTC(lastSub.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                                         : <span className="text-gray-300 text-xs">없음</span>}
                                     </td>
                                     <td className="px-3 py-3 text-center">
@@ -1328,7 +1328,7 @@ function SubmissionSection({ onUnsubChange }: {
                                       <td className="px-3 py-2">{submissionBadge(p)}</td>
                                       <td className="px-3 py-2" colSpan={2}>
                                         <span className="text-xs text-gray-500">
-                                          {p.submittedAt ? new Date(p.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                                          {p.submittedAt ? new Date(toUTC(p.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                                         </span>
                                       </td>
                                     </tr>
@@ -1511,7 +1511,7 @@ function SubmissionSection({ onUnsubChange }: {
                         <td className="px-3 py-3">{submissionBadge(r)}</td>
                         <td className={TD}>
                           {r.submittedAt
-                            ? <span className="text-gray-700">{new Date(r.submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                            ? <span className="text-gray-700">{new Date(toUTC(r.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                             : <span className="text-red-400 font-semibold">미제출</span>}
                         </td>
                       </tr>

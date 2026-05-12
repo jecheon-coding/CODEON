@@ -31,12 +31,16 @@ export async function GET() {
   const userMap    = Object.fromEntries((uData  ?? []).map((u: any) => [u.id,   u.name]))
 
   // 제출 기록: (userId, problemId) → 최신 제출
+  const toUtcStr = (str: string) =>
+    str && !str.endsWith("Z") && !str.includes("+") ? str + "Z" : str
+
   const subMap: Record<string, { isCorrect: boolean; createdAt: string }> = {}
   for (const s of subData ?? []) {
     const key = `${(s as any).user_id}__${(s as any).problem_id}`
     const cur = subMap[key]
-    if (!cur || (s as any).created_at > cur.createdAt) {
-      subMap[key] = { isCorrect: (s as any).is_correct, createdAt: (s as any).created_at }
+    const createdAt = toUtcStr((s as any).created_at)
+    if (!cur || createdAt > cur.createdAt) {
+      subMap[key] = { isCorrect: (s as any).is_correct, createdAt }
     }
   }
 
