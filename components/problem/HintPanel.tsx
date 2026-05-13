@@ -90,6 +90,13 @@ ${code || "(작성 없음)"}
         }
       );
       const data = await res.json();
+      if (!res.ok || data?.error) {
+        const code = data?.error?.code ?? res.status
+        const msg  = data?.error?.message ?? "알 수 없는 오류"
+        if (code === 429) setRawHint("AI 사용량 한도 초과입니다. 잠시 후 다시 시도해 주세요.")
+        else setRawHint(`AI 오류 (${code}): ${msg}`)
+        setRevealed(1); return
+      }
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "AI 응답 없음";
       setRawHint(text);
       setRevealed(1);
