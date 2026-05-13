@@ -68,40 +68,18 @@ export default function HintPanel({ problem, code, submissionStatus, isDark }: P
     setRawHint("");
     setRevealed(0);
 
-    const prompt = `
-너는 친절한 코딩 강사다.
-문제: ${problem.title}
-문제 설명: ${problem.content}
-학생 코드:
-${code || "(작성 없음)"}
-
-정답은 절대 알려주지 말고, 힌트를 정확히 3단계로 나눠 제공해라.
-인사말이나 서론 없이 바로 1단계부터 시작해.
-각 단계는 반드시 "1단계:", "2단계:", "3단계:" 로 시작하고, 각 단계는 2~3문장 이내로 짧게 작성해.
-`;
-
     try {
-      const res  = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        }
-      );
+      const res  = await fetch(`/api/hint?problemId=${problem.id}`);
       const data = await res.json();
-      if (!res.ok || data?.error) {
-        const code = data?.error?.code ?? res.status
-        const msg  = data?.error?.message ?? "알 수 없는 오류"
-        if (code === 429) setRawHint("AI 사용량 한도 초과입니다. 잠시 후 다시 시도해 주세요.")
-        else setRawHint(`AI 오류 (${code}): ${msg}`)
-        setRevealed(1); return
+      if (!res.ok) {
+        if (data?.code === 429) setRawHint("AI 사용량 한도 초과입니다. 잠시 후 다시 시도해 주세요.")
+        else setRawHint(`AI 오류: ${data?.error ?? "알 수 없는 오류"}`)
+        setRevealed(1); return;
       }
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "AI 응답 없음";
-      setRawHint(text);
+      setRawHint(data.hint);
       setRevealed(1);
     } catch {
-      setRawHint("AI 호출 실패. 잠시 후 다시 시도해 주세요.");
+      setRawHint("네트워크 오류가 발생했습니다.");
       setRevealed(1);
     } finally {
       setLoading(false);
