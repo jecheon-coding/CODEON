@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
@@ -139,7 +139,7 @@ export default function ProblemsPage() {
   const [pCourse,    setPCourse]    = useState<CourseKey>("basic")
   const [pTopic,     setPTopic]     = useState("전체")
   const [pSearch,    setPSearch]    = useState("")
-  const dragIdRef                    = useRef<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   // ── 편집 폼 ───────────────────────────────────────────────────────────────
@@ -341,8 +341,7 @@ export default function ProblemsPage() {
   }
 
   // ── 문제 순서 변경 (드래그 앤 드롭) ─────────────────────────────────────
-  async function handleDrop(targetId: string) {
-    const dragId = dragIdRef.current
+  async function handleDrop(dragId: string, targetId: string) {
     if (!dragId || dragId === targetId) return
     const ordered = [...filteredProblems]
     const fromIdx = ordered.findIndex(p => p.id === dragId)
@@ -545,13 +544,31 @@ export default function ProblemsPage() {
                   <div
                     key={p.id}
                     draggable
-                    onDragStart={e => { e.dataTransfer.effectAllowed = "move"; dragIdRef.current = p.id }}
-                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverId(p.id) }}
-                    onDragLeave={() => setDragOverId(null)}
-                    onDrop={e => { e.preventDefault(); handleDrop(p.id); setDragOverId(null) }}
-                    onDragEnd={() => { dragIdRef.current = null; setDragOverId(null) }}
+                    onDragStart={e => {
+                      e.dataTransfer.effectAllowed = "move"
+                      e.dataTransfer.setData("text/plain", p.id)
+                      setDraggingId(p.id)
+                    }}
+                    onDragOver={e => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = "move"
+                      if (dragOverId !== p.id) setDragOverId(p.id)
+                    }}
+                    onDragLeave={e => {
+                      if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return
+                      setDragOverId(null)
+                    }}
+                    onDrop={e => {
+                      e.preventDefault()
+                      const dragId = e.dataTransfer.getData("text/plain")
+                      handleDrop(dragId, p.id)
+                      setDragOverId(null)
+                      setDraggingId(null)
+                    }}
+                    onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
                     className={`group flex items-center gap-1 pr-1 transition-colors
-                      ${dragOverId === p.id && dragIdRef.current !== p.id
+                      ${draggingId === p.id ? "opacity-40" : ""}
+                      ${dragOverId === p.id && draggingId !== p.id
                         ? "bg-indigo-50 border-t-2 border-t-indigo-400"
                         : selected?.id === p.id && !isNew ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
                     {/* 드래그 핸들 */}
