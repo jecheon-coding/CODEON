@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabaseServer
     .from("problems")
     .select("*")
+    .order("display_order", { ascending: true, nullsFirst: false })
     .order("id")
 
   const { data: tcRaw } = await supabaseServer.from("test_cases").select("problem_id")

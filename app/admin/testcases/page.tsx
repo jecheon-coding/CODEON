@@ -121,6 +121,9 @@ function TestCasesPage() {
   // ── 확장된 케이스 (전체 보기) ──────────────────────────────────────────────
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // ── 형식 자동 생성 ─────────────────────────────────────────────────────────
+  const [fmtGenLoading, setFmtGenLoading] = useState(false)
+
   // ── 문제 로드 + URL problemId로 자동 선택 ────────────────────────────────
   useEffect(() => {
     setPLoading(true)
@@ -223,6 +226,45 @@ function TestCasesPage() {
     setSelected(prev => prev ? { ...prev, time_limit_ms: ms } : prev)
     setProblems(prev => prev.map(p => p.id === selected.id ? { ...p, time_limit_ms: ms } : p))
     setTimeSaving(false)
+  }
+
+  // ── 기존 형식으로 자동 생성 ───────────────────────────────────────────────
+  function generateSimilarInput(template: string): string {
+    const lines = template.trimEnd().split("\n")
+    return lines.map(line => {
+      const tokens = line.trimEnd().split(/( +)/)
+      return tokens.map(tok => {
+        if (/^ +$/.test(tok)) return tok
+        const n = Number(tok)
+        if (!isNaN(n) && tok.trim() !== "" && Number.isInteger(n)) {
+          const abs = Math.abs(n)
+          const mag = abs === 0 ? 9 : Math.pow(10, Math.floor(Math.log10(abs)) + 1) - 1
+          const val = Math.floor(Math.random() * mag) + 1
+          return n < 0 ? String(-val) : String(val)
+        }
+        if (!isNaN(Number(tok)) && tok.trim() !== "") {
+          return (Math.random() * Number(tok) * 2 + 0.01).toFixed(2)
+        }
+        return tok
+      }).join("")
+    }).join("\n")
+  }
+
+  async function autoGenerateFromFormat() {
+    const templateCase = cases.find(c => c.input)
+    if (!templateCase?.input) return
+    setFmtGenLoading(true)
+    const newInput = generateSimilarInput(templateCase.input)
+    setFInput(newInput)
+    if (solCode.trim()) {
+      try {
+        const result = await runPythonCode(solCode, newInput)
+        setFOutput(result)
+      } catch {
+        // 출력 자동완성 실패 시 무시
+      }
+    }
+    setFmtGenLoading(false)
   }
 
   // ── 입력 생성기 실행 ───────────────────────────────────────────────────────
@@ -357,7 +399,7 @@ function TestCasesPage() {
       {/* ── 네비게이션 ── */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/admin")}
+          <button onClick={() => router.push("/admin/problems")}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors mr-1">
             <ArrowLeft className="w-4 h-4 text-gray-500" />
           </button>
@@ -612,6 +654,24 @@ function TestCasesPage() {
                   <div className="p-5 flex flex-col gap-4">
                     {fErr && (
                       <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{fErr}</p>
+                    )}
+
+                    {/* ── 기존 형식으로 자동 생성 ── */}
+                    {!editingId && cases.some(c => c.input) && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-xl">
+                        <Wand2 className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                        <span className="text-xs text-violet-700 font-medium flex-1">
+                          기존 케이스 형식으로 새 입력을 랜덤 생성합니다
+                          {solCode.trim() ? " (예상 출력도 자동완성)" : ""}
+                        </span>
+                        <button
+                          onClick={autoGenerateFromFormat}
+                          disabled={fmtGenLoading}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                          {fmtGenLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                          자동 생성
+                        </button>
+                      </div>
                     )}
 
                     {/* ── 입력 생성기 ── */}
