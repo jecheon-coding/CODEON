@@ -219,7 +219,7 @@ export default function ProblemsPage() {
   }, [isNew, form.id, problems])
 
   // ── 폼 필드 업데이트 ──────────────────────────────────────────────────────
-  function setField(key: keyof typeof form, val: string) {
+  function setField(key: keyof typeof form, val: string | boolean | null) {
     setForm(prev => ({ ...prev, [key]: val }))
   }
 
