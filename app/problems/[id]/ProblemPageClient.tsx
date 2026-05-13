@@ -1204,10 +1204,19 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         const model = editor.getModel()
         const pos   = editor.getPosition()
         if (!model || !pos) return
+        const lineText = model.getLineContent(pos.lineNumber)
+
+        // 커서 오른쪽이 ) 이면 괄호 밖으로 탈출
+        if (lineText[pos.column - 1] === ")") {
+          e.preventDefault()
+          e.stopPropagation()
+          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
+          return
+        }
+
         const word = model.getWordUntilPosition(pos)
         if (!word.word || pos.column !== word.endColumn) return
         // 이미 ( 가 바로 뒤에 있으면 무시
-        const lineText = model.getLineContent(pos.lineNumber)
         if (lineText[pos.column - 1] === "(") return
 
         // 정확히 일치하는 함수명: () 삽입, 커서를 괄호 안으로
