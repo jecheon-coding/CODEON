@@ -225,12 +225,16 @@ export default function CourseClient({
 
   // ── 탭/필터 ───────────────────────────────────────────────────────────────
   const topics = useMemo(() => {
-    const seen = new Set<string>()
-    const ordered: string[] = []
+    // topic별 최소 id 기준 정렬 → display_order 변경에 영향 안 받음
+    const topicMinId = new Map<string, string>()
     for (const p of problems) {
-      if (p.topic && !seen.has(p.topic)) { seen.add(p.topic); ordered.push(p.topic) }
+      if (!p.topic) continue
+      const cur = topicMinId.get(p.topic)
+      if (!cur || p.id < cur) topicMinId.set(p.topic, p.id)
     }
-    return ordered
+    return [...topicMinId.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([topic]) => topic)
   }, [problems])
 
   const tabStats = useMemo(() => {
