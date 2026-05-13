@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
   ArrowLeft, LogOut, Search, Plus, Trash2, Save,
   Loader2, BookOpen, Wand2, Eye, EyeOff, ChevronDown, ChevronUp,
   Copy, ExternalLink, ListChecks, CheckCircle2, ChevronUp as Up,
-  History, RotateCcw, ArrowUp, ArrowDown,
+  History, RotateCcw, GripVertical,
 } from "lucide-react"
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -139,7 +139,8 @@ export default function ProblemsPage() {
   const [pCourse,    setPCourse]    = useState<CourseKey>("basic")
   const [pTopic,     setPTopic]     = useState("전체")
   const [pSearch,    setPSearch]    = useState("")
-  const [reordering, setReordering] = useState<Set<string>>(new Set())
+  const dragIdRef                    = useRef<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   // ── 편집 폼 ───────────────────────────────────────────────────────────────
   const [isNew,       setIsNew]       = useState(false)
@@ -188,6 +189,12 @@ export default function ProblemsPage() {
     return courseProblems
       .filter(p => pTopic === "전체" || p.topic === pTopic)
       .filter(p => !pSearch.trim() || p.title.toLowerCase().includes(pSearch.toLowerCase()))
+      .sort((a, b) => {
+        if (a.display_order == null && b.display_order == null) return 0
+        if (a.display_order == null) return 1
+        if (b.display_order == null) return -1
+        return a.display_order - b.display_order
+      })
   }, [courseProblems, pTopic, pSearch])
 
   // ── 폼의 코스에 속한 기존 topic 목록 (DB + 기본값 병합) ──────────────────
@@ -333,33 +340,34 @@ export default function ProblemsPage() {
     setHistoryOpen(false)
   }
 
-  // ── 문제 순서 변경 ────────────────────────────────────────────────────────
-  async function moveOrder(p: ProblemFull, dir: "up" | "down") {
-    const list = filteredProblems
-    const idx  = list.findIndex(x => x.id === p.id)
-    const otherIdx = dir === "up" ? idx - 1 : idx + 1
-    if (otherIdx < 0 || otherIdx >= list.length) return
+  // ── 문제 순서 변경 (드래그 앤 드롭) ─────────────────────────────────────
+  async function handleDrop(targetId: string) {
+    const dragId = dragIdRef.current
+    if (!dragId || dragId === targetId) return
+    const ordered = [...filteredProblems]
+    const fromIdx = ordered.findIndex(p => p.id === dragId)
+    const toIdx   = ordered.findIndex(p => p.id === targetId)
+    if (fromIdx < 0 || toIdx < 0) return
 
-    const other = list[otherIdx]
-    const orderA = p.display_order ?? idx + 1
-    const orderB = other.display_order ?? otherIdx + 1
+    const orders = ordered.map((p, i) => p.display_order ?? i + 1)
+    const [moved] = ordered.splice(fromIdx, 1)
+    ordered.splice(toIdx, 0, moved)
 
-    setReordering(prev => new Set([...prev, p.id, other.id]))
-    await Promise.all([
-      fetch(`/api/admin/problems/${p.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_order: orderB }),
-      }),
-      fetch(`/api/admin/problems/${other.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_order: orderA }),
-      }),
-    ])
-    setProblems(prev => prev.map(pr =>
-      pr.id === p.id    ? { ...pr, display_order: orderB } :
-      pr.id === other.id ? { ...pr, display_order: orderA } : pr
+    const orderMap = new Map(ordered.map((p, i) => [p.id, orders[i]]))
+    setProblems(prev => prev.map(p =>
+      orderMap.has(p.id) ? { ...p, display_order: orderMap.get(p.id)! } : p
     ))
-    setReordering(prev => { const n = new Set(prev); n.delete(p.id); n.delete(other.id); return n })
+
+    const updates = ordered
+      .map((p, i) => ({ id: p.id, newOrder: orders[i], oldOrder: p.display_order }))
+      .filter(u => u.oldOrder !== u.newOrder)
+
+    await Promise.all(updates.map(u =>
+      fetch(`/api/admin/problems/${u.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_order: u.newOrder }),
+      })
+    ))
   }
 
   // ── 저장 ─────────────────────────────────────────────────────────────────
@@ -517,7 +525,7 @@ export default function ProblemsPage() {
             {!pLoading && filteredProblems.length > 0 && (
               <div className="px-3 py-1.5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                 <span className="text-[10px] text-gray-400 font-medium">{filteredProblems.length}개 문제</span>
-                <span className="text-[10px] text-gray-300">▲▼ 순서 변경</span>
+                <span className="text-[10px] text-gray-300">드래그로 순서 변경</span>
               </div>
             )}
             {pLoading ? (
@@ -533,23 +541,22 @@ export default function ProblemsPage() {
               <p className="text-xs text-gray-400 text-center py-12">문제 없음</p>
             ) : (
               <div className="divide-y divide-gray-100">
-                {filteredProblems.map((p, idx) => (
-                  <div key={p.id} className={`group flex items-center gap-1 pr-1 transition-colors
-                    ${selected?.id === p.id && !isNew ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
-                    {/* 순서 버튼 */}
-                    <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity pl-1">
-                      <button
-                        disabled={idx === 0 || reordering.has(p.id)}
-                        onClick={e => { e.stopPropagation(); moveOrder(p, "up") }}
-                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
-                        <ArrowUp className="w-3 h-3" />
-                      </button>
-                      <button
-                        disabled={idx === filteredProblems.length - 1 || reordering.has(p.id)}
-                        onClick={e => { e.stopPropagation(); moveOrder(p, "down") }}
-                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-20">
-                        <ArrowDown className="w-3 h-3" />
-                      </button>
+                {filteredProblems.map(p => (
+                  <div
+                    key={p.id}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.effectAllowed = "move"; dragIdRef.current = p.id }}
+                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverId(p.id) }}
+                    onDragLeave={() => setDragOverId(null)}
+                    onDrop={e => { e.preventDefault(); handleDrop(p.id); setDragOverId(null) }}
+                    onDragEnd={() => { dragIdRef.current = null; setDragOverId(null) }}
+                    className={`group flex items-center gap-1 pr-1 transition-colors
+                      ${dragOverId === p.id && dragIdRef.current !== p.id
+                        ? "bg-indigo-50 border-t-2 border-t-indigo-400"
+                        : selected?.id === p.id && !isNew ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
+                    {/* 드래그 핸들 */}
+                    <div className="pl-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
+                      <GripVertical className="w-3.5 h-3.5 text-gray-300" />
                     </div>
 
                     <button onClick={() => selectProblem(p)} className="flex-1 text-left px-2 py-2.5">
@@ -564,7 +571,6 @@ export default function ProblemsPage() {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-gray-400">{p.topic ?? "—"}</span>
-                            {/* 테스트케이스 수 뱃지 */}
                             {p.test_case_count !== undefined && (
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full
                                 ${p.test_case_count === 0
@@ -577,9 +583,6 @@ export default function ProblemsPage() {
                         </div>
                       </div>
                     </button>
-                    {reordering.has(p.id) && (
-                      <Loader2 className="w-3 h-3 text-gray-400 animate-spin shrink-0 mr-1" />
-                    )}
                   </div>
                 ))}
               </div>

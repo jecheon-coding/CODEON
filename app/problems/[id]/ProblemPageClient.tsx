@@ -471,7 +471,7 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!bodyInput.trim()) return
+    if (!titleInput.trim() || !bodyInput.trim()) return
     setSubmitting(true); setError("")
     try {
       const res = await fetch("/api/questions", {
@@ -527,7 +527,7 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
           <input
             value={titleInput}
             onChange={e => setTitleInput(e.target.value)}
-            placeholder="제목을 입력하세요"
+            placeholder="제목을 입력하세요 (필수)"
             maxLength={100}
             autoFocus
             className={inputCls}
@@ -543,7 +543,7 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={submitting || !bodyInput.trim()}
+              disabled={submitting || !titleInput.trim() || !bodyInput.trim()}
               className="px-4 py-1.5 text-xs font-bold bg-[#534AB7] hover:bg-[#443da0]
                 disabled:opacity-40 text-white rounded-lg transition-colors"
             >

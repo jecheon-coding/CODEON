@@ -20,12 +20,12 @@ export async function GET(req: NextRequest) {
 
   if (!current) return NextResponse.json(null)
 
-  // 같은 과정의 전체 문제 (ID 오름차순)
+  // 같은 과정의 전체 문제 (display_order 오름차순)
   const { data: courseProblems } = await supabaseServer
     .from("problems")
     .select("id, title")
     .eq("category", current.category)
-    .order("id", { ascending: true })
+    .order("display_order", { ascending: true, nullsFirst: false })
 
   if (!courseProblems?.length) return NextResponse.json(null)
 

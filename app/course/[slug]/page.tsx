@@ -35,7 +35,7 @@ export default async function CoursePage({
     .from("problems")
     .select("id, title, category, topic, difficulty, status, content")
     .eq("category", category)
-    .order("id")
+    .order("display_order", { ascending: true, nullsFirst: false })
 
   const { data: problems } = await baseQuery
 
