@@ -349,17 +349,17 @@ export default function ProblemsPage() {
     const toIdx   = ordered.findIndex(p => p.id === targetId)
     if (fromIdx < 0 || toIdx < 0) return
 
-    const orders = ordered.map((p, i) => p.display_order ?? i + 1)
     const [moved] = ordered.splice(fromIdx, 1)
     ordered.splice(toIdx, 0, moved)
 
-    const orderMap = new Map(ordered.map((p, i) => [p.id, orders[i]]))
+    // 새 순서대로 1부터 순차 재할당 (null·중복 값으로 인한 swap 오류 방지)
+    const orderMap = new Map(ordered.map((p, i) => [p.id, i + 1]))
     setProblems(prev => prev.map(p =>
       orderMap.has(p.id) ? { ...p, display_order: orderMap.get(p.id)! } : p
     ))
 
     const updates = ordered
-      .map((p, i) => ({ id: p.id, newOrder: orders[i], oldOrder: p.display_order }))
+      .map((p, i) => ({ id: p.id, newOrder: i + 1, oldOrder: p.display_order }))
       .filter(u => u.oldOrder !== u.newOrder)
 
     await Promise.all(updates.map(u =>
