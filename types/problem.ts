@@ -24,6 +24,7 @@ export type Problem = {
   initial_code: string;          // 에디터 초기 코드
   correct_answer: string | null; // 단순 정답 비교용
   hint: string | null;           // 선생님 정적 힌트
+  comprehension_enabled: boolean | null; // 이해 확인 활성화 (중 난이도에서만 의미)
   example_input:  string | null;
   example_output: string | null;
   image_url:      string | null; // 문제 본문 이미지 URL

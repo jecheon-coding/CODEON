@@ -54,6 +54,7 @@ type ProblemFull = {
   constraints: string | null; initial_code: string
   hint: string | null; example_input: string | null; example_output: string | null
   image_url: string | null; time_limit_ms: number | null; is_community: boolean
+  comprehension_enabled: boolean | null
   gen_code: string | null; sol_code: string | null
   test_case_count?: number
 }
@@ -392,6 +393,7 @@ export default function ProblemsPage() {
       example_input:     form.example_input?.trim() || null,
       example_output:    form.example_output?.trim() || null,
       image_url:         form.image_url?.trim() || null,
+      comprehension_enabled: form.difficulty === "중" ? (form.comprehension_enabled ?? false) : null,
     }
 
     if (isNew) {
@@ -815,6 +817,21 @@ export default function ProblemsPage() {
                       <option value="상">상 (어려움)</option>
                     </select>
                   </div>
+                  {form.difficulty === "중" && (
+                    <div>
+                      <label className={labelCls}>이해 확인 활성화</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setField("comprehension_enabled", !form.comprehension_enabled)}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${form.comprehension_enabled ? "bg-indigo-500" : "bg-gray-300"}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.comprehension_enabled ? "translate-x-5" : ""}`} />
+                        </button>
+                        <span className="text-xs text-gray-500">{form.comprehension_enabled ? "정답 후 이해 확인 질문 표시" : "이해 확인 비활성화"}</span>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className={labelCls}>주제 (topic)</label>
                     <input

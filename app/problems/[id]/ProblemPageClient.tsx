@@ -1201,13 +1201,18 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       editor.onKeyDown((e: any) => {
         if (e.keyCode !== monaco.KeyCode.Tab) return
         if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+
+        // 자동완성 드롭다운이 열려있으면 Monaco 기본 동작(선택) 우선
+        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
+        if (suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.()) return
+
         const model = editor.getModel()
         const pos   = editor.getPosition()
         if (!model || !pos) return
         const lineText = model.getLineContent(pos.lineNumber)
 
-        // 커서 오른쪽이 ) 이면 괄호 밖으로 탈출
-        if (lineText[pos.column - 1] === ")") {
+        // 커서가 () 사이에 있을 때만 괄호 밖으로 탈출 (앞이 "(" 이고 뒤가 ")")
+        if (lineText[pos.column - 2] === "(" && lineText[pos.column - 1] === ")") {
           e.preventDefault()
           e.stopPropagation()
           editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
@@ -1830,7 +1835,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     submitting={submitting} progress={subProgress}
                     onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
                   />
-                  {lastCorrectCode && subStatus === "correct" && (
+                  {lastCorrectCode && subStatus === "correct" &&
+                    (problem.difficulty === "상" ||
+                     (problem.difficulty === "중" && problem.comprehension_enabled)) && (
                     <ComprehensionPanel
                       key={comprehensionKey}
                       problem={problem}
