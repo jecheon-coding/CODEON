@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo, Fragment } from "react"
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from "react"
 import { supabase } from "@/lib/supabase"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -2416,151 +2416,219 @@ const ADMIN_TABS: { id: AdminTab; label: string; Icon: any }[] = [
 
 // ── 개인 진도 현황 섹션 ────────────────────────────────────────────────────────
 
-type ProgressTopic    = { name: string; total: number; solved: number; correct: number; wrong: number; untouched: number }
-type ProgressCategory = { name: string; total: number; solved: number; topics: ProgressTopic[] }
-type StudentProgress  = { total: number; solved: number; categories: ProgressCategory[] }
+type ProgressSummaryRow = { studentId: string; studentName: string; grade: string | null; class: string | null; solved: number; total: number }
+type ProgressTopic      = { name: string; total: number; solved: number; correct: number; wrong: number; untouched: number }
+type ProgressCategory   = { name: string; total: number; solved: number; topics: ProgressTopic[] }
+type StudentProgress    = { total: number; solved: number; categories: ProgressCategory[] }
 
-const CAT_COLOR: Record<string, { bg: string; bar: string; text: string }> = {
-  파이썬기초:     { bg: "bg-blue-50",   bar: "bg-blue-500",   text: "text-blue-700" },
-  파이썬알고리즘: { bg: "bg-violet-50", bar: "bg-violet-500", text: "text-violet-700" },
-  파이썬자격증:   { bg: "bg-amber-50",  bar: "bg-amber-500",  text: "text-amber-700" },
-  파이썬실전:     { bg: "bg-emerald-50",bar: "bg-emerald-500",text: "text-emerald-700" },
-  파이썬도전:     { bg: "bg-rose-50",   bar: "bg-rose-500",   text: "text-rose-700" },
+const CAT_COLOR: Record<string, { bg: string; bar: string; text: string; ring: string }> = {
+  파이썬기초:     { bg: "bg-blue-50",    bar: "bg-blue-500",    text: "text-blue-700",    ring: "ring-blue-300" },
+  파이썬알고리즘: { bg: "bg-violet-50",  bar: "bg-violet-500",  text: "text-violet-700",  ring: "ring-violet-300" },
+  파이썬자격증:   { bg: "bg-amber-50",   bar: "bg-amber-500",   text: "text-amber-700",   ring: "ring-amber-300" },
+  파이썬실전:     { bg: "bg-emerald-50", bar: "bg-emerald-500", text: "text-emerald-700", ring: "ring-emerald-300" },
+  파이썬도전:     { bg: "bg-rose-50",    bar: "bg-rose-500",    text: "text-rose-700",    ring: "ring-rose-300" },
 }
-const DEFAULT_COLOR = { bg: "bg-gray-50", bar: "bg-gray-400", text: "text-gray-700" }
+const DEFAULT_COLOR = { bg: "bg-gray-50", bar: "bg-gray-400", text: "text-gray-700", ring: "ring-gray-300" }
 
 function StudentProgressSection() {
-  const [students,  setStudents]  = useState<Student[]>([])
-  const [selected,  setSelected]  = useState("")
-  const [progress,  setProgress]  = useState<StudentProgress | null>(null)
-  const [loading,   setLoading]   = useState(false)
-  const [expanded,  setExpanded]  = useState<Set<string>>(new Set())
+  const [summary,    setSummary]    = useState<ProgressSummaryRow[]>([])
+  const [sumLoading, setSumLoading] = useState(true)
+  const [selected,   setSelected]   = useState<ProgressSummaryRow | null>(null)
+  const [progress,   setProgress]   = useState<StudentProgress | null>(null)
+  const [detLoading, setDetLoading] = useState(false)
+  const [expanded,   setExpanded]   = useState<Set<string>>(new Set())
+  const detailRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch("/api/admin/students")
+    fetch("/api/admin/progress/summary")
       .then(r => r.json())
-      .then((d: Student[]) => setStudents(d.filter(s => s.status === "active")))
+      .then(d => setSummary(d))
       .catch(() => {})
+      .finally(() => setSumLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (!selected) { setProgress(null); return }
-    setLoading(true)
-    fetch(`/api/admin/progress?studentId=${selected}`)
+  const handleSelect = useCallback((row: ProgressSummaryRow) => {
+    setSelected(row)
+    setProgress(null)
+    setExpanded(new Set())
+    setDetLoading(true)
+    fetch(`/api/admin/progress?studentId=${row.studentId}`)
       .then(r => r.json())
-      .then(d => { setProgress(d); setExpanded(new Set()) })
+      .then(d => {
+        setProgress(d)
+        setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [selected])
+      .finally(() => setDetLoading(false))
+  }, [])
 
   const toggleCat = (name: string) =>
     setExpanded(prev => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })
 
-  const student = students.find(s => s.id === selected)
-
   return (
-    <SectionCard
-      title="개인 진도 현황"
-      desc="학생을 선택하면 카테고리별 문제 풀이 진도를 확인할 수 있습니다"
-    >
-      {/* 학생 선택 */}
-      <div className="flex items-center gap-3 mb-5">
-        <select
-          value={selected}
-          onChange={e => setSelected(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:border-blue-400 min-w-[180px]"
-        >
-          <option value="">학생 선택...</option>
-          {students.map(s => (
-            <option key={s.id} value={s.id}>{s.name} {s.grade ? `(${s.grade}학년)` : ""}</option>
-          ))}
-        </select>
-        {loading && <Loader2 size={16} className="animate-spin text-gray-400" />}
-      </div>
+    <SectionCard title="학생 진도 현황" desc="학생을 클릭하면 카테고리별 상세 진도를 확인할 수 있습니다">
 
-      {/* 결과 */}
-      {progress && student && !loading && (
-        <div className="flex flex-col gap-4">
-
-          {/* 전체 요약 */}
-          <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-500 font-medium">전체 진도</span>
-              <span className="text-2xl font-black text-gray-900 tabular-nums">
-                {progress.solved}
-                <span className="text-sm font-medium text-gray-400"> / {progress.total}문제</span>
-              </span>
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>정답 완료</span>
-                <span className="font-semibold text-gray-600">
-                  {progress.total > 0 ? Math.round(progress.solved / progress.total * 100) : 0}%
-                </span>
-              </div>
-              <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full transition-all"
-                  style={{ width: `${progress.total > 0 ? (progress.solved / progress.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 카테고리별 */}
-          {progress.categories.map(cat => {
-            const color = CAT_COLOR[cat.name] ?? DEFAULT_COLOR
-            const pct   = cat.total > 0 ? Math.round(cat.solved / cat.total * 100) : 0
-            const isOpen = expanded.has(cat.name)
-            return (
-              <div key={cat.name} className={`rounded-xl border border-gray-100 overflow-hidden`}>
-                {/* 카테고리 헤더 */}
-                <button
-                  onClick={() => toggleCat(cat.name)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 ${color.bg} hover:brightness-95 transition-all`}
-                >
-                  <span className={`text-xs font-bold ${color.text} min-w-[90px] text-left`}>{cat.name}</span>
-                  <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
-                    <div className={`h-full ${color.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className={`text-xs font-bold tabular-nums ${color.text} min-w-[60px] text-right`}>
-                    {cat.solved}/{cat.total} ({pct}%)
-                  </span>
-                  <ChevronDown size={14} className={`${color.text} transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {/* 토픽 상세 */}
-                {isOpen && (
-                  <div className="bg-white px-4 py-2 flex flex-col gap-1.5">
-                    {cat.topics.map(t => {
-                      const tPct = t.total > 0 ? Math.round(t.correct / t.total * 100) : 0
-                      return (
-                        <div key={t.name} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                          <span className="text-xs text-gray-600 min-w-[80px]">{t.name}</span>
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full ${color.bar} rounded-full`} style={{ width: `${tPct}%` }} />
-                          </div>
-                          <span className="text-xs tabular-nums text-gray-500 min-w-[70px] text-right">
-                            {t.correct}/{t.total}문제
-                          </span>
-                          {t.wrong > 0 && (
-                            <span className="text-[10px] text-amber-500 font-medium min-w-[50px]">
-                              오답 {t.wrong}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+      {/* ── 전체 요약 테이블 ── */}
+      {sumLoading ? (
+        <div className="flex items-center gap-2 py-6 text-sm text-gray-400">
+          <Loader2 size={15} className="animate-spin" /> 학생 데이터 불러오는 중...
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-8">#</th>
+                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500">학생</th>
+                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-20">학년·반</th>
+                <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-24">완료 문제</th>
+                <th className="px-4 py-2.5 text-xs font-bold text-gray-500 w-48">진행률</th>
+                <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-14">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.map((row, i) => {
+                const pct    = row.total > 0 ? Math.round(row.solved / row.total * 100) : 0
+                const isActive = selected?.studentId === row.studentId
+                return (
+                  <tr
+                    key={row.studentId}
+                    onClick={() => handleSelect(row)}
+                    className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors
+                      ${isActive ? "bg-blue-50 hover:bg-blue-50" : "hover:bg-gray-50"}`}
+                  >
+                    <td className="px-4 py-3 text-xs text-gray-400 tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-3">
+                      <span className={`font-semibold ${isActive ? "text-blue-700" : "text-gray-800"}`}>
+                        {row.studentName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {[row.grade ? `${row.grade}학년` : null, row.class ? `${row.class}반` : null].filter(Boolean).join(" ") || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <span className={`font-bold ${row.solved > 0 ? "text-blue-600" : "text-gray-300"}`}>{row.solved}</span>
+                      <span className="text-gray-300 text-xs"> / {row.total}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-400 to-violet-500 rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-semibold tabular-nums text-gray-500">{pct}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {!selected && (
-        <p className="text-sm text-gray-400 py-4 text-center">학생을 선택해주세요</p>
+      {/* ── 상세 진도 (선택된 학생) ── */}
+      {selected && (
+        <div ref={detailRef} className="mt-6 flex flex-col gap-4">
+          {/* 상세 헤더 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-5 rounded-full bg-blue-500" />
+              <span className="text-sm font-extrabold text-gray-800">{selected.studentName}</span>
+              <span className="text-xs text-gray-400">
+                {[selected.grade ? `${selected.grade}학년` : null, selected.class ? `${selected.class}반` : null].filter(Boolean).join(" ")}
+              </span>
+            </div>
+            <button
+              onClick={() => { setSelected(null); setProgress(null) }}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+            >
+              <X size={12} /> 닫기
+            </button>
+          </div>
+
+          {detLoading && (
+            <div className="flex items-center gap-2 py-4 text-sm text-gray-400">
+              <Loader2 size={14} className="animate-spin" /> 진도 불러오는 중...
+            </div>
+          )}
+
+          {progress && !detLoading && (
+            <>
+              {/* 전체 진행률 바 */}
+              <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <div className="flex flex-col min-w-[80px]">
+                  <span className="text-[11px] text-gray-400 font-medium">전체 진도</span>
+                  <span className="text-2xl font-black text-gray-900 tabular-nums leading-tight">
+                    {progress.solved}
+                    <span className="text-xs font-medium text-gray-400"> / {progress.total}</span>
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                    <span>정답 완료</span>
+                    <span className="font-bold text-gray-600">
+                      {progress.total > 0 ? Math.round(progress.solved / progress.total * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full transition-all"
+                      style={{ width: `${progress.total > 0 ? (progress.solved / progress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 카테고리별 */}
+              {progress.categories.map(cat => {
+                const color  = CAT_COLOR[cat.name] ?? DEFAULT_COLOR
+                const pct    = cat.total > 0 ? Math.round(cat.solved / cat.total * 100) : 0
+                const isOpen = expanded.has(cat.name)
+                return (
+                  <div key={cat.name} className="rounded-xl border border-gray-100 overflow-hidden">
+                    <button
+                      onClick={() => toggleCat(cat.name)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 ${color.bg} hover:brightness-95 transition-all`}
+                    >
+                      <span className={`text-xs font-bold ${color.text} min-w-[100px] text-left`}>{cat.name}</span>
+                      <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
+                        <div className={`h-full ${color.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className={`text-xs font-bold tabular-nums ${color.text} min-w-[72px] text-right`}>
+                        {cat.solved}/{cat.total} ({pct}%)
+                      </span>
+                      <ChevronDown size={14} className={`${color.text} transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {isOpen && (
+                      <div className="bg-white px-4 py-2 flex flex-col gap-0.5">
+                        {cat.topics.map(t => {
+                          const tPct = t.total > 0 ? Math.round(t.correct / t.total * 100) : 0
+                          return (
+                            <div key={t.name} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                              <span className="text-xs text-gray-600 min-w-[80px]">{t.name}</span>
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full ${color.bar} rounded-full`} style={{ width: `${tPct}%` }} />
+                              </div>
+                              <span className="text-xs tabular-nums text-gray-500 min-w-[70px] text-right">
+                                {t.correct}/{t.total}문제
+                              </span>
+                              {t.wrong > 0 && (
+                                <span className="text-[10px] text-amber-500 font-semibold min-w-[48px] text-right">
+                                  오답 {t.wrong}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
       )}
     </SectionCard>
   )
