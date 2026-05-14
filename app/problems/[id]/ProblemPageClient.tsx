@@ -495,30 +495,53 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
     <div className={`rounded-xl border overflow-hidden mt-4
       ${D("border-slate-600/60 bg-[#1a1730]", "border-gray-200 bg-white shadow-sm")}`}>
 
-      {/* 헤더 */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b
-        ${D("border-slate-600/50 bg-[#211d3a]", "border-b-0 bg-[#4263eb]")}`}>
-        <div className="flex items-center gap-2">
-          <span className={`text-sm font-bold ${D("text-gray-100", "text-white")}`}>
-            묻고 답하기
-          </span>
-          {items.length > 0 && (
-            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold
-              ${D("bg-slate-600/60 text-slate-300", "bg-white/20 text-white")}`}>
-              {items.length}
-            </span>
-          )}
+      {/* 헤더 — items가 있으면 테이블 헤더 겸용 (작성자/제목/날짜) */}
+      {items.length === 0 || showForm ? (
+        <div className={`flex items-center justify-between px-4 py-3
+          ${D("border-b border-slate-600/50 bg-[#211d3a]", "bg-[#4263eb]")}`}>
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-bold ${D("text-gray-100", "text-white")}`}>묻고 답하기</span>
+          </div>
+          <button
+            onClick={() => { setShowForm(v => !v); setError("") }}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors
+              ${showForm
+                ? D("bg-slate-600/50 text-slate-300 hover:bg-slate-600", "bg-white/20 text-white hover:bg-white/30")
+                : D("bg-[#534AB7] hover:bg-[#443da0] text-white", "bg-white text-[#4263eb] hover:bg-blue-50")}`}
+          >
+            {showForm ? "취소" : "질문하기"}
+          </button>
         </div>
-        <button
-          onClick={() => { setShowForm(v => !v); setError("") }}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors
-            ${showForm
-              ? D("bg-slate-600/50 text-slate-300 hover:bg-slate-600", "bg-white/20 text-white hover:bg-white/30")
-              : D("bg-[#534AB7] hover:bg-[#443da0] text-white", "bg-white text-[#4263eb] hover:bg-blue-50")}`}
-        >
-          {showForm ? "취소" : "질문하기"}
-        </button>
-      </div>
+      ) : (
+        <table className="w-full text-xs table-fixed">
+          <colgroup>
+            <col className="w-[22%]" />
+            <col />
+            <col className="w-[24%]" />
+          </colgroup>
+          <thead>
+            <tr className={`${D("bg-[#211d3a]", "bg-[#4263eb]")}`}>
+              <th className={`px-4 py-3 text-center font-bold ${D("text-slate-300", "text-white")}`}>작성자</th>
+              <th className={`px-4 py-3 text-left font-bold ${D("text-slate-300", "text-white")}`}>
+                <span>묻고 답하기</span>
+                <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded font-semibold
+                  ${D("bg-slate-600/60 text-slate-400", "bg-white/20 text-white")}`}>
+                  {items.length}
+                </span>
+              </th>
+              <th className={`px-4 py-3 text-right font-bold ${D("text-slate-300", "text-white")}`}>
+                <button
+                  onClick={() => { setShowForm(v => !v); setError("") }}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors
+                    ${D("bg-[#534AB7] hover:bg-[#443da0] text-white", "bg-white text-[#4263eb] hover:bg-blue-50")}`}
+                >
+                  질문하기
+                </button>
+              </th>
+            </tr>
+          </thead>
+        </table>
+      )}
 
       {/* 질문 작성 폼 */}
       {showForm && (
@@ -564,18 +587,10 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
       ) : (
         <table className="w-full text-xs table-fixed">
           <colgroup>
-            <col className="w-[18%]" />
-            <col />
             <col className="w-[22%]" />
+            <col />
+            <col className="w-[24%]" />
           </colgroup>
-          <thead>
-            <tr className={`text-[12px] font-bold
-              ${D("bg-[#211d3a] text-slate-400", "bg-[#4263eb] text-white")}`}>
-              <th className="px-4 py-2.5 text-center">작성자</th>
-              <th className="px-4 py-2.5 text-left">제목</th>
-              <th className="px-4 py-2.5 text-right">날짜</th>
-            </tr>
-          </thead>
           <tbody>
             {items.map(item => (
               <tr
