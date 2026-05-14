@@ -107,6 +107,9 @@ export default function CodeEditor({
         renderLineHighlight:  "line",
         overviewRulerLanes:   0,
         tabSize:              4,
+        insertSpaces:         true,
+        detectIndentation:    false,
+        autoIndent:           "full",
       });
 
       editorInstance.current.onDidChangeModelContent(() => {
