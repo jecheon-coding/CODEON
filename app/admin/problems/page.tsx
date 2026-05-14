@@ -194,6 +194,7 @@ export default function ProblemsPage() {
       setField("content", current + tableText)
     }
     setTableOpen(false)
+    setPreview(true)
   }
 
   // ── 문제 로드 ─────────────────────────────────────────────────────────────
