@@ -217,6 +217,15 @@ function CodeViewerModal({
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      if (!(window as any).MonacoEnvironment) {
+        ;(window as any).MonacoEnvironment = {
+          getWorker(_moduleId: string, _label: string) {
+            return new Worker(
+              new URL("monaco-editor/esm/vs/editor/editor.worker", import.meta.url)
+            )
+          },
+        }
+      }
       const monaco = await import("monaco-editor")
       if (cancelled || !monacoRef.current) return
       editorRef.current?.dispose()
