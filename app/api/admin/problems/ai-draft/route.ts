@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
-import Anthropic from "@anthropic-ai/sdk"
 
 async function isAdmin() {
   const session = await getServerSession(authOptions)
   return (session?.user as any)?.role === "admin"
 }
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const INPUT_TYPE_DESC: Record<string, string> = {
   none:    "입력값 없음 — 고정된 값을 출력하는 문제 (예: 구구단 전체 출력, 특정 패턴 출력)",
@@ -55,14 +52,29 @@ ${description ? `추가 설명: ${description}` : ""}
 - 입력 유형에 맞는 example_input/output 작성
 - 난이도에 맞는 복잡도로 작성`
 
-  try {
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
-    })
+  const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+  if (!geminiKey) return NextResponse.json({ error: "Gemini API 키가 설정되지 않았습니다." }, { status: 500 })
 
-    const text = (message.content[0] as any).text as string
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    )
+
+    const data = await res.json()
+
+    if (!res.ok || data?.error) {
+      const errMsg = data?.error?.message ?? "Gemini API 오류"
+      return NextResponse.json({ error: errMsg }, { status: res.status })
+    }
+
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    if (!text) return NextResponse.json({ error: "AI 응답 없음" }, { status: 500 })
+
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ error: "AI 응답 파싱 실패" }, { status: 500 })
 
