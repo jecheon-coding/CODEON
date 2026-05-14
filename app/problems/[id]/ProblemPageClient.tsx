@@ -9,6 +9,7 @@ import { useSubmission } from "@/hooks/useSubmission"
 import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
 import ComprehensionPanel from "@/components/problem/ComprehensionPanel"
+import ContentRenderer from "@/components/ui/ContentRenderer"
 import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/problem"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
@@ -1578,7 +1579,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
 
             {/* 문제 내용 */}
-            <ProblemContent text={problem.content} />
+            <ContentRenderer content={problem.content} className="flex flex-col gap-2 text-sm text-gray-700" />
 
             {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
             {problem.image_url && problem.image_url.trim().split(/\r?\n/).filter(Boolean).map((line, i) => (
