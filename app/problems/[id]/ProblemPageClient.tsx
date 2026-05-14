@@ -1616,7 +1616,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
 
             {/* 문제 내용 */}
-            <ContentRenderer content={problem.content} className="flex flex-col gap-3 leading-7 text-gray-700" style={{ fontSize: `${problemFontSize}px` }} />
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">문제</h3>
+              <ContentRenderer content={problem.content} className="flex flex-col gap-3 leading-7 text-gray-700" style={{ fontSize: `${problemFontSize}px` }} />
+            </div>
 
             {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
             {problem.image_url && problem.image_url.trim().split(/\r?\n/).filter(Boolean).map((line, i) => (
