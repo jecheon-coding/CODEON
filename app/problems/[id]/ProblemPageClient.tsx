@@ -647,9 +647,16 @@ function HistoryTab({
   isDark: boolean
   onViewCode: (code: string, time: Date) => void
 }) {
-  const STATUS_STYLE: Record<string, string> = {
-    correct: "text-emerald-400 bg-emerald-900/30", wrong: "text-rose-400 bg-rose-900/30",
-    error: "text-amber-400 bg-amber-900/30", no_criteria: "text-gray-400 bg-gray-800",
+  const STATUS_STYLE: Record<string, string> = isDark ? {
+    correct:     "text-emerald-400 bg-emerald-900/30",
+    wrong:       "text-rose-400 bg-rose-900/30",
+    error:       "text-amber-400 bg-amber-900/30",
+    no_criteria: "text-gray-400 bg-gray-800",
+  } : {
+    correct:     "text-emerald-700 bg-emerald-100",
+    wrong:       "text-rose-700 bg-rose-100",
+    error:       "text-amber-700 bg-amber-100",
+    no_criteria: "text-gray-500 bg-gray-100",
   }
   const STATUS_LABEL: Record<string, string> = { correct: "정답", wrong: "오답", error: "오류", no_criteria: "미채점" }
   if (history.length === 0) {
@@ -1816,9 +1823,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           />
 
           {/* 결과 탭 패널 */}
-          <div className="flex flex-col shrink-0 overflow-hidden" style={{ height: resultCollapsed ? "36px" : `${resultPanelHeight}px`, background: bg.panel }}>
+          <div className="flex flex-col shrink-0 overflow-hidden" style={{ height: resultCollapsed ? "36px" : `${resultPanelHeight}px`, background: bg.editor }}>
             <div className="flex items-center gap-1 px-3 shrink-0 overflow-x-auto"
-              style={{ background: isDark ? "#181825" : "#f3f4f6", borderBottom: resultCollapsed ? "none" : `1px solid ${editorBorderColor}` }}
+              style={{ background: isDark ? "#181825" : "#f0f0f0", borderBottom: resultCollapsed ? "none" : `1px solid ${editorBorderColor}` }}
             >
               {(["output", "example", "result", "history"] as const).map(tab => {
                 const labels = { output: "출력", example: "예제", result: "제출 결과", history: "제출 기록" }
