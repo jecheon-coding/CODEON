@@ -965,7 +965,7 @@ export default function ProblemsPage() {
                   </div>
                 ) : (
                   <textarea ref={contentRef} value={form.content ?? ""} onChange={e => setField("content", e.target.value)}
-                    placeholder="문제 설명을 입력하세요…" rows={6} className={textareaCls} />
+                    placeholder="문제 설명을 입력하세요…" rows={12} className={textareaCls} />
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
