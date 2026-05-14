@@ -15,12 +15,13 @@ interface Props {
 type Phase = "loading" | "question" | "answering" | "evaluating" | "done" | "skipped" | "error";
 
 export default function ComprehensionPanel({ problem, code, isDark, required = false, onComplete }: Props) {
-  const [phase, setPhase]         = useState<Phase>("loading");
-  const [question, setQuestion]   = useState("");
-  const [answer, setAnswer]       = useState("");
-  const [feedback, setFeedback]   = useState("");
+  const [phase, setPhase]           = useState<Phase>("loading");
+  const [question, setQuestion]     = useState("");
+  const [answer, setAnswer]         = useState("");
+  const [feedback, setFeedback]     = useState("");
   const [correction, setCorrection] = useState<string | null>(null);
   const [bonusScore, setBonusScore] = useState(0);
+  const [inputError, setInputError] = useState("");
   const hasFetched                = useRef(false);
 
   const D = (dark: string, light: string) => isDark ? dark : light;
@@ -72,12 +73,11 @@ ${code}
 
   const handleSubmitAnswer = async () => {
     if (!answer.trim()) return;
-    // 최소 15자 미만은 가산점 없이 재입력 유도
     if (answer.trim().length < 15) {
-      setFeedback("답변이 너무 짧습니다. 조금 더 자세히 설명해보세요.");
-      setPhase("done");
+      setInputError("답변이 너무 짧습니다. 조금 더 자세히 설명해보세요.");
       return;
     }
+    setInputError("");
     setPhase("evaluating");
 
     let fb = "";
@@ -217,15 +217,22 @@ ${code}
             </p>
             <textarea
               value={answer}
-              onChange={e => { setAnswer(e.target.value); if (phase === "question") setPhase("answering"); }}
+              onChange={e => { setAnswer(e.target.value); if (inputError) setInputError(""); if (phase === "question") setPhase("answering"); }}
               placeholder="자신의 말로 설명해보세요..."
               rows={2}
               className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors
-                ${D(
-                  "bg-slate-800/60 border-violet-700 text-gray-200 placeholder:text-slate-600 focus:border-violet-400",
-                  "bg-white border-violet-200 text-gray-700 placeholder:text-violet-300 focus:border-violet-400"
-                )}`}
+                ${inputError
+                  ? "border-red-400 focus:border-red-400"
+                  : D(
+                    "bg-slate-800/60 border-violet-700 text-gray-200 placeholder:text-slate-600 focus:border-violet-400",
+                    "bg-white border-violet-200 text-gray-700 placeholder:text-violet-300 focus:border-violet-400"
+                  )}`}
             />
+            {inputError && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1">
+                <AlertCircle size={11} /> {inputError}
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleSubmitAnswer}
