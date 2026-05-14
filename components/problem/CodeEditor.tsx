@@ -92,6 +92,12 @@ export default function CodeEditor({
       const monaco = await import("monaco-editor");
       if (editorInstance.current || !editorRef.current) return;
 
+      // Python 언어 설정(onEnterRules 포함)이 lazy load 완료 전에 에디터가 생성되는
+      // 타이밍 문제를 방지하기 위해 공식 conf를 명시적으로 먼저 적용
+      // @ts-ignore
+      const { conf: pythonConf } = await import("monaco-editor/esm/vs/basic-languages/python/python" as string);
+      monaco.languages.setLanguageConfiguration("python", pythonConf);
+
       editorInstance.current = monaco.editor.create(editorRef.current, {
         value:                problem.initial_code ?? "# Python 코드를 작성하세요",
         language:             "python",
