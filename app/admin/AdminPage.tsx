@@ -2126,7 +2126,7 @@ function LeaderboardSection() {
           {data ? ` (전체 ${data.total}명)` : ""}
         </h3>
       </div>
-      <div className="overflow-y-auto max-h-96">
+      <div className="overflow-y-auto max-h-80">
         {!data ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
@@ -2433,6 +2433,7 @@ const DEFAULT_COLOR = { bg: "bg-gray-50", bar: "bg-gray-400", text: "text-gray-7
 function StudentProgressSection() {
   const [summary,    setSummary]    = useState<ProgressSummaryRow[]>([])
   const [sumLoading, setSumLoading] = useState(true)
+  const [search,     setSearch]     = useState("")
   const [selected,   setSelected]   = useState<ProgressSummaryRow | null>(null)
   const [progress,   setProgress]   = useState<StudentProgress | null>(null)
   const [detLoading, setDetLoading] = useState(false)
@@ -2474,57 +2475,77 @@ function StudentProgressSection() {
           <Loader2 size={15} className="animate-spin" /> 학생 데이터 불러오는 중...
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-8">#</th>
-                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500">학생</th>
-                <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-20">학년·반</th>
-                <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-24">완료 문제</th>
-                <th className="px-4 py-2.5 text-xs font-bold text-gray-500 w-48">진행률</th>
-                <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-14">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((row, i) => {
-                const pct    = row.total > 0 ? Math.round(row.solved / row.total * 100) : 0
-                const isActive = selected?.studentId === row.studentId
-                return (
-                  <tr
-                    key={row.studentId}
-                    onClick={() => handleSelect(row)}
-                    className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors
-                      ${isActive ? "bg-blue-50 hover:bg-blue-50" : "hover:bg-gray-50"}`}
-                  >
-                    <td className="px-4 py-3 text-xs text-gray-400 tabular-nums">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold ${isActive ? "text-blue-700" : "text-gray-800"}`}>
-                        {row.studentName}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {[row.grade ? `${row.grade}학년` : null, row.class ? `${row.class}반` : null].filter(Boolean).join(" ") || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      <span className={`font-bold ${row.solved > 0 ? "text-blue-600" : "text-gray-300"}`}>{row.solved}</span>
-                      <span className="text-gray-300 text-xs"> / {row.total}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-400 to-violet-500 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs font-semibold tabular-nums text-gray-500">{pct}%</td>
+        <>
+          {/* 검색 */}
+          <div className="relative mb-3 max-w-xs">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="이름으로 검색..."
+              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400"
+            />
+          </div>
+          {/* 테이블 */}
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="overflow-y-auto max-h-72">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-8">#</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 w-28">학생</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500">학년·반</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-28">완료 문제</th>
+                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 w-44">진행률</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-bold text-gray-500 w-12">%</th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {summary
+                    .filter(r => !search || r.studentName.includes(search))
+                    .map((row, i) => {
+                      const pct      = row.total > 0 ? Math.round(row.solved / row.total * 100) : 0
+                      const isActive = selected?.studentId === row.studentId
+                      const gradeClass = [
+                        row.grade ? `${row.grade}학년` : null,
+                        row.class ? `${row.class}반`   : null,
+                      ].filter(Boolean).join(" ") || "—"
+                      return (
+                        <tr
+                          key={row.studentId}
+                          onClick={() => handleSelect(row)}
+                          className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors
+                            ${isActive ? "bg-blue-50 hover:bg-blue-50" : "hover:bg-gray-50"}`}
+                        >
+                          <td className="px-4 py-2.5 text-xs text-gray-400 tabular-nums">{i + 1}</td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">
+                            <span className={`font-semibold ${isActive ? "text-blue-700" : "text-gray-800"}`}>
+                              {row.studentName}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{gradeClass}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
+                            <span className={`font-bold ${row.solved > 0 ? "text-blue-600" : "text-gray-300"}`}>{row.solved}</span>
+                            <span className="text-gray-300 text-xs"> / {row.total}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-400 to-violet-500 rounded-full transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-500">{pct}%</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── 상세 진도 (선택된 학생) ── */}
