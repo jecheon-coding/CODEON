@@ -29,6 +29,14 @@ type SubmissionRow = {
   assignmentId: string; assignmentTitle: string; dueDate: string | null
   problemId: string; problemTitle: string
   isSubmitted: boolean; submittedAt: string | null; isCorrect: boolean | null
+  submissionCount: number
+}
+
+type CodeEntry = { id: string; code: string; result: string; isCorrect: boolean; createdAt: string }
+type CodeModalState = {
+  studentName: string; problemTitle: string
+  submissionCount: number
+  entries: CodeEntry[]
 }
 
 type PendingProblem = {
@@ -1084,6 +1092,19 @@ function SubmissionSection({ onUnsubChange }: {
   const [hideExpiredAssigns, setHideExpiredAssigns] = useState(true)
   const STUDENT_PAGE_SIZE = 10
 
+  const [codeModal,    setCodeModal]    = useState<CodeModalState | null>(null)
+  const [codeLoading,  setCodeLoading]  = useState(false)
+
+  async function openCodeModal(row: SubmissionRow) {
+    if (!row.isSubmitted) return
+    setCodeLoading(true)
+    setCodeModal({ studentName: row.studentName, problemTitle: row.problemTitle, submissionCount: row.submissionCount, entries: [] })
+    const res = await fetch(`/api/admin/submissions/code?userId=${row.studentId}&problemId=${row.problemId}`)
+    const entries: CodeEntry[] = res.ok ? await res.json() : []
+    setCodeModal({ studentName: row.studentName, problemTitle: row.problemTitle, submissionCount: row.submissionCount, entries })
+    setCodeLoading(false)
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch("/api/admin/submissions?filter=all")
@@ -1232,6 +1253,7 @@ function SubmissionSection({ onUnsubChange }: {
   )
 
   return (
+    <>
     <SectionCard
       title="과제 제출 현황"
       desc={`${unsubCount}건 미제출 · ${filteredRows.length}건`}
@@ -1500,7 +1522,9 @@ function SubmissionSection({ onUnsubChange }: {
                     {pagedDetailRows.length === 0 ? (
                       <tr><td colSpan={5} className="py-10 text-center text-sm text-gray-400">검색 결과 없음</td></tr>
                     ) : pagedDetailRows.map((r, i) => (
-                      <tr key={i} className={`transition-colors ${!r.isSubmitted ? "bg-red-50/60 hover:bg-red-50/80" : "hover:bg-slate-50/60"}`}>
+                      <tr key={i}
+                        onClick={() => openCodeModal(r)}
+                        className={`transition-colors ${r.isSubmitted ? "cursor-pointer" : "cursor-default"} ${!r.isSubmitted ? "bg-red-50/60 hover:bg-red-50/80" : "hover:bg-indigo-50/40"}`}>
                         <td className={TD}>
                           <span className={`font-bold ${!r.isSubmitted ? "text-red-700" : "text-gray-900"}`}>{r.studentName}</span>
                         </td>
@@ -1508,7 +1532,17 @@ function SubmissionSection({ onUnsubChange }: {
                         <td className="px-3 py-3">
                           <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{r.problemTitle}</span>
                         </td>
-                        <td className="px-3 py-3">{submissionBadge(r)}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {submissionBadge(r)}
+                            {r.submissionCount > 0 && (
+                              <span className="text-[10px] text-gray-400">{r.submissionCount}회</span>
+                            )}
+                            {r.submissionCount === 1 && r.isCorrect === true && (
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">⚠️ 첫 시도</span>
+                            )}
+                          </div>
+                        </td>
                         <td className={TD}>
                           {r.submittedAt
                             ? <span className="text-gray-700">{new Date(toUTC(r.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
@@ -1551,6 +1585,67 @@ function SubmissionSection({ onUnsubChange }: {
         </>
       )}
     </SectionCard>
+
+      {/* ── 코드 뷰 모달 ── */}
+      {codeModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setCodeModal(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col">
+              {/* 헤더 */}
+              <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-gray-900 truncate">
+                    {codeModal.studentName} — {codeModal.problemTitle}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] text-gray-500 font-medium">총 {codeModal.submissionCount}회 제출</span>
+                    {codeModal.submissionCount === 1 && codeModal.entries[0]?.isCorrect && (
+                      <span className="text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        ⚠️ 첫 시도 정답 — AI 사용 의심
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setCodeModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 ml-3">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+
+              {/* 본문 */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+                {codeLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  </div>
+                ) : codeModal.entries.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">제출 기록이 없습니다</p>
+                ) : codeModal.entries.map((entry, idx) => (
+                  <div key={entry.id} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-gray-500">{codeModal.entries.length - idx}번째 제출</span>
+                      <span className="text-[11px] text-gray-400">
+                        {new Date(entry.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border
+                        ${entry.isCorrect
+                          ? "bg-blue-50 text-blue-600 border-blue-200"
+                          : entry.result === "시간초과" ? "bg-amber-50 text-amber-600 border-amber-200"
+                          : "bg-red-50 text-red-500 border-red-200"}`}>
+                        {entry.isCorrect ? "✅ 정답" : entry.result || "오답"}
+                      </span>
+                    </div>
+                    <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-xl p-4 overflow-x-auto whitespace-pre leading-relaxed max-h-64 overflow-y-auto">
+                      {entry.code || "(코드 없음)"}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

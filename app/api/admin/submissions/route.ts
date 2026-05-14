@@ -30,17 +30,23 @@ export async function GET() {
   const problemMap = Object.fromEntries((pData  ?? []).map((p: any) => [p.id,   p.title]))
   const userMap    = Object.fromEntries((uData  ?? []).map((u: any) => [u.id,   u.name]))
 
-  // 제출 기록: (userId, problemId) → 최신 제출
+  // 제출 기록: (userId, problemId) → 최신 제출 + 제출 횟수
   const toUtcStr = (str: string) =>
     str && !str.endsWith("Z") && !str.includes("+") ? str + "Z" : str
 
-  const subMap: Record<string, { isCorrect: boolean; createdAt: string }> = {}
+  const subMap: Record<string, { isCorrect: boolean; createdAt: string; count: number }> = {}
   for (const s of subData ?? []) {
     const key = `${(s as any).user_id}__${(s as any).problem_id}`
     const cur = subMap[key]
     const createdAt = toUtcStr((s as any).created_at)
-    if (!cur || createdAt > cur.createdAt) {
-      subMap[key] = { isCorrect: (s as any).is_correct, createdAt }
+    if (!cur) {
+      subMap[key] = { isCorrect: (s as any).is_correct, createdAt, count: 1 }
+    } else {
+      subMap[key].count++
+      if (createdAt > cur.createdAt) {
+        subMap[key].isCorrect = (s as any).is_correct
+        subMap[key].createdAt = createdAt
+      }
     }
   }
 
@@ -64,9 +70,10 @@ export async function GET() {
         dueDate:         assignment.due_date ?? null,
         problemId:       problem_id,
         problemTitle:    problemMap[problem_id] ?? problem_id,
-        isSubmitted:     !!sub,
-        submittedAt:     sub?.createdAt ?? null,
-        isCorrect:       sub ? sub.isCorrect : null,
+        isSubmitted:      !!sub,
+        submittedAt:      sub?.createdAt ?? null,
+        isCorrect:        sub ? sub.isCorrect : null,
+        submissionCount:  sub?.count ?? 0,
       })
     }
   }
