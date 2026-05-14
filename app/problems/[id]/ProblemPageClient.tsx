@@ -497,7 +497,7 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
 
       {/* 헤더 — items가 있으면 테이블 헤더 겸용 (작성자/제목/날짜) */}
       {items.length === 0 || showForm ? (
-        <div className={`flex items-center justify-between px-4 py-3
+        <div className={`flex items-center justify-between px-4 py-2
           ${D("border-b border-slate-600/50 bg-[#211d3a]", "bg-[#4263eb]")}`}>
           <div className="flex items-center gap-2">
             <span className={`text-sm font-bold ${D("text-gray-100", "text-white")}`}>묻고 답하기</span>
@@ -521,15 +521,15 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
           </colgroup>
           <thead>
             <tr className={`${D("bg-[#211d3a]", "bg-[#4263eb]")}`}>
-              <th className={`px-4 py-3 text-center font-bold ${D("text-slate-300", "text-white")}`}>작성자</th>
-              <th className={`px-4 py-3 text-left font-bold ${D("text-slate-300", "text-white")}`}>
+              <th className={`px-4 py-2 text-center font-bold ${D("text-slate-300", "text-white")}`}>작성자</th>
+              <th className={`px-4 py-2 text-left font-bold ${D("text-slate-300", "text-white")}`}>
                 <span>묻고 답하기</span>
                 <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded font-semibold
                   ${D("bg-slate-600/60 text-slate-400", "bg-white/20 text-white")}`}>
                   {items.length}
                 </span>
               </th>
-              <th className={`px-4 py-3 text-right font-bold ${D("text-slate-300", "text-white")}`}>
+              <th className={`px-4 py-2 text-right font-bold ${D("text-slate-300", "text-white")}`}>
                 <button
                   onClick={() => { setShowForm(v => !v); setError("") }}
                   className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors
@@ -1638,8 +1638,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             {/* 제한사항 */}
             {problem.constraints && (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setConstraintsOpen(v => !v)} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <span className="text-sm font-bold text-gray-800">제한 사항</span>
+                <button onClick={() => setConstraintsOpen(v => !v)} className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <span className="text-[13px] font-bold text-gray-700">제한 사항</span>
                   {constraintsOpen ? <SvgChevronUp /> : <SvgChevronDown />}
                 </button>
                 {constraintsOpen && <div className="p-4 bg-white text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: `${problemFontSize}px` }}>{problem.constraints}</div>}
@@ -1649,8 +1649,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             {/* 힌트 */}
             {problem.hint && (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <button onClick={() => setHintOpen(v => !v)} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <span className="text-sm font-bold text-gray-800">힌트</span>
+                <button onClick={() => setHintOpen(v => !v)} className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <span className="text-[13px] font-bold text-gray-700">힌트</span>
                   {hintOpen ? <SvgChevronUp /> : <SvgChevronDown />}
                 </button>
                 {hintOpen && <div className="p-4 bg-white text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: `${problemFontSize}px` }}>{problem.hint}</div>}
