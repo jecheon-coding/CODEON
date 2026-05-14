@@ -1534,8 +1534,6 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           >
             <SvgChevronLeft /> 목록으로
           </button>
-          <div className="w-px h-4 bg-gray-200 shrink-0" />
-          <h1 className="text-sm font-semibold text-gray-800 truncate">{problem.title}</h1>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
