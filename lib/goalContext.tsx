@@ -4,13 +4,13 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 
 type GoalCtx = { dailyGoal: number; setDailyGoal: (n: number) => void }
 
-const GoalContext = createContext<GoalCtx>({ dailyGoal: 3, setDailyGoal: () => {} })
+const GoalContext = createContext<GoalCtx>({ dailyGoal: 6, setDailyGoal: () => {} })
 
 export function GoalProvider({ children }: { children: ReactNode }) {
-  const [dailyGoal, setGoal] = useState(3)
+  const [dailyGoal, setGoal] = useState(6)
 
   useEffect(() => {
-    const saved = parseInt(localStorage.getItem("dailyGoal") ?? "3")
+    const saved = parseInt(localStorage.getItem("dailyGoal") ?? "6")
     if (!isNaN(saved) && saved >= 1 && saved <= 20) setGoal(saved)
   }, [])
 
