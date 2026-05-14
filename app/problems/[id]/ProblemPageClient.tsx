@@ -1270,6 +1270,27 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       )
 
       // Shift+Enter → 현재 줄 아래에 새 줄 삽입 후 커서 이동
+      // Python 자동 들여쓰기: if/for/while/def 등 콜론 줄에서 Enter 시 4칸 들여쓰기
+      editor.addCommand(
+        monaco.KeyCode.Enter,
+        () => {
+          const model    = editor.getModel()
+          const position = editor.getPosition()
+          if (!model || !position) return
+
+          const lineContent  = model.getLineContent(position.lineNumber)
+          const beforeCursor = lineContent.substring(0, position.column - 1)
+          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
+
+          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " })
+          } else {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase })
+          }
+        },
+        "!suggestWidgetVisible && !inSnippetMode",
+      )
+
       editor.addCommand(
         monaco.KeyMod.Shift | monaco.KeyCode.Enter,
         () => editor.trigger("keyboard", "editor.action.insertLineAfter", null)

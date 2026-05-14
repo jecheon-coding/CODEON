@@ -81,7 +81,7 @@ export default function CodeEditor({
           getWorker(_moduleId: string, _label: string) {
             return new Worker(
               new URL(
-                "monaco-editor/esm/vs/editor/editor.worker.start.js",
+                "monaco-editor/esm/vs/editor/editor.worker",
                 import.meta.url
               )
             )
@@ -91,37 +91,6 @@ export default function CodeEditor({
 
       const monaco = await import("monaco-editor");
       if (editorInstance.current || !editorRef.current) return;
-
-      // Python lazy load 타이밍 문제: onEnterRules를 monaco.languages.IndentAction을
-      // 직접 참조해 전체 Python conf를 명시적으로 등록
-      monaco.languages.setLanguageConfiguration("python", {
-        comments:  { lineComment: "#", blockComment: ["'''", "'''"] },
-        brackets:  [["{", "}"], ["[", "]"], ["(", ")"]],
-        autoClosingPairs: [
-          { open: "{", close: "}" },
-          { open: "[", close: "]" },
-          { open: "(", close: ")" },
-          { open: '"', close: '"', notIn: ["string"] },
-          { open: "'", close: "'", notIn: ["string", "comment"] },
-        ],
-        surroundingPairs: [
-          { open: "{", close: "}" },
-          { open: "[", close: "]" },
-          { open: "(", close: ")" },
-          { open: '"', close: '"' },
-          { open: "'", close: "'" },
-        ],
-        onEnterRules: [
-          {
-            beforeText: /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async|match|case).*?:\s*$/,
-            action: { indentAction: monaco.languages.IndentAction.Indent },
-          },
-        ],
-        folding: {
-          offSide: true,
-          markers: { start: /^\s*#region\b/, end: /^\s*#endregion\b/ },
-        },
-      });
 
       editorInstance.current = monaco.editor.create(editorRef.current, {
         value:                problem.initial_code ?? "# Python 코드를 작성하세요",
@@ -147,6 +116,29 @@ export default function CodeEditor({
       editorInstance.current.onDidChangeCursorPosition((e: any) => {
         setCursorPos({ line: e.position.lineNumber, col: e.position.column });
       });
+
+      // Python 자동 들여쓰기: addCommand로 Monaco 커맨드 시스템 레벨에서 Enter 처리
+      // (onKeyDown은 Monaco 내부 처리를 막지 못함)
+      editorInstance.current.addCommand(
+        monaco.KeyCode.Enter,
+        () => {
+          const editor   = editorInstance.current;
+          const model    = editor?.getModel();
+          const position = editor?.getPosition();
+          if (!editor || !model || !position) return;
+
+          const lineContent  = model.getLineContent(position.lineNumber);
+          const beforeCursor = lineContent.substring(0, position.column - 1);
+          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1];
+
+          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " });
+          } else {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase });
+          }
+        },
+        "!suggestWidgetVisible && !inSnippetMode",
+      );
     };
 
     load();
