@@ -9,7 +9,6 @@ import { useSubmission } from "@/hooks/useSubmission"
 import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
 import ComprehensionPanel from "@/components/problem/ComprehensionPanel"
-import ContentRenderer from "@/components/ui/ContentRenderer"
 import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/problem"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
@@ -114,19 +113,24 @@ function isImageRowLine(line: string): boolean {
   return entries.length > 0 && entries.every(e => IMAGE_URL_RE.test(e.split("|")[0].trim()))
 }
 
-// ── 문제 내용 렌더러 ──────────────────────────────────────────────────────────
-function ProblemContent({ text }: { text: string }) {
-  const isDataLine = (line: string) => {
-    const t = line.trim()
-    return t.length > 0 && /^[\d\s\+\-\.,\/\[\]\(\)]+$/.test(t)
+// ── 문제 내용 렌더러 (이미지·표·텍스트 통합) ─────────────────────────────────
+function ProblemContent({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) {
+  const isTableLine = (line: string) => line.trim().startsWith("|")
+  const isSeparator = (line: string) => /^\|[\s|:\-]+\|$/.test(line.trim())
+
+  function parseRow(line: string): string[] {
+    return line.split("|").slice(1, -1).map(c => c.trim())
   }
 
-  type SegType = "text" | "code" | "image"
+  type SegType = "text" | "image" | "table"
   type Seg = { type: SegType; lines: string[] }
   const segs: Seg[] = []
 
   for (const line of text.split("\n")) {
-    const type: SegType = isImageRowLine(line) ? "image" : isDataLine(line) ? "code" : "text"
+    let type: SegType = "text"
+    if (isImageRowLine(line)) type = "image"
+    else if (isTableLine(line)) type = "table"
+
     if (type === "image") {
       segs.push({ type: "image", lines: [line.trim()] })
     } else if (segs.length === 0 || segs[segs.length - 1].type !== type) {
@@ -137,22 +141,54 @@ function ProblemContent({ text }: { text: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 text-sm">
+    <div className={className} style={style}>
       {segs.map((seg, i) => {
         const content = seg.lines.join("\n").trim()
         if (!content) return null
+
         if (seg.type === "image") {
           return <ProblemImageRow key={i} line={seg.lines[0]} />
         }
-        if (seg.type === "code") {
+
+        if (seg.type === "table") {
+          const tableLines = seg.lines.filter(l => l.trim())
+          if (tableLines.length === 0) return null
+          let headerCells: string[] | null = null
+          let dataLines: string[]
+          if (tableLines.length >= 2 && isSeparator(tableLines[1])) {
+            headerCells = parseRow(tableLines[0])
+            dataLines = tableLines.slice(2)
+          } else {
+            dataLines = tableLines
+          }
+          const dataRows = dataLines.map(parseRow)
           return (
-            <pre key={i} className="font-mono text-[13px] leading-relaxed whitespace-pre-wrap"
-              style={{ background: "#1a1a2a", color: "#5cba6a", borderRadius: "6px", padding: "8px 12px" }}>
-              {content}
-            </pre>
+            <div key={i} className="overflow-x-auto my-4">
+              <table className="border-collapse w-full text-[13px] text-gray-700">
+                {headerCells && (
+                  <thead>
+                    <tr>
+                      {headerCells.map((h, ci) => (
+                        <th key={ci} className="border px-4 py-2 text-center font-bold border-blue-200 bg-blue-50 text-blue-700">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {dataRows.map((row, ri) => (
+                    <tr key={ri} className="even:bg-gray-50">
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="border px-4 py-2 text-center border-gray-200">{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )
         }
-        return <p key={i} className="text-gray-700 leading-relaxed whitespace-pre-wrap">{seg.lines.join("\n")}</p>
+
+        return <p key={i} className="leading-[1.9] whitespace-pre-wrap">{seg.lines.join("\n")}</p>
       })}
     </div>
   )
@@ -853,8 +889,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>("")
 
   // ── 이해 확인 패널 (정답 제출 후) ───────────────────────────────────────────
-  const [lastCorrectCode, setLastCorrectCode]   = useState<string | null>(null)
-  const [comprehensionKey, setComprehensionKey] = useState(0)
+  const [lastCorrectCode, setLastCorrectCode]       = useState<string | null>(null)
+  const [comprehensionKey, setComprehensionKey]     = useState(0)
+  const [comprehensionRequired, setComprehensionRequired] = useState(false)
+  const [comprehensionDone, setComprehensionDone]   = useState(false)
 
   // ── 유저 상태 ───────────────────────────────────────────────────────────────
   const [userState, setUserState] = useState<ProblemUserState>({ status: "미제출", count: 0 })
@@ -878,6 +916,16 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         .eq("problem_id", problem.id)
       setUserState(calcUserStatus((data ?? []) as SubmissionSummaryRow[]))
     })()
+  }, [session, problem.id])
+
+  // ── 과제 이해 확인 필수 여부 조회 ────────────────────────────────────────────
+  useEffect(() => {
+    const userId = (session?.user as any)?.id as string | undefined
+    if (!userId) return
+    fetch(`/api/student/assignments/check?problemId=${problem.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.requireComprehension) setComprehensionRequired(true) })
+      .catch(() => {})
   }, [session, problem.id])
 
   // ── 제출 기록 DB 조회 (재진입 시 복원) ─────────────────────────────────────
@@ -1628,7 +1676,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             {/* 문제 내용 */}
             <div>
               <h3 className="text-base font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">문제</h3>
-              <ContentRenderer content={problem.content} className="flex flex-col gap-3 leading-7 text-gray-700" style={{ fontSize: `${problemFontSize}px` }} />
+              <ProblemContent text={problem.content} className="flex flex-col gap-3 leading-7 text-gray-700" style={{ fontSize: `${problemFontSize}px` }} />
             </div>
 
             {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
@@ -1888,7 +1936,11 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 <>
                   <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
                     submitting={submitting} progress={subProgress}
-                    onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
+                    onNextProblem={
+                      next && (!comprehensionRequired || comprehensionDone)
+                        ? () => router.push(`/problems/${next.id}`)
+                        : undefined
+                    }
                   />
                   {lastCorrectCode && subStatus === "correct" &&
                     problem.comprehension_enabled && (
@@ -1897,6 +1949,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                       problem={problem}
                       code={lastCorrectCode}
                       isDark={isDark}
+                      required={comprehensionRequired}
+                      onComplete={() => setComprehensionDone(true)}
                     />
                   )}
                 </>

@@ -30,7 +30,7 @@ export async function GET() {
   ] = await Promise.all([
     supabaseServer
       .from("assignments")
-      .select("id, title, due_date")
+      .select("id, title, due_date, require_comprehension")
       .in("id", assignmentIds)
       .or(`due_date.is.null,due_date.gt.${now}`),
     supabaseServer
@@ -82,9 +82,10 @@ export async function GET() {
       problemTitle:    problem.title ?? ap.problem_id,
       difficulty:      problem.difficulty ?? null,
       displayOrder:    ap.display_order ?? 0,
-      isSubmitted:     !!sub,
-      isCorrect:       sub ? sub.isCorrect : null,
-      submittedAt:     sub?.createdAt ?? null,
+      isSubmitted:          !!sub,
+      isCorrect:            sub ? sub.isCorrect : null,
+      submittedAt:          sub?.createdAt ?? null,
+      requireComprehension: (assignment as any)?.require_comprehension ?? false,
     }
   })
 

@@ -97,6 +97,7 @@ interface AssignmentWizardProps {
   initialDueDate?: string
   initialProblemIds?: string[]
   initialStudentIds?: string[]
+  initialRequireComprehension?: boolean
 }
 
 export default function AssignmentWizard({
@@ -105,6 +106,7 @@ export default function AssignmentWizard({
   initialDueDate,
   initialProblemIds = [],
   initialStudentIds = [],
+  initialRequireComprehension = false,
 }: AssignmentWizardProps) {
   const router = useRouter()
 
@@ -126,6 +128,9 @@ export default function AssignmentWizard({
 
   // Step 2: no-student warning
   const [noStudentWarn, setNoStudentWarn] = useState(false)
+
+  // Step 3: 이해 확인 필수
+  const [requireComprehension, setRequireComprehension] = useState(initialRequireComprehension)
 
   // Step 1 — common filters
   const [pCourse, setPCourse] = useState<CourseKey>("basic")
@@ -404,6 +409,7 @@ export default function AssignmentWizard({
       dueDate: dueDate ? new Date(dueDate).toISOString() : null,
       problemIds: orderedProblemIds,
       studentIds: [...selStudents],
+      requireComprehension,
     }
 
     const res = assignmentId
@@ -806,6 +812,18 @@ export default function AssignmentWizard({
                   <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
                   <p className="text-[11px] text-gray-400 mt-1.5">기본값: 다음 주 일요일 23:59</p>
                 </div>
+                <label className="flex items-start gap-3 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={requireComprehension}
+                    onChange={e => setRequireComprehension(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">이해 확인 필수</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">정답 제출 후 AI 이해 확인을 작성해야 다음 문제로 넘어갈 수 있습니다</p>
+                  </div>
+                </label>
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-3">
                   <p className="text-xs font-extrabold text-gray-700">배정 요약</p>
                   {[

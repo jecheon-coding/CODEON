@@ -1,22 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Brain, Send, SkipForward, Sparkles, CheckCircle2, Plus, AlertCircle } from "lucide-react";
+import { Brain, Send, SkipForward, Sparkles, CheckCircle2, Plus, AlertCircle, BookOpen } from "lucide-react";
 import { Problem } from "@/types/problem";
 
 interface Props {
   problem: Problem;
   code: string;
   isDark: boolean;
+  required?: boolean;
+  onComplete?: () => void;
 }
 
 type Phase = "loading" | "question" | "answering" | "evaluating" | "done" | "skipped" | "error";
 
-export default function ComprehensionPanel({ problem, code, isDark }: Props) {
+export default function ComprehensionPanel({ problem, code, isDark, required = false, onComplete }: Props) {
   const [phase, setPhase]         = useState<Phase>("loading");
   const [question, setQuestion]   = useState("");
   const [answer, setAnswer]       = useState("");
   const [feedback, setFeedback]   = useState("");
+  const [correction, setCorrection] = useState<string | null>(null);
   const [bonusScore, setBonusScore] = useState(0);
   const hasFetched                = useRef(false);
 
@@ -105,10 +108,15 @@ ${code}
 - relevant: true 조건
   * 코드의 동작이나 개념을 자신의 말로 설명하려는 시도가 있음 (완벽하지 않아도 됨)
 
+[correction 작성 규칙]
+- 학생 답변이 틀리거나 불완전한 부분이 있으면, 올바른 개념을 2~4문장으로 친절하게 설명해줘
+- 학생 답변이 완벽하다면 null
+- relevant: false이면 반드시 올바른 설명 제공
+
 반드시 아래 JSON 형식으로만 응답해 (다른 텍스트 없이):
-{"relevant": true, "feedback": "피드백 2문장 이내"}
+{"relevant": true, "feedback": "피드백 1~2문장", "correction": "올바른/보완 설명 또는 null"}
 또는
-{"relevant": false, "feedback": "질문과 관련된 답변을 작성해주세요. (구체적으로 무엇을 설명해야 하는지 한 문장)"}`,
+{"relevant": false, "feedback": "무엇을 설명해야 하는지 한 문장", "correction": "이 질문에 대한 올바른 설명 2~4문장"}`,
               }]
             }]
           }),
@@ -122,6 +130,7 @@ ${code}
         const parsed = JSON.parse(jsonMatch[0]);
         isRelevant = parsed.relevant === true;
         fb = parsed.feedback ?? "평가를 불러오지 못했어요.";
+        if (parsed.correction && parsed.correction !== "null") setCorrection(parsed.correction);
       } else {
         fb = "평가를 불러오지 못했어요.";
       }
@@ -130,6 +139,7 @@ ${code}
     }
 
     setFeedback(fb);
+    if (isRelevant) onComplete?.();
 
     // DB 저장 + 가산점 (관련 답변일 때만)
     try {
@@ -176,9 +186,10 @@ ${code}
         <Brain size={14} className={D("text-violet-300", "text-violet-500")} />
         <span className={`text-xs font-bold ${D("text-violet-100", "text-violet-700")}`}>이해 확인</span>
         <span className={`text-[11px] ${D("text-violet-300", "text-violet-400")}`}>· 내 코드를 설명해보세요</span>
-        <span className={`ml-auto text-[11px] font-semibold ${D("text-amber-300", "text-violet-500")}`}>
-          답변 시 가산점 지급
-        </span>
+        {required
+          ? <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-500 text-white">필수</span>
+          : <span className={`ml-auto text-[11px] font-semibold ${D("text-amber-300", "text-violet-500")}`}>답변 시 가산점 지급</span>
+        }
       </div>
 
       <div className="px-4 py-3">
@@ -224,13 +235,20 @@ ${code}
               >
                 <Send size={11} /> 제출
               </button>
-              <button
-                onClick={handleSkip}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
-                  ${D("text-slate-500 hover:bg-slate-700/60", "text-gray-400 hover:bg-gray-100")}`}
-              >
-                <SkipForward size={11} /> 건너뛰기
-              </button>
+              {!required && (
+                <button
+                  onClick={handleSkip}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
+                    ${D("text-slate-500 hover:bg-slate-700/60", "text-gray-400 hover:bg-gray-100")}`}
+                >
+                  <SkipForward size={11} /> 건너뛰기
+                </button>
+              )}
+              {required && (
+                <p className={`text-[11px] ${D("text-amber-400", "text-amber-600")}`}>
+                  이해 확인을 완료해야 다음 문제로 넘어갈 수 있습니다
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -272,6 +290,17 @@ ${code}
               }
               <p className="text-xs leading-relaxed">{feedback}</p>
             </div>
+            {/* 올바른/보완 설명 */}
+            {correction && (
+              <div className={`flex items-start gap-2 rounded-lg px-3 py-2.5 border
+                ${D("bg-indigo-900/20 border-indigo-700/40 text-indigo-200", "bg-indigo-50 border-indigo-200 text-indigo-800")}`}>
+                <BookOpen size={13} className={`mt-0.5 shrink-0 ${D("text-indigo-300", "text-indigo-400")}`} />
+                <div>
+                  <p className={`text-[11px] font-bold mb-1 ${D("text-indigo-400", "text-indigo-400")}`}>올바른 설명</p>
+                  <p className="text-xs leading-relaxed">{correction}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -54,12 +54,12 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   const adminId = (session?.user as any)?.id
 
-  const { title, dueDate, problemIds, studentIds } = await req.json()
+  const { title, dueDate, problemIds, studentIds, requireComprehension } = await req.json()
   if (!title?.trim()) return NextResponse.json({ error: "과제 제목을 입력해주세요." }, { status: 400 })
 
   const { data: assignment, error } = await supabaseServer
     .from("assignments")
-    .insert({ title: title.trim(), due_date: dueDate || null, created_by: adminId })
+    .insert({ title: title.trim(), due_date: dueDate || null, created_by: adminId, require_comprehension: requireComprehension ?? false })
     .select("id")
     .single()
 

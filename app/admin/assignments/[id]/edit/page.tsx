@@ -8,6 +8,7 @@ import AssignmentWizard from "../../AssignmentWizard"
 
 type AssignmentDetail = {
   title: string; dueDate: string | null; problemIds: string[]; studentIds: string[]
+  requireComprehension: boolean
 }
 
 export default function EditAssignmentPage() {
@@ -69,6 +70,7 @@ export default function EditAssignmentPage() {
             })() : undefined}
             initialProblemIds={data.problemIds}
             initialStudentIds={data.studentIds}
+            initialRequireComprehension={data.requireComprehension}
           />
         )}
       </div>

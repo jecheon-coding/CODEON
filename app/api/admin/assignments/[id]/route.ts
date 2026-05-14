@@ -17,7 +17,7 @@ export async function GET(
   const { id } = await params
 
   const [{ data: assignment }, { data: problems }, { data: students }] = await Promise.all([
-    supabaseServer.from("assignments").select("id, title, due_date").eq("id", id).maybeSingle(),
+    supabaseServer.from("assignments").select("id, title, due_date, require_comprehension").eq("id", id).maybeSingle(),
     supabaseServer.from("assignment_problems").select("problem_id, display_order").eq("assignment_id", id).order("display_order"),
     supabaseServer.from("assignment_students").select("student_user_id").eq("assignment_id", id),
   ])
@@ -25,10 +25,11 @@ export async function GET(
   if (!assignment) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   return NextResponse.json({
-    title:      assignment.title,
-    dueDate:    assignment.due_date ?? null,
-    problemIds: (problems ?? []).map((p: any) => p.problem_id),
-    studentIds: (students ?? []).map((s: any) => s.student_user_id),
+    title:                assignment.title,
+    dueDate:              assignment.due_date ?? null,
+    requireComprehension: (assignment as any).require_comprehension ?? false,
+    problemIds:           (problems ?? []).map((p: any) => p.problem_id),
+    studentIds:           (students ?? []).map((s: any) => s.student_user_id),
   })
 }
 
@@ -40,12 +41,12 @@ export async function PATCH(
   if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const { id } = await params
 
-  const { title, dueDate, problemIds, studentIds } = await req.json()
+  const { title, dueDate, problemIds, studentIds, requireComprehension } = await req.json()
   if (!title?.trim()) return NextResponse.json({ error: "과제 제목을 입력해주세요." }, { status: 400 })
 
   const { error: updateErr } = await supabaseServer
     .from("assignments")
-    .update({ title: title.trim(), due_date: dueDate || null })
+    .update({ title: title.trim(), due_date: dueDate || null, require_comprehension: requireComprehension ?? false })
     .eq("id", id)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
