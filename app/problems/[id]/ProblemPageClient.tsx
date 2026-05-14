@@ -1693,10 +1693,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="bg-[#1a1a2e] rounded-lg font-mono text-sm whitespace-pre p-4 flex-1 min-h-[56px]">
+                  <div className="bg-[#f1f5f9] border border-[#e2e8f0] rounded-lg font-mono text-sm whitespace-pre p-4 flex-1 min-h-[56px]">
                     {exampleInput
-                      ? <span className="text-[#4ADE80]">{exampleInput}</span>
-                      : <span className="text-gray-500 text-xs">입력 없음</span>
+                      ? <span className="text-[#15803d]">{exampleInput}</span>
+                      : <span className="text-gray-400 text-xs">입력 없음</span>
                     }
                   </div>
                 </div>
@@ -1706,7 +1706,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     <h3 className="text-[13px] font-bold text-gray-700">출력 예시</h3>
                     <button onClick={() => navigator.clipboard.writeText(exampleOutput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
                   </div>
-                  <div className="bg-[#1a1a2e] text-[#4ADE80] p-4 rounded-lg font-mono text-sm whitespace-pre flex-1 min-h-[56px]">{exampleOutput}</div>
+                  <div className="bg-[#f1f5f9] border border-[#e2e8f0] text-[#15803d] p-4 rounded-lg font-mono text-sm whitespace-pre flex-1 min-h-[56px]">{exampleOutput}</div>
                 </div>
               </div>
             )}
