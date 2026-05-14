@@ -1891,8 +1891,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     onNextProblem={next ? () => router.push(`/problems/${next.id}`) : undefined}
                   />
                   {lastCorrectCode && subStatus === "correct" &&
-                    (problem.difficulty === "상" ||
-                     (problem.difficulty === "중" && problem.comprehension_enabled)) && (
+                    problem.comprehension_enabled && (
                     <ComprehensionPanel
                       key={comprehensionKey}
                       problem={problem}
