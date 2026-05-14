@@ -1534,7 +1534,13 @@ function SubmissionSection({ onUnsubChange }: {
                         </td>
                         <td className="px-3 py-3"><span className="text-gray-600 text-sm">{r.assignmentTitle}</span></td>
                         <td className="px-3 py-3">
-                          <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">{r.problemTitle}</span>
+                          <a
+                            href={`/problems/${r.problemId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:underline px-2 py-0.5 rounded-md transition-colors"
+                          >{r.problemTitle}</a>
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
