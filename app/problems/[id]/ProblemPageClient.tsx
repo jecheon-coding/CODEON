@@ -1968,29 +1968,28 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   {!exampleInput && !exampleOutput && <p className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>예제 입출력이 없습니다.</p>}
                 </div>
               )}
-              {activeTab === "result" && (
-                <>
-                  <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
-                    submitting={submitting} progress={subProgress}
-                    onNextProblem={
-                      next && (!comprehensionRequired || comprehensionDone)
-                        ? () => router.push(`/problems/${next.id}`)
-                        : undefined
-                    }
+              {/* 이해 확인 질문 유지를 위해 항상 마운트, 탭 전환 시 CSS로만 숨김 */}
+              <div style={{ display: activeTab === "result" ? undefined : "none" }}>
+                <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
+                  submitting={submitting} progress={subProgress}
+                  onNextProblem={
+                    next && (!comprehensionRequired || comprehensionDone)
+                      ? () => router.push(`/problems/${next.id}`)
+                      : undefined
+                  }
+                />
+                {lastCorrectCode && subStatus === "correct" &&
+                  (problem.comprehension_enabled || comprehensionRequired) && (
+                  <ComprehensionPanel
+                    key={comprehensionKey}
+                    problem={problem}
+                    code={lastCorrectCode}
+                    isDark={isDark}
+                    required={comprehensionRequired}
+                    onComplete={() => setComprehensionDone(true)}
                   />
-                  {lastCorrectCode && subStatus === "correct" &&
-                    (problem.comprehension_enabled || comprehensionRequired) && (
-                    <ComprehensionPanel
-                      key={comprehensionKey}
-                      problem={problem}
-                      code={lastCorrectCode}
-                      isDark={isDark}
-                      required={comprehensionRequired}
-                      onComplete={() => setComprehensionDone(true)}
-                    />
-                  )}
-                </>
-              )}
+                )}
+              </div>
               {activeTab === "history" && (
                 <HistoryTab history={history} isDark={isDark}
                   onViewCode={(code, time) => setHistoryModal({ open: true, code, time })}
