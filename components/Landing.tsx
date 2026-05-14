@@ -218,7 +218,7 @@ export default function Landing() {
           </p>
           <p className="text-sm text-white/60 leading-relaxed mb-12 max-w-2xl">
             막히는 부분은 즉시 해결, 진도는 자기 속도로.
-            수백만 학생들이 선택한 AI 튜터 시스템.
+            우리 학원 학생들을 위해 만든 맞춤형 AI 튜터 시스템.
           </p>
 
           <div className="flex flex-wrap gap-4">
@@ -555,7 +555,7 @@ export default function Landing() {
             처음이신가요?
           </h2>
           <p className="text-base lg:text-lg text-white/70 leading-relaxed mb-10 max-w-xl mx-auto">
-            수백 명의 학생이 AI 튜터로 실력을 키우고 있습니다.<br />
+            우리 학원 학생들이 AI 튜터로 실력을 키우고 있습니다.<br />
             지금 바로 시작해 보세요.
           </p>
 
