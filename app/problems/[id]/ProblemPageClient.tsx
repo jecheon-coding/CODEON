@@ -1544,8 +1544,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden" style={{ userSelect: isDragging || isVDragging ? "none" : undefined }}>
 
         {/* ── 왼쪽: 문제 패널 ───────────────────────────────────────────────── */}
-        <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%`, paddingTop: "16px", paddingBottom: "16px", paddingLeft: "24px", paddingRight: "24px" }}>
-          <div className="flex flex-col gap-4">
+        <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%`, paddingTop: "20px", paddingBottom: "32px", paddingLeft: "28px", paddingRight: "28px" }}>
+          <div className="flex flex-col gap-5">
 
             {/* 태그 행 */}
             <div className="flex items-center justify-between">
@@ -1567,7 +1567,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   #{problem.number}
                 </span>
               )}
-              <h2 className="text-2xl font-bold text-gray-900">{problem.title}</h2>
+              <h2 className="text-xl font-bold text-gray-900 leading-snug">{problem.title}</h2>
               <div className="flex items-center gap-1.5 shrink-0">
                 {userState.status === "미제출" && (
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -1579,7 +1579,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
 
             {/* 문제 내용 */}
-            <ContentRenderer content={problem.content} className="flex flex-col gap-2 text-sm text-gray-700" />
+            <ContentRenderer content={problem.content} className="flex flex-col gap-3 text-[14px] leading-7 text-gray-700" />
 
             {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
             {problem.image_url && problem.image_url.trim().split(/\r?\n/).filter(Boolean).map((line, i) => (
@@ -1610,17 +1610,21 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
 
             {/* 입출력 형식 (2열) */}
             {(problem.input_description || problem.output_description) && (
-              <div className="grid grid-cols-2 gap-4 mb-5">
+              <div className="grid grid-cols-2 gap-3">
                 {problem.input_description && (
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800 mb-2 pb-2 border-b border-gray-100">입력 형식</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{problem.input_description}</p>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <h3 className="text-[13px] font-bold text-gray-700">입력</h3>
+                    </div>
+                    <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3">{problem.input_description}</p>
                   </div>
                 )}
                 {problem.output_description && (
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800 mb-2 pb-2 border-b border-gray-100">출력 형식</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{problem.output_description}</p>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <h3 className="text-[13px] font-bold text-gray-700">출력</h3>
+                    </div>
+                    <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3">{problem.output_description}</p>
                   </div>
                 )}
               </div>
@@ -1632,7 +1636,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 {/* 입력 예시 */}
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-gray-800">입력 예시</h3>
+                    <h3 className="text-[13px] font-bold text-gray-700">입력 예시</h3>
                     {exampleInput && (
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => handleSendToInput(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors">입력창으로</button>
@@ -1650,7 +1654,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 {/* 출력 예시 */}
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-gray-800">출력 예시</h3>
+                    <h3 className="text-[13px] font-bold text-gray-700">출력 예시</h3>
                     <button onClick={() => navigator.clipboard.writeText(exampleOutput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
                   </div>
                   <div className="bg-[#1a1a2e] text-[#4ADE80] p-4 rounded-lg font-mono text-sm whitespace-pre flex-1 min-h-[56px]">{exampleOutput}</div>

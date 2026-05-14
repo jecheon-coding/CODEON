@@ -59,7 +59,7 @@ export default function ContentRenderer({ content, isDark = false, className }: 
           const text = seg.lines.join("\n")
           if (!text.trim()) return null
           return (
-            <p key={si} className="leading-[1.85] whitespace-pre-wrap">
+            <p key={si} className="leading-[1.9] whitespace-pre-wrap">
               {text}
             </p>
           )
@@ -82,15 +82,15 @@ export default function ContentRenderer({ content, isDark = false, className }: 
         const dataRows = dataLines.map(parseRow)
 
         return (
-          <div key={si} className="overflow-x-auto my-3">
-            <table className={`border-collapse text-sm ${D("text-slate-200", "text-gray-700")}`}>
+          <div key={si} className="overflow-x-auto my-4">
+            <table className={`border-collapse w-full text-[13px] ${D("text-slate-200", "text-gray-700")}`}>
               {headerCells && (
                 <thead>
                   <tr>
                     {headerCells.map((h, i) => (
-                      <th key={i} className={`border px-3 py-1.5 text-center font-bold
+                      <th key={i} className={`border px-4 py-2 text-center font-bold
                         ${D("border-slate-600 bg-slate-700 text-slate-200",
-                            "border-gray-300 bg-gray-100 text-gray-800")}`}>
+                            "border-blue-200 bg-blue-50 text-blue-700")}`}>
                         {h}
                       </th>
                     ))}
@@ -101,8 +101,8 @@ export default function ContentRenderer({ content, isDark = false, className }: 
                 {dataRows.map((row, ri) => (
                   <tr key={ri} className={D("even:bg-slate-800/40", "even:bg-gray-50")}>
                     {row.map((cell, ci) => (
-                      <td key={ci} className={`border px-3 py-1.5 text-center
-                        ${D("border-slate-600", "border-gray-300")}`}>
+                      <td key={ci} className={`border px-4 py-2 text-center
+                        ${D("border-slate-600", "border-gray-200")}`}>
                         {cell}
                       </td>
                     ))}
