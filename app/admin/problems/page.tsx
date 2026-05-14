@@ -272,6 +272,7 @@ export default function ProblemsPage() {
       example_input: p.example_input ?? "",
       example_output: p.example_output ?? "",
       image_url: p.image_url ?? "",
+      comprehension_enabled: p.comprehension_enabled ?? false,
     })
     setFormErr(""); setAiErr(""); setPreview(false)
     setDraftHistory([]); setHistoryOpen(false); setShowTcPrompt(false)
@@ -304,6 +305,7 @@ export default function ProblemsPage() {
       hint: selected.hint ?? "",
       example_input: selected.example_input ?? "",
       example_output: selected.example_output ?? "",
+      comprehension_enabled: selected.comprehension_enabled ?? false,
     })
     setFormErr(""); setAiErr(""); setPreview(false)
     setDraftHistory([]); setHistoryOpen(false); setShowTcPrompt(false)
