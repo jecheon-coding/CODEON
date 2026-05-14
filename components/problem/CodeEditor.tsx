@@ -92,20 +92,6 @@ export default function CodeEditor({
       const monaco = await import("monaco-editor");
       if (editorInstance.current || !editorRef.current) return;
 
-      // Python 콜론(:) 이후 자동 들여쓰기 규칙 등록
-      monaco.languages.setLanguageConfiguration("python", {
-        onEnterRules: [
-          {
-            beforeText: /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async\s+def|async\s+for|async\s+with).*:\s*$/,
-            action: { indentAction: monaco.languages.IndentAction.Indent },
-          },
-        ],
-        indentationRules: {
-          increaseIndentPattern: /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async\s+def|async\s+for|async\s+with).*:\s*$/,
-          decreaseIndentPattern: /^\s*(?:pass|return|raise|break|continue)\b/,
-        },
-      });
-
       editorInstance.current = monaco.editor.create(editorRef.current, {
         value:                problem.initial_code ?? "# Python 코드를 작성하세요",
         language:             "python",
@@ -121,9 +107,6 @@ export default function CodeEditor({
         renderLineHighlight:  "line",
         overviewRulerLanes:   0,
         tabSize:              4,
-        insertSpaces:         true,
-        detectIndentation:    false,
-        autoIndent:           "full",
       });
 
       editorInstance.current.onDidChangeModelContent(() => {
