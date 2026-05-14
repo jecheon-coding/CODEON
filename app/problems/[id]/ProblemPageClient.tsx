@@ -1258,7 +1258,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         renderLineHighlight:     "line",
         tabSize:                 4,
         insertSpaces:            true,
-        autoIndent:              "brackets",
+        autoIndent:              "advanced",
         padding:                 { top: 14, bottom: 14 },
         lineNumbers:             "on",
         autoClosingQuotes:       "always",
@@ -1276,28 +1276,6 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       // 커서 위치 추적
       editor.onDidChangeCursorPosition((e: any) =>
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
-      )
-
-      // Shift+Enter → 현재 줄 아래에 새 줄 삽입 후 커서 이동
-      // Python 자동 들여쓰기: if/for/while/def 등 콜론 줄에서 Enter 시 4칸 들여쓰기
-      editor.addCommand(
-        monaco.KeyCode.Enter,
-        () => {
-          const model    = editor.getModel()
-          const position = editor.getPosition()
-          if (!model || !position) return
-
-          const lineContent  = model.getLineContent(position.lineNumber)
-          const beforeCursor = lineContent.substring(0, position.column - 1)
-          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
-
-          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " })
-          } else {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase })
-          }
-        },
-        "!suggestWidgetVisible && !inSnippetMode",
       )
 
       editor.addCommand(
