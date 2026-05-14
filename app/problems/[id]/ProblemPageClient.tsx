@@ -722,7 +722,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [bgKey, setBgKey]               = useState<BgKey>("dark")
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
 
-  // ── 글자 크기 (localStorage "editorFontSize") ────────────────────────────────
+  // ── 에디터 글자 크기 (localStorage "editorFontSize") ───────────────────────
   const [fontSize, setFontSize] = useState(13)
   useEffect(() => {
     const saved = parseInt(localStorage.getItem("editorFontSize") ?? "13")
@@ -732,6 +732,17 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
     setFontSize(val)
     localStorage.setItem("editorFontSize", String(val))
     monacoInstanceRef.current?.updateOptions({ fontSize: val })
+  }
+
+  // ── 문제 패널 글자 크기 (localStorage "problemFontSize") ────────────────────
+  const [problemFontSize, setProblemFontSize] = useState(14)
+  useEffect(() => {
+    const saved = parseInt(localStorage.getItem("problemFontSize") ?? "14")
+    if (!isNaN(saved) && saved >= 12 && saved <= 20) setProblemFontSize(saved)
+  }, [])
+  const handleProblemFontSizeChange = (val: number) => {
+    setProblemFontSize(val)
+    localStorage.setItem("problemFontSize", String(val))
   }
 
   // ── 드래그 패널 (좌우) ──────────────────────────────────────────────────────
@@ -1547,7 +1558,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%`, paddingTop: "20px", paddingBottom: "32px", paddingLeft: "28px", paddingRight: "28px" }}>
           <div className="flex flex-col gap-5">
 
-            {/* 태그 행 */}
+            {/* 태그 행 + 폰트 크기 슬라이더 */}
             <div className="flex items-center justify-between">
               <div className="flex gap-2 flex-wrap items-center">
                 {problem.topic && (
@@ -1555,9 +1566,20 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                 )}
                 <span className="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded">{problem.category}</span>
               </div>
-              <span className={`px-2 py-1 text-xs font-bold rounded shrink-0 ${DIFF_BADGE[problem.difficulty] ?? "bg-gray-100 text-gray-600"}`}>
-                {problem.difficulty}
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400 font-mono">{problemFontSize}px</span>
+                  <input
+                    type="range" min={12} max={20} step={1} value={problemFontSize}
+                    onChange={e => handleProblemFontSizeChange(Number(e.target.value))}
+                    className="w-16 h-1.5 accent-[#534AB7] cursor-pointer"
+                    title="문제 글자 크기"
+                  />
+                </div>
+                <span className={`px-2 py-1 text-xs font-bold rounded ${DIFF_BADGE[problem.difficulty] ?? "bg-gray-100 text-gray-600"}`}>
+                  {problem.difficulty}
+                </span>
+              </div>
             </div>
 
             {/* 제목 + 배지 (같은 행) */}
@@ -1579,7 +1601,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             </div>
 
             {/* 문제 내용 */}
-            <ContentRenderer content={problem.content} className="flex flex-col gap-3 text-[14px] leading-7 text-gray-700" />
+            <ContentRenderer content={problem.content} className="flex flex-col gap-3 leading-7 text-gray-700" style={{ fontSize: `${problemFontSize}px` }} />
 
             {/* image_url 필드 이미지 — 줄바꿈=세로, 쉼표=가로 */}
             {problem.image_url && problem.image_url.trim().split(/\r?\n/).filter(Boolean).map((line, i) => (

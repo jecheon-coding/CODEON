@@ -6,6 +6,7 @@ interface Props {
   content: string
   isDark?: boolean
   className?: string
+  style?: React.CSSProperties
 }
 
 function parseRow(line: string): string[] {
@@ -20,7 +21,7 @@ function isTableLine(line: string): boolean {
   return line.trim().startsWith("|")
 }
 
-export default function ContentRenderer({ content, isDark = false, className }: Props) {
+export default function ContentRenderer({ content, isDark = false, className, style }: Props) {
   if (!content) return null
 
   const D = (dark: string, light: string) => isDark ? dark : light
@@ -53,7 +54,7 @@ export default function ContentRenderer({ content, isDark = false, className }: 
   }
 
   return (
-    <div className={className}>
+    <div className={className} style={style}>
       {segments.map((seg, si) => {
         if (seg.type === "text") {
           const text = seg.lines.join("\n")
