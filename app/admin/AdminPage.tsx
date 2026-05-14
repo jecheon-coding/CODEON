@@ -2414,6 +2414,158 @@ const ADMIN_TABS: { id: AdminTab; label: string; Icon: any }[] = [
   { id: "settings",   label: "설정",        Icon: Settings },
 ]
 
+// ── 개인 진도 현황 섹션 ────────────────────────────────────────────────────────
+
+type ProgressTopic    = { name: string; total: number; solved: number; correct: number; wrong: number; untouched: number }
+type ProgressCategory = { name: string; total: number; solved: number; topics: ProgressTopic[] }
+type StudentProgress  = { total: number; solved: number; categories: ProgressCategory[] }
+
+const CAT_COLOR: Record<string, { bg: string; bar: string; text: string }> = {
+  파이썬기초:     { bg: "bg-blue-50",   bar: "bg-blue-500",   text: "text-blue-700" },
+  파이썬알고리즘: { bg: "bg-violet-50", bar: "bg-violet-500", text: "text-violet-700" },
+  파이썬자격증:   { bg: "bg-amber-50",  bar: "bg-amber-500",  text: "text-amber-700" },
+  파이썬실전:     { bg: "bg-emerald-50",bar: "bg-emerald-500",text: "text-emerald-700" },
+  파이썬도전:     { bg: "bg-rose-50",   bar: "bg-rose-500",   text: "text-rose-700" },
+}
+const DEFAULT_COLOR = { bg: "bg-gray-50", bar: "bg-gray-400", text: "text-gray-700" }
+
+function StudentProgressSection() {
+  const [students,  setStudents]  = useState<Student[]>([])
+  const [selected,  setSelected]  = useState("")
+  const [progress,  setProgress]  = useState<StudentProgress | null>(null)
+  const [loading,   setLoading]   = useState(false)
+  const [expanded,  setExpanded]  = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch("/api/admin/students")
+      .then(r => r.json())
+      .then((d: Student[]) => setStudents(d.filter(s => s.status === "active")))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!selected) { setProgress(null); return }
+    setLoading(true)
+    fetch(`/api/admin/progress?studentId=${selected}`)
+      .then(r => r.json())
+      .then(d => { setProgress(d); setExpanded(new Set()) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [selected])
+
+  const toggleCat = (name: string) =>
+    setExpanded(prev => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })
+
+  const student = students.find(s => s.id === selected)
+
+  return (
+    <SectionCard
+      title="개인 진도 현황"
+      desc="학생을 선택하면 카테고리별 문제 풀이 진도를 확인할 수 있습니다"
+    >
+      {/* 학생 선택 */}
+      <div className="flex items-center gap-3 mb-5">
+        <select
+          value={selected}
+          onChange={e => setSelected(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:border-blue-400 min-w-[180px]"
+        >
+          <option value="">학생 선택...</option>
+          {students.map(s => (
+            <option key={s.id} value={s.id}>{s.name} {s.grade ? `(${s.grade}학년)` : ""}</option>
+          ))}
+        </select>
+        {loading && <Loader2 size={16} className="animate-spin text-gray-400" />}
+      </div>
+
+      {/* 결과 */}
+      {progress && student && !loading && (
+        <div className="flex flex-col gap-4">
+
+          {/* 전체 요약 */}
+          <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-500 font-medium">전체 진도</span>
+              <span className="text-2xl font-black text-gray-900 tabular-nums">
+                {progress.solved}
+                <span className="text-sm font-medium text-gray-400"> / {progress.total}문제</span>
+              </span>
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>정답 완료</span>
+                <span className="font-semibold text-gray-600">
+                  {progress.total > 0 ? Math.round(progress.solved / progress.total * 100) : 0}%
+                </span>
+              </div>
+              <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full transition-all"
+                  style={{ width: `${progress.total > 0 ? (progress.solved / progress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 카테고리별 */}
+          {progress.categories.map(cat => {
+            const color = CAT_COLOR[cat.name] ?? DEFAULT_COLOR
+            const pct   = cat.total > 0 ? Math.round(cat.solved / cat.total * 100) : 0
+            const isOpen = expanded.has(cat.name)
+            return (
+              <div key={cat.name} className={`rounded-xl border border-gray-100 overflow-hidden`}>
+                {/* 카테고리 헤더 */}
+                <button
+                  onClick={() => toggleCat(cat.name)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 ${color.bg} hover:brightness-95 transition-all`}
+                >
+                  <span className={`text-xs font-bold ${color.text} min-w-[90px] text-left`}>{cat.name}</span>
+                  <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
+                    <div className={`h-full ${color.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className={`text-xs font-bold tabular-nums ${color.text} min-w-[60px] text-right`}>
+                    {cat.solved}/{cat.total} ({pct}%)
+                  </span>
+                  <ChevronDown size={14} className={`${color.text} transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* 토픽 상세 */}
+                {isOpen && (
+                  <div className="bg-white px-4 py-2 flex flex-col gap-1.5">
+                    {cat.topics.map(t => {
+                      const tPct = t.total > 0 ? Math.round(t.correct / t.total * 100) : 0
+                      return (
+                        <div key={t.name} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                          <span className="text-xs text-gray-600 min-w-[80px]">{t.name}</span>
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full ${color.bar} rounded-full`} style={{ width: `${tPct}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-gray-500 min-w-[70px] text-right">
+                            {t.correct}/{t.total}문제
+                          </span>
+                          {t.wrong > 0 && (
+                            <span className="text-[10px] text-amber-500 font-medium min-w-[50px]">
+                              오답 {t.wrong}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {!selected && (
+        <p className="text-sm text-gray-400 py-4 text-center">학생을 선택해주세요</p>
+      )}
+    </SectionCard>
+  )
+}
+
 // ── 설정 섹션 ─────────────────────────────────────────────────────────────────
 
 function SettingsSection() {
@@ -2689,6 +2841,7 @@ export default function AdminPage() {
               <ComprehensionStatsSection />
               <LeaderboardSection />
             </div>
+            <StudentProgressSection />
           </div>
         )}
 
