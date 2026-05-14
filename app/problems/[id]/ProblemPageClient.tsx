@@ -1576,8 +1576,14 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <button
             onClick={() => {
-              const slug = CATEGORY_SLUG[problem.category]
-              router.push(slug ? `/course/${slug}` : "/dashboard")
+              const saved = sessionStorage.getItem("problemListUrl")
+              if (saved) {
+                sessionStorage.removeItem("problemListUrl")
+                router.push(saved)
+              } else {
+                const slug = CATEGORY_SLUG[problem.category]
+                router.push(slug ? `/course/${slug}` : "/dashboard")
+              }
             }}
             className="flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors shrink-0"
           >

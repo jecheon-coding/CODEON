@@ -811,7 +811,7 @@ export default function ChallengeHubPage() {
                     likedSet={likedSet}
                     rank={activeTab === "인기" ? idx : undefined}
                     showStatus={activeTab === "내 문제"}
-                    onClick={() => router.push(`/problems/${prob.id}`)}
+                    onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${prob.id}`) }}
                     onLike={e => handleLike(e, prob.id)}
                   />
                 ))}

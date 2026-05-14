@@ -490,7 +490,7 @@ export default function CourseClient({
               {/* 이어하기 버튼 */}
               <div className="px-5 py-4">
                 <button
-                  onClick={() => nextProblem && router.push(`/problems/${nextProblem.id}`)}
+                  onClick={() => { if (nextProblem) { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${nextProblem.id}`) } }}
                   disabled={!nextProblem}
                   className="w-full flex items-center justify-center gap-2 py-3 text-white text-sm font-bold rounded-xl transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: meta.color }}
@@ -743,7 +743,10 @@ export default function CourseClient({
                     return (
                       <ProblemListItem
                         key={problem.id}
-                        onClick={() => router.push(`/problems/${problem.id}`)}
+                        onClick={() => {
+                          sessionStorage.setItem("problemListUrl", window.location.href)
+                          router.push(`/problems/${problem.id}`)
+                        }}
                         baseBackground={baseBg}
                         hoverBackground={hoverBg}
                         borderLeft={isNext ? "3px solid #534AB7" : "3px solid transparent"}
