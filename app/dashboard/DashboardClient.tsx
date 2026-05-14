@@ -1019,7 +1019,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                         <div className="h-12 bg-gray-100 rounded-lg animate-pulse" />
                       ) : nextProblemFromApi ? (
                         <button
-                          onClick={() => router.push(`/problems/${nextProblemFromApi.id}`)}
+                          onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${nextProblemFromApi.id}`) }}
                           className="w-full flex items-center justify-between gap-2 bg-[#534AB7] hover:bg-[#443DA0] text-white rounded-lg px-4 py-3 transition-colors group"
                         >
                           <span className="text-sm font-semibold truncate">
@@ -1103,7 +1103,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-[11px] text-gray-400 leading-snug">{p.reason}</p>
                             <button
-                              onClick={() => router.push(`/problems/${p.id}`)}
+                              onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${p.id}`) }}
                               className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#534AB7] hover:bg-[#443DA0] text-white text-[12px] font-bold rounded-lg transition-colors"
                             >
                               바로 풀기 <ArrowRight className="w-3 h-3" />
@@ -1156,7 +1156,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                               </div>
                             </div>
                             <button
-                              onClick={() => router.push(`/problems/${p.id}`)}
+                              onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${p.id}`) }}
                               className="shrink-0 px-2.5 py-1 bg-[#534AB7] hover:bg-[#443DA0] text-white text-[10px] font-bold rounded-lg transition-colors"
                             >
                               다시 풀기
@@ -1262,7 +1262,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                       </p>
                     </div>
                     <button
-                      onClick={() => router.push(`/problems/${nextProblemId}`)}
+                      onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${nextProblemId}`) }}
                       className="shrink-0 px-3 py-1.5 bg-[#534AB7] text-white text-xs font-bold rounded-lg hover:bg-[#443DA0] transition-colors"
                     >
                       바로 풀기
@@ -1340,7 +1340,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                           {badgeLabel}
                         </span>
                         <button
-                          onClick={() => router.push(`/problems/${hw.problemId}`)}
+                          onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${hw.problemId}`) }}
                           className="shrink-0 text-[10px] font-bold px-2 py-1 bg-[#534AB7]/10 text-[#534AB7] rounded-lg hover:bg-[#534AB7]/20 transition-colors"
                         >
                           풀기

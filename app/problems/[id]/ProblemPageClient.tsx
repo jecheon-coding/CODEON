@@ -1949,7 +1949,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     }
                   />
                   {lastCorrectCode && subStatus === "correct" &&
-                    problem.comprehension_enabled && (
+                    (problem.comprehension_enabled || comprehensionRequired) && (
                     <ComprehensionPanel
                       key={comprehensionKey}
                       problem={problem}
