@@ -9,6 +9,7 @@ import {
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
   FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
+  Settings, Target,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -2403,14 +2404,94 @@ function MonthlyReviewSection() {
 
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
-type AdminTab = "students" | "learning" | "assignments" | "consult"
+type AdminTab = "students" | "learning" | "assignments" | "consult" | "settings"
 
 const ADMIN_TABS: { id: AdminTab; label: string; Icon: any }[] = [
   { id: "students",    label: "학생 관리",   Icon: Users },
   { id: "learning",    label: "학습 현황",   Icon: BarChart2 },
   { id: "assignments", label: "과제 / 문제", Icon: ClipboardList },
   { id: "consult",     label: "상담 / 리뷰", Icon: MessageSquare },
+  { id: "settings",   label: "설정",        Icon: Settings },
 ]
+
+// ── 설정 섹션 ─────────────────────────────────────────────────────────────────
+
+function SettingsSection() {
+  const [goal,    setGoal]    = useState(6)
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+  const [error,   setError]   = useState("")
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then(r => r.json())
+      .then(d => { if (typeof d.defaultDailyGoal === "number") setGoal(d.defaultDailyGoal) })
+      .catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true); setError(""); setSaved(false)
+    const res  = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defaultDailyGoal: goal }),
+    })
+    setSaving(false)
+    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+    else        { const d = await res.json(); setError(d.error ?? "저장 실패") }
+  }
+
+  return (
+    <SectionCard title="설정">
+      <div className="flex flex-col gap-6 max-w-sm">
+
+        {/* 오늘의 목표 기본값 */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Target size={15} className="text-orange-400" />
+            <span className="text-sm font-semibold text-gray-700">오늘의 목표 기본값</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            모든 학생의 대시보드에 표시되는 하루 목표 문제 수입니다.
+            변경하면 다음 접속 시 즉시 적용됩니다.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setGoal(g => Math.max(1, g - 1))}
+              disabled={goal <= 1}
+              className="w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50
+                disabled:opacity-30 disabled:cursor-not-allowed font-bold text-lg flex items-center justify-center"
+            >−</button>
+            <span className="w-10 text-center text-2xl font-black text-orange-500 tabular-nums">{goal}</span>
+            <button
+              onClick={() => setGoal(g => Math.min(20, g + 1))}
+              disabled={goal >= 20}
+              className="w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50
+                disabled:opacity-30 disabled:cursor-not-allowed font-bold text-lg flex items-center justify-center"
+            >+</button>
+            <span className="text-sm text-gray-400">문제 / 일</span>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="self-start flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600
+              disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            {saving
+              ? <Loader2 size={13} className="animate-spin" />
+              : saved
+                ? <CheckCircle2 size={13} />
+                : <Save size={13} />
+            }
+            {saved ? "저장됨" : "저장"}
+          </button>
+        </div>
+
+      </div>
+    </SectionCard>
+  )
+}
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false)
@@ -2626,6 +2707,10 @@ export default function AdminPage() {
             <ConsultSection onRefreshSummary={loadSummary} />
             <MonthlyReviewSection />
           </div>
+        )}
+
+        {activeTab === "settings" && (
+          <SettingsSection />
         )}
       </div>
     </div>

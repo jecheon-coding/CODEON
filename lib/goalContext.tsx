@@ -10,13 +10,17 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const [dailyGoal, setGoal] = useState(6)
 
   useEffect(() => {
-    const saved = parseInt(localStorage.getItem("dailyGoal") ?? "6")
-    if (!isNaN(saved) && saved >= 1 && saved <= 20) setGoal(saved)
+    fetch("/api/settings")
+      .then(r => r.json())
+      .then(data => {
+        const v = data?.defaultDailyGoal
+        if (typeof v === "number" && v >= 1 && v <= 20) setGoal(v)
+      })
+      .catch(() => {})
   }, [])
 
   const setDailyGoal = (n: number) => {
     const clamped = Math.min(20, Math.max(1, n))
-    localStorage.setItem("dailyGoal", String(clamped))
     setGoal(clamped)
   }
 
