@@ -1122,10 +1122,13 @@ function SubmissionSection({ onUnsubChange }: {
 
   // 기간 필터
   const filteredRows = useMemo(() => {
-    if (dateRange === "all") return rows
+    const now = new Date()
+    let result = hideExpiredAssigns
+      ? rows.filter(r => !r.dueDate || new Date(toUTC(r.dueDate)) > now)
+      : rows
+    if (dateRange === "all") return result
     let start: Date | null = null
     let end: Date | null   = null
-    const now = new Date()
     if (dateRange === "week") {
       const day = now.getDay()
       start = new Date(now); start.setDate(now.getDate() - (day === 0 ? 6 : day - 1)); start.setHours(0, 0, 0, 0)
@@ -1137,14 +1140,14 @@ function SubmissionSection({ onUnsubChange }: {
       start = customStart ? new Date(customStart) : null
       end   = customEnd   ? new Date(customEnd + "T23:59:59") : null
     }
-    return rows.filter(r => {
+    return result.filter(r => {
       if (!r.dueDate) return false
-      const d = new Date(r.dueDate)
+      const d = new Date(toUTC(r.dueDate))
       if (start && d < start) return false
       if (end   && d > end)   return false
       return true
     })
-  }, [rows, dateRange, customStart, customEnd])
+  }, [rows, dateRange, customStart, customEnd, hideExpiredAssigns])
 
   // 학생별: 미제출 많은 순, 0명 하단
   const studentSummaries = useMemo(() => {
