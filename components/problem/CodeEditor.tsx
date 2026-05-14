@@ -92,11 +92,36 @@ export default function CodeEditor({
       const monaco = await import("monaco-editor");
       if (editorInstance.current || !editorRef.current) return;
 
-      // Python 언어 설정(onEnterRules 포함)이 lazy load 완료 전에 에디터가 생성되는
-      // 타이밍 문제를 방지하기 위해 공식 conf를 명시적으로 먼저 적용
-      // @ts-ignore
-      const { conf: pythonConf } = await import("monaco-editor/esm/vs/basic-languages/python/python" as string);
-      monaco.languages.setLanguageConfiguration("python", pythonConf);
+      // Python lazy load 타이밍 문제: onEnterRules를 monaco.languages.IndentAction을
+      // 직접 참조해 전체 Python conf를 명시적으로 등록
+      monaco.languages.setLanguageConfiguration("python", {
+        comments:  { lineComment: "#", blockComment: ["'''", "'''"] },
+        brackets:  [["{", "}"], ["[", "]"], ["(", ")"]],
+        autoClosingPairs: [
+          { open: "{", close: "}" },
+          { open: "[", close: "]" },
+          { open: "(", close: ")" },
+          { open: '"', close: '"', notIn: ["string"] },
+          { open: "'", close: "'", notIn: ["string", "comment"] },
+        ],
+        surroundingPairs: [
+          { open: "{", close: "}" },
+          { open: "[", close: "]" },
+          { open: "(", close: ")" },
+          { open: '"', close: '"' },
+          { open: "'", close: "'" },
+        ],
+        onEnterRules: [
+          {
+            beforeText: /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async|match|case).*?:\s*$/,
+            action: { indentAction: monaco.languages.IndentAction.Indent },
+          },
+        ],
+        folding: {
+          offSide: true,
+          markers: { start: /^\s*#region\b/, end: /^\s*#endregion\b/ },
+        },
+      });
 
       editorInstance.current = monaco.editor.create(editorRef.current, {
         value:                problem.initial_code ?? "# Python 코드를 작성하세요",
