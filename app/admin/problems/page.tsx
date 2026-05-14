@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
   ArrowLeft, LogOut, Search, Plus, Trash2, Save,
   Loader2, BookOpen, Wand2, Eye, EyeOff, ChevronDown, ChevronUp,
   Copy, ExternalLink, ListChecks, CheckCircle2, ChevronUp as Up,
-  History, RotateCcw, GripVertical,
+  History, RotateCcw, GripVertical, Table2,
 } from "lucide-react"
+import ContentRenderer from "@/components/ui/ContentRenderer"
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 type CourseKey = "basic" | "algorithm" | "certificate" | "practical" | "challenge" | "competition"
@@ -163,6 +164,37 @@ export default function ProblemsPage() {
 
   // ── 미리보기 ──────────────────────────────────────────────────────────────
   const [preview, setPreview] = useState(false)
+
+  // ── 표 삽입 ───────────────────────────────────────────────────────────────
+  const contentRef  = useRef<HTMLTextAreaElement>(null)
+  const [tableOpen, setTableOpen] = useState(false)
+  const [tableCols, setTableCols] = useState(3)
+  const [tableRows, setTableRows] = useState(2)
+
+  function insertTable() {
+    const cols = Math.max(1, tableCols)
+    const rows = Math.max(1, tableRows)
+    const header  = "| " + Array(cols).fill("제목").map((_, i) => `열${i + 1}`).join(" | ") + " |"
+    const sep     = "|" + Array(cols).fill("---").join("|") + "|"
+    const dataRow = "| " + Array(cols).fill("내용").join(" | ") + " |"
+    const tableText = "\n" + [header, sep, ...Array(rows).fill(dataRow)].join("\n") + "\n"
+
+    const ta = contentRef.current
+    const current = form.content ?? ""
+    if (ta) {
+      const start = ta.selectionStart ?? current.length
+      const end   = ta.selectionEnd   ?? current.length
+      const next  = current.slice(0, start) + tableText + current.slice(end)
+      setField("content", next)
+      setTimeout(() => {
+        ta.selectionStart = ta.selectionEnd = start + tableText.length
+        ta.focus()
+      }, 0)
+    } else {
+      setField("content", current + tableText)
+    }
+    setTableOpen(false)
+  }
 
   // ── 문제 로드 ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -886,18 +918,50 @@ export default function ProblemsPage() {
 
                 <div className="flex items-center justify-between">
                   <label className={labelCls}>문제 설명 (content)</label>
-                  <button onClick={() => setPreview(v => !v)}
-                    className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700 font-semibold">
-                    {preview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    {preview ? "편집" : "미리보기"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <button onClick={() => setTableOpen(v => !v)}
+                        className="flex items-center gap-1 text-[11px] text-violet-500 hover:text-violet-700 font-semibold">
+                        <Table2 className="w-3.5 h-3.5" />
+                        표 삽입
+                      </button>
+                      {tableOpen && (
+                        <div className="absolute right-0 top-6 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-48">
+                          <p className="text-[11px] font-bold text-gray-600 mb-2">표 크기 설정</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <label className="text-[11px] text-gray-500 w-10 shrink-0">열 수</label>
+                            <input type="number" min={1} max={8} value={tableCols}
+                              onChange={e => setTableCols(Number(e.target.value))}
+                              className="w-full border border-gray-300 rounded px-2 py-0.5 text-xs" />
+                          </div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <label className="text-[11px] text-gray-500 w-10 shrink-0">행 수</label>
+                            <input type="number" min={1} max={20} value={tableRows}
+                              onChange={e => setTableRows(Number(e.target.value))}
+                              className="w-full border border-gray-300 rounded px-2 py-0.5 text-xs" />
+                          </div>
+                          <button onClick={insertTable}
+                            className="w-full bg-violet-500 hover:bg-violet-600 text-white text-xs font-semibold py-1.5 rounded-lg">
+                            삽입
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setPreview(v => !v)}
+                      className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700 font-semibold">
+                      {preview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      {preview ? "편집" : "미리보기"}
+                    </button>
+                  </div>
                 </div>
                 {preview ? (
-                  <div className="min-h-[120px] p-3 bg-gray-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap border border-gray-200">
-                    {form.content || <span className="text-gray-400">내용 없음</span>}
+                  <div className="min-h-[120px] p-3 bg-gray-50 rounded-lg text-sm text-gray-800 border border-gray-200">
+                    {form.content
+                      ? <ContentRenderer content={form.content} />
+                      : <span className="text-gray-400">내용 없음</span>}
                   </div>
                 ) : (
-                  <textarea value={form.content ?? ""} onChange={e => setField("content", e.target.value)}
+                  <textarea ref={contentRef} value={form.content ?? ""} onChange={e => setField("content", e.target.value)}
                     placeholder="문제 설명을 입력하세요…" rows={6} className={textareaCls} />
                 )}
 

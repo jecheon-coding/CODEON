@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Users } from "lucide-react";
+import ContentRenderer from "@/components/ui/ContentRenderer";
 import { Problem } from "@/types/problem";
 
 interface Props { problem: Problem; isDark: boolean }
@@ -103,9 +104,7 @@ export default function ProblemDescription({ problem, isDark }: Props) {
       {/* 문제 설명 — 항상 표시, sticky 헤더 */}
       <section>
         <SectionHeader title="문제" isDark={isDark} />
-        <p className="leading-[1.85] whitespace-pre-wrap">
-          {problem.content}
-        </p>
+        <ContentRenderer content={problem.content} isDark={isDark} />
       </section>
 
       {/* 제한 사항 — 접기 가능 */}
