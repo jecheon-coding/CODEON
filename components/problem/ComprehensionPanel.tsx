@@ -207,9 +207,18 @@ ${code}
 
         {/* 오류 */}
         {phase === "error" && (
-          <p className={`text-xs ${D("text-gray-300", "text-gray-400")}`}>
-            질문을 불러오지 못했어요.
-          </p>
+          <div className="flex items-center gap-3">
+            <p className={`text-xs ${D("text-gray-300", "text-gray-400")}`}>
+              질문을 불러오지 못했어요.
+            </p>
+            <button
+              onClick={() => { hasFetched.current = false; generateQuestion(); }}
+              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors
+                ${D("bg-violet-700/60 hover:bg-violet-600/80 text-violet-200", "bg-violet-100 hover:bg-violet-200 text-violet-700")}`}
+            >
+              다시 시도
+            </button>
+          </div>
         )}
 
         {/* 질문 + 입력 */}
