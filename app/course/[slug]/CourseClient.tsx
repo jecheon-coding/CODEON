@@ -152,9 +152,20 @@ export default function CourseClient({
   const meta         = COURSE_META[slug] ?? { label: slug, description: "", color: "#534AB7", Icon: Layers }
   const { Icon: CourseIcon } = meta
 
-  const [activeTab,        setActiveTab]        = useState(() =>
-    problems.find(p => statusMap[p.id]?.status !== "정답")?.topic ?? "전체"
-  )
+  const [activeTab, setActiveTab] = useState(() => {
+    const fromUrl = searchParams.get("topic")
+    if (fromUrl) return fromUrl
+    return problems.find(p => statusMap[p.id]?.status !== "정답")?.topic ?? "전체"
+  })
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+    const params = new URLSearchParams(window.location.search)
+    if (tab === "전체") params.delete("topic")
+    else params.set("topic", tab)
+    const newUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`
+    window.history.replaceState(null, "", newUrl)
+  }
   const [searchQuery,      setSearchQuery]      = useState("")
   const [difficultyFilter, setDifficultyFilter] = useState<"전체" | "하" | "중" | "상">("전체")
   const [page,             setPage]             = useState(1)
@@ -657,7 +668,7 @@ export default function CourseClient({
                       return (
                         <button
                           key={tab}
-                          onClick={() => setActiveTab(tab)}
+                          onClick={() => handleTabChange(tab)}
                           className={`flex items-center gap-1 text-[13px] font-semibold border-b-2 transition-all whitespace-nowrap
                             ${isActive
                               ? "border-[#534AB7] text-[#534AB7]"
