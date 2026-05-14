@@ -497,14 +497,14 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
 
       {/* 헤더 */}
       <div className={`flex items-center justify-between px-4 py-3 border-b
-        ${D("border-slate-600/50 bg-[#211d3a]", "border-gray-100 bg-gray-50")}`}>
+        ${D("border-slate-600/50 bg-[#211d3a]", "border-b-0 bg-[#4263eb]")}`}>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-bold ${D("text-gray-100", "text-gray-800")}`}>
+          <span className={`text-sm font-bold ${D("text-gray-100", "text-white")}`}>
             묻고 답하기
           </span>
           {items.length > 0 && (
             <span className={`text-xs px-1.5 py-0.5 rounded font-semibold
-              ${D("bg-slate-600/60 text-slate-300", "bg-gray-100 text-gray-500")}`}>
+              ${D("bg-slate-600/60 text-slate-300", "bg-white/20 text-white")}`}>
               {items.length}
             </span>
           )}
@@ -513,8 +513,8 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
           onClick={() => { setShowForm(v => !v); setError("") }}
           className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors
             ${showForm
-              ? D("bg-slate-600/50 text-slate-300 hover:bg-slate-600", "bg-gray-100 text-gray-600 hover:bg-gray-200")
-              : "bg-[#534AB7] hover:bg-[#443da0] text-white"}`}
+              ? D("bg-slate-600/50 text-slate-300 hover:bg-slate-600", "bg-white/20 text-white hover:bg-white/30")
+              : D("bg-[#534AB7] hover:bg-[#443da0] text-white", "bg-white text-[#4263eb] hover:bg-blue-50")}`}
         >
           {showForm ? "취소" : "질문하기"}
         </button>
@@ -569,11 +569,11 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
             <col className="w-[22%]" />
           </colgroup>
           <thead>
-            <tr className={`text-[11px] font-bold uppercase tracking-wide
-              ${D("bg-[#211d3a] text-slate-400", "bg-gray-50 text-gray-400")}`}>
-              <th className="px-4 py-2 text-left">작성자</th>
-              <th className="px-4 py-2 text-left">제목</th>
-              <th className="px-4 py-2 text-right">날짜</th>
+            <tr className={`text-[12px] font-bold
+              ${D("bg-[#211d3a] text-slate-400", "bg-[#4263eb] text-white")}`}>
+              <th className="px-4 py-2.5 text-center">작성자</th>
+              <th className="px-4 py-2.5 text-left">제목</th>
+              <th className="px-4 py-2.5 text-right">날짜</th>
             </tr>
           </thead>
           <tbody>
@@ -582,9 +582,9 @@ function QnaListSection({ problemId, isDark }: { problemId: string; isDark: bool
                 key={item.id}
                 onClick={() => router.push(`/questions/${item.id}`)}
                 className={`cursor-pointer border-t transition-colors
-                  ${D("border-slate-700/50 hover:bg-slate-700/30", "border-gray-100 hover:bg-indigo-50/70")}`}
+                  ${D("border-slate-700/50 hover:bg-slate-700/30", "border-gray-100 hover:bg-blue-50/60")}`}
               >
-                <td className={`px-4 py-3 font-semibold truncate ${D("text-violet-300", "text-violet-600")}`}>
+                <td className={`px-4 py-3 font-semibold truncate text-center ${D("text-violet-300", "text-[#4263eb]")}`}>
                   {item.nickname}
                 </td>
                 <td className={`px-4 py-3 ${D("text-gray-200", "text-gray-800")}`}>
@@ -1662,8 +1662,8 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               </div>
             )}
 
-            {/* 묻고 답하기 */}
-            <QnaListSection problemId={problem.id} isDark={isDark} />
+            {/* 묻고 답하기 — 문제 패널은 항상 흰 배경이므로 isDark=false 고정 */}
+            <QnaListSection problemId={problem.id} isDark={false} />
 
           </div>
         </div>
