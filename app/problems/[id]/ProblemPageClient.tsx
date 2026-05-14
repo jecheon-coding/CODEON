@@ -750,9 +750,9 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   }
 
   // ── 문제 패널 글자 크기 (localStorage "problemFontSize") ────────────────────
-  const [problemFontSize, setProblemFontSize] = useState(14)
+  const [problemFontSize, setProblemFontSize] = useState(16)
   useEffect(() => {
-    const saved = parseInt(localStorage.getItem("problemFontSize") ?? "14")
+    const saved = parseInt(localStorage.getItem("problemFontSize") ?? "16")
     if (!isNaN(saved) && saved >= 12 && saved <= 20) setProblemFontSize(saved)
   }, [])
   const handleProblemFontSizeChange = (val: number) => {
@@ -1630,7 +1630,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   <span className="text-sm font-bold text-gray-800">제한 사항</span>
                   {constraintsOpen ? <SvgChevronUp /> : <SvgChevronDown />}
                 </button>
-                {constraintsOpen && <div className="p-4 bg-white text-sm text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed">{problem.constraints}</div>}
+                {constraintsOpen && <div className="p-4 bg-white text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: `${problemFontSize}px` }}>{problem.constraints}</div>}
               </div>
             )}
 
@@ -1641,7 +1641,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   <span className="text-sm font-bold text-gray-800">힌트</span>
                   {hintOpen ? <SvgChevronUp /> : <SvgChevronDown />}
                 </button>
-                {hintOpen && <div className="p-4 bg-white text-sm text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed">{problem.hint}</div>}
+                {hintOpen && <div className="p-4 bg-white text-gray-600 border-t border-gray-200 whitespace-pre-wrap leading-relaxed" style={{ fontSize: `${problemFontSize}px` }}>{problem.hint}</div>}
               </div>
             )}
 
@@ -1653,7 +1653,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                       <h3 className="text-[13px] font-bold text-gray-700">입력</h3>
                     </div>
-                    <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3">{problem.input_description}</p>
+                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3" style={{ fontSize: `${problemFontSize}px` }}>{problem.input_description}</p>
                   </div>
                 )}
                 {problem.output_description && (
@@ -1661,7 +1661,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                       <h3 className="text-[13px] font-bold text-gray-700">출력</h3>
                     </div>
-                    <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3">{problem.output_description}</p>
+                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap px-4 py-3" style={{ fontSize: `${problemFontSize}px` }}>{problem.output_description}</p>
                   </div>
                 )}
               </div>
