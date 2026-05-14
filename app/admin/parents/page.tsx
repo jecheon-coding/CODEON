@@ -13,7 +13,23 @@ interface ParentRow {
   loginId:      string
   isActive:     boolean
   createdAt:    string
+  lastLoginAt:  string | null
   studentNames: string[]
+}
+
+function formatLastLogin(dt: string | null): string {
+  if (!dt) return "접속 기록 없음"
+  const d   = new Date(dt)
+  const now = new Date()
+  const diffMs  = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1)   return "방금 전"
+  if (diffMin < 60)  return `${diffMin}분 전`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24)    return `${diffH}시간 전`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD < 7)     return `${diffD}일 전`
+  return d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric" })
 }
 
 const EMPTY_FORM = { name: "", loginId: "", password: "" }
@@ -234,6 +250,7 @@ export default function AdminParentsPage() {
                     <th className="text-left py-2 pr-4">아이디</th>
                     <th className="text-left py-2 pr-4">연결된 자녀</th>
                     <th className="text-left py-2 pr-4">가입일</th>
+                    <th className="text-left py-2 pr-4">최근 접속</th>
                     <th className="text-left py-2 pr-4">상태</th>
                     <th className="text-left py-2">관리</th>
                   </tr>
@@ -250,6 +267,11 @@ export default function AdminParentsPage() {
                       </td>
                       <td className="py-3 pr-4 text-gray-400 text-xs">
                         {new Date(p.createdAt).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
+                      </td>
+                      <td className="py-3 pr-4 text-xs whitespace-nowrap">
+                        <span className={p.lastLoginAt ? "text-gray-600" : "text-gray-300"}>
+                          {formatLastLogin(p.lastLoginAt)}
+                        </span>
                       </td>
                       <td className="py-3 pr-4">
                         <button

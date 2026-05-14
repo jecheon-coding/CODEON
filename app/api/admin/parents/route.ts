@@ -15,7 +15,7 @@ export async function GET() {
 
   const { data: parents, error } = await supabaseServer
     .from("users")
-    .select("id, name, login_id, is_active, created_at")
+    .select("id, name, login_id, is_active, created_at, last_login_at")
     .eq("role", "parent")
     .eq("auth_provider", "credentials")
     .order("created_at", { ascending: false })
@@ -54,6 +54,7 @@ export async function GET() {
       loginId:      p.login_id,
       isActive:     p.is_active,
       createdAt:    p.created_at,
+      lastLoginAt:  p.last_login_at,
       studentNames: linkMap[p.id] ?? [],
     }))
   )
