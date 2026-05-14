@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Brain, Send, SkipForward, Sparkles, CheckCircle2, Plus, AlertCircle, BookOpen } from "lucide-react";
 import { Problem } from "@/types/problem";
 
@@ -22,6 +22,7 @@ export default function ComprehensionPanel({ problem, code, isDark, required = f
   const [correction, setCorrection] = useState<string | null>(null);
   const [bonusScore, setBonusScore] = useState(0);
   const [inputError, setInputError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasFetched                = useRef(false);
 
   const D = (dark: string, light: string) => isDark ? dark : light;
@@ -75,6 +76,8 @@ ${code}
     if (!answer.trim()) return;
     if (answer.trim().length < 15) {
       setInputError("답변이 너무 짧습니다. 조금 더 자세히 설명해보세요.");
+      textareaRef.current?.select();
+      textareaRef.current?.focus();
       return;
     }
     setInputError("");
@@ -216,23 +219,30 @@ ${code}
               {question}
             </p>
             <textarea
+              ref={textareaRef}
               value={answer}
               onChange={e => { setAnswer(e.target.value); if (inputError) setInputError(""); if (phase === "question") setPhase("answering"); }}
-              placeholder="자신의 말로 설명해보세요..."
-              rows={2}
+              placeholder="자신의 말로 설명해보세요... (15자 이상)"
+              rows={3}
               className={`w-full text-sm rounded-lg px-3 py-2 border resize-none outline-none transition-colors
                 ${inputError
-                  ? "border-red-400 focus:border-red-400"
+                  ? D("bg-slate-800/60 border-red-500 text-gray-200", "bg-white border-red-400 text-gray-700")
                   : D(
                     "bg-slate-800/60 border-violet-700 text-gray-200 placeholder:text-slate-600 focus:border-violet-400",
                     "bg-white border-violet-200 text-gray-700 placeholder:text-violet-300 focus:border-violet-400"
                   )}`}
             />
-            {inputError && (
-              <p className="text-[11px] text-red-400 flex items-center gap-1">
-                <AlertCircle size={11} /> {inputError}
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              {inputError
+                ? <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle size={11} /> {inputError}</p>
+                : <span />
+              }
+              <span className={`text-[11px] tabular-nums ${answer.trim().length >= 15
+                ? D("text-emerald-400", "text-emerald-600")
+                : D("text-slate-500", "text-gray-400")}`}>
+                {answer.trim().length} / 15자
+              </span>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={handleSubmitAnswer}
