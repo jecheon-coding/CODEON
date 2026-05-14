@@ -1201,6 +1201,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         renderLineHighlight:     "line",
         tabSize:                 4,
         insertSpaces:            true,
+        autoIndent:              "brackets",
         padding:                 { top: 14, bottom: 14 },
         lineNumbers:             "on",
         autoClosingQuotes:       "always",
