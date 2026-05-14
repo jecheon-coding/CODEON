@@ -1582,45 +1582,45 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
         <div className="shrink-0 bg-white border-r border-gray-200 overflow-y-auto" style={{ width: `${panelWidth}%`, paddingTop: "20px", paddingBottom: "32px", paddingLeft: "28px", paddingRight: "28px" }}>
           <div className="flex flex-col gap-5">
 
-            {/* 태그 행 + 폰트 크기 슬라이더 */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2 flex-wrap items-center">
-                {problem.topic && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded">{problem.topic}</span>
-                )}
-                <span className="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded">{problem.category}</span>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-gray-400 font-mono">{problemFontSize}px</span>
-                  <input
-                    type="range" min={12} max={20} step={1} value={problemFontSize}
-                    onChange={e => handleProblemFontSizeChange(Number(e.target.value))}
-                    className="w-16 h-1.5 accent-[#534AB7] cursor-pointer"
-                    title="문제 글자 크기"
-                  />
+            {/* 제목 + 태그 + 슬라이더 통합 행 */}
+            <div className="flex items-start justify-between gap-3">
+              {/* 좌: 번호 + 제목 + 상태 + 태그 */}
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {problem.number != null && (
+                    <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                      #{problem.number}
+                    </span>
+                  )}
+                  <h2 className="text-xl font-bold text-gray-900 leading-snug">{problem.title}</h2>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {userState.status === "미제출" && (
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    )}
+                    <span className={`text-[12px] font-bold rounded px-2 py-0.5 ${USER_STATUS_BADGE[userState.status].cls}`}>
+                      {USER_STATUS_BADGE[userState.status].label}
+                    </span>
+                  </div>
                 </div>
-                <span className={`px-2 py-1 text-xs font-bold rounded ${DIFF_BADGE[problem.difficulty] ?? "bg-gray-100 text-gray-600"}`}>
-                  {problem.difficulty}
-                </span>
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  {problem.topic && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded">{problem.topic}</span>
+                  )}
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded">{problem.category}</span>
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded ${DIFF_BADGE[problem.difficulty] ?? "bg-gray-100 text-gray-600"}`}>
+                    {problem.difficulty}
+                  </span>
+                </div>
               </div>
-            </div>
-
-            {/* 제목 + 배지 (같은 행) */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {problem.number != null && (
-                <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded shrink-0">
-                  #{problem.number}
-                </span>
-              )}
-              <h2 className="text-xl font-bold text-gray-900 leading-snug">{problem.title}</h2>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {userState.status === "미제출" && (
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-                <span className={`text-[12px] font-bold rounded px-2 py-0.5 ${USER_STATUS_BADGE[userState.status].cls}`}>
-                  {USER_STATUS_BADGE[userState.status].label}
-                </span>
+              {/* 우: 폰트 슬라이더 */}
+              <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                <span className="text-[11px] text-gray-400 font-mono">{problemFontSize}px</span>
+                <input
+                  type="range" min={12} max={20} step={1} value={problemFontSize}
+                  onChange={e => handleProblemFontSizeChange(Number(e.target.value))}
+                  className="w-16 h-1.5 accent-[#534AB7] cursor-pointer"
+                  title="문제 글자 크기"
+                />
               </div>
             </div>
 
