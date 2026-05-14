@@ -740,8 +740,12 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
     return () => clearInterval(id)
   }, [])
 
-  // ── 배경색 ──────────────────────────────────────────────────────────────────
-  const [bgKey, setBgKey]               = useState<BgKey>("dark")
+  // ── 배경색 (localStorage "editorBgKey") ─────────────────────────────────────
+  const [bgKey, setBgKey] = useState<BgKey>(() => {
+    if (typeof window === "undefined") return "dark"
+    const saved = localStorage.getItem("editorBgKey") as BgKey | null
+    return saved && saved in BG_OPTIONS ? saved : "dark"
+  })
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
 
   // ── 에디터 글자 크기 (localStorage "editorFontSize") ───────────────────────
@@ -1560,7 +1564,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
             {bgPickerOpen && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl p-2 flex flex-col gap-0.5 z-50 min-w-[140px]">
                 {(Object.entries(BG_OPTIONS) as [BgKey, (typeof BG_OPTIONS)[BgKey]][]).map(([key, opt]) => (
-                  <button key={key} onClick={() => { setBgKey(key); setBgPickerOpen(false) }}
+                  <button key={key} onClick={() => { setBgKey(key); localStorage.setItem("editorBgKey", key); setBgPickerOpen(false) }}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-left hover:bg-gray-50 transition-colors ${bgKey === key ? "bg-[#534AB7]/10 text-[#534AB7]" : "text-gray-700"}`}
                   >
                     <span className="w-4 h-4 rounded-full border border-gray-300 shrink-0" style={{ background: opt.editor }} />
