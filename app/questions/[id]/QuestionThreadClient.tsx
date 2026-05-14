@@ -122,7 +122,7 @@ export default function QuestionThreadClient({ questionId }: { questionId: strin
 
       {/* 상단 네비바 */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm text-gray-500 min-w-0">
+        <div className="max-w-3xl mx-auto flex items-center gap-2 text-sm text-gray-500 min-w-0">
           {/* 뒤로가기: 어드민에서 왔으면 대시보드, 아니면 문제 페이지 */}
           <button
             onClick={() => fromAdmin
@@ -154,7 +154,7 @@ export default function QuestionThreadClient({ questionId }: { questionId: strin
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-4">
+      <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-4">
 
         {/* 원본 질문 카드 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
