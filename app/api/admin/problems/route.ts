@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { id, title, category, difficulty, topic, content,
     input_description, output_description, constraints,
-    initial_code, hint, example_input, example_output } = body
+    initial_code, hint, example_input, example_output, comprehension_enabled } = body
 
   if (!id?.trim())    return NextResponse.json({ error: "ID는 필수입니다." }, { status: 400 })
   if (!title?.trim()) return NextResponse.json({ error: "제목은 필수입니다." }, { status: 400 })
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
     hint:               hint?.trim()              || null,
     example_input:      example_input?.trim()     || null,
     example_output:     example_output?.trim()    || null,
+    comprehension_enabled: comprehension_enabled ?? false,
     status: "published", is_community: false,
   }
   if (nextOrder !== null) insertData.display_order = nextOrder

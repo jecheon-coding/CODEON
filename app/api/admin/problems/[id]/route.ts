@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     "input_description", "output_description", "constraints",
     "initial_code", "hint",
     "example_input", "example_output", "image_url", "time_limit_ms",
-    "gen_code", "sol_code", "status", "display_order",
+    "gen_code", "sol_code", "status", "display_order", "comprehension_enabled",
   ]
 
   const update: Record<string, any> = {}
