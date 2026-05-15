@@ -83,6 +83,12 @@ export default function ParentPendingPage() {
               >
                 다시 연결 요청하기
               </button>
+              <button
+                onClick={() => router.push("/")}
+                className="w-full mt-2 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                홈으로
+              </button>
             </>
           ) : (
             <>

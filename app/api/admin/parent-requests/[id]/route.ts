@@ -14,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const { action } = await req.json() as { action: "approve" | "reject" }
+  const { action, rejectReason } = await req.json() as { action: "approve" | "reject"; rejectReason?: string }
   if (action !== "approve" && action !== "reject")
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
 
@@ -25,8 +25,10 @@ export async function POST(
     .eq("id", id)
     .single()
 
-  if (reqErr || !req_)
-    return NextResponse.json({ error: "요청을 찾을 수 없습니다." }, { status: 404 })
+  if (reqErr || !req_) {
+    console.error("[parent-requests] 요청 조회 실패:", reqErr?.message, "id:", id)
+    return NextResponse.json({ error: reqErr?.message ?? "요청을 찾을 수 없습니다." }, { status: 404 })
+  }
 
   if (req_.status !== "pending")
     return NextResponse.json({ error: "이미 처리된 요청입니다." }, { status: 409 })
@@ -34,7 +36,12 @@ export async function POST(
   if (action === "reject") {
     await supabaseServer
       .from("parent_link_requests")
-      .update({ status: "rejected", reviewed_at: new Date().toISOString(), reviewed_by: adminId })
+      .update({
+        status: "rejected",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminId,
+        reject_reason: rejectReason?.trim() || null,
+      })
       .eq("id", id)
 
     return NextResponse.json({ success: true })

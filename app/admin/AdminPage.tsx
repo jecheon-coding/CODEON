@@ -1797,8 +1797,11 @@ function ProblemApprovalSection({ onRefreshSummary }: { onRefreshSummary: () => 
 // ── 학부모 연결 요청 ──────────────────────────────────────────────────────────
 
 function ParentLinkSection({ onRefreshSummary }: { onRefreshSummary: () => void }) {
-  const [requests, setRequests] = useState<LinkRequest[]>([])
-  const [acting,   setActing]   = useState<Record<string, boolean>>({})
+  const [requests,    setRequests]    = useState<LinkRequest[]>([])
+  const [acting,      setActing]      = useState<Record<string, boolean>>({})
+  const [actError,    setActError]    = useState<Record<string, string>>({})
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [rejectInput, setRejectInput] = useState("")
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/parent-requests")
@@ -1807,13 +1810,20 @@ function ParentLinkSection({ onRefreshSummary }: { onRefreshSummary: () => void 
 
   useEffect(() => { load() }, [load])
 
-  async function act(reqId: string, action: "approve" | "reject") {
+  async function act(reqId: string, action: "approve" | "reject", rejectReason?: string) {
     setActing(p => ({ ...p, [reqId]: true }))
-    await fetch(`/api/admin/parent-requests/${reqId}`, {
+    setActError(p => ({ ...p, [reqId]: "" }))
+    const res = await fetch(`/api/admin/parent-requests/${reqId}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, rejectReason }),
     })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setActError(p => ({ ...p, [reqId]: d.error ?? "처리 중 오류가 발생했습니다." }))
+    }
     setActing(p => ({ ...p, [reqId]: false }))
+    setRejectingId(null)
+    setRejectInput("")
     load(); onRefreshSummary()
   }
 
@@ -1842,13 +1852,43 @@ function ParentLinkSection({ onRefreshSummary }: { onRefreshSummary: () => void 
                   </td>
                   <td className={TD}>{new Date(r.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}</td>
                   <td className="px-3 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button className={Btn.green} onClick={() => act(r.id, "approve")} disabled={acting[r.id]}>
-                        <CheckCircle2 className="w-3.5 h-3.5" /> 승인
-                      </button>
-                      <button className={Btn.danger} onClick={() => act(r.id, "reject")} disabled={acting[r.id]}>
-                        <XCircle className="w-3.5 h-3.5" /> 거절
-                      </button>
+                    <div className="flex flex-col items-end gap-1.5">
+                      {rejectingId === r.id ? (
+                        <div className="flex flex-col gap-1.5 items-end">
+                          <input
+                            autoFocus
+                            value={rejectInput}
+                            onChange={e => setRejectInput(e.target.value)}
+                            placeholder="반려 사유 (선택)"
+                            className="text-xs border border-red-200 rounded-lg px-2.5 py-1.5 w-52 outline-none focus:border-red-400"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                              onClick={() => { setRejectingId(null); setRejectInput("") }}
+                            >취소</button>
+                            <button
+                              className={Btn.danger}
+                              disabled={acting[r.id]}
+                              onClick={() => act(r.id, "reject", rejectInput)}
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> 거절 확인
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button className={Btn.green} onClick={() => act(r.id, "approve")} disabled={acting[r.id]}>
+                            <CheckCircle2 className="w-3.5 h-3.5" /> 승인
+                          </button>
+                          <button className={Btn.danger} onClick={() => setRejectingId(r.id)}>
+                            <XCircle className="w-3.5 h-3.5" /> 거절
+                          </button>
+                        </div>
+                      )}
+                      {actError[r.id] && (
+                        <p className="text-[11px] text-red-500 text-right max-w-[200px]">{actError[r.id]}</p>
+                      )}
                     </div>
                   </td>
                 </tr>
