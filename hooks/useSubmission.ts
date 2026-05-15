@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { runPythonInWorker } from "@/lib/pyodideWorker";
 import { saveSubmission } from "@/services/submission.service";
-import { supabase } from "@/lib/supabase";
 import { Problem, SubmissionStatus, TestCase, CaseResult, CaseResultStatus } from "@/types/problem";
 
 function lastErrorLine(msg: string): string {
@@ -33,21 +32,7 @@ export function useSubmission(problem: Problem) {
     const timeoutMs = problem.time_limit_ms ?? undefined;
     setSubmissionOutput(null);
 
-    const { data: fetchedCases, error: fetchError } = await supabase
-      .from("test_cases")
-      .select("*")
-      .eq("problem_id", problem.id)
-      .order("display_order", { ascending: true });
-
-    if (fetchError) {
-      setStatus("error");
-      setSubmitting(false);
-      return "error";
-    }
-
-    const directCases: TestCase[] = Array.isArray(fetchedCases) ? fetchedCases : [];
-    const joinedCases: TestCase[] = Array.isArray(problem?.test_cases) ? problem.test_cases : [];
-    const allCases: TestCase[]    = directCases.length > 0 ? directCases : joinedCases;
+    const allCases: TestCase[] = Array.isArray(problem?.test_cases) ? problem.test_cases : [];
 
     try {
       // ── test_cases 기반 채점 ──────────────────────────────────────────────
