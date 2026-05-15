@@ -30,7 +30,7 @@ export async function GET() {
   ] = await Promise.all([
     supabaseServer
       .from("assignments")
-      .select("id, title, due_date, require_comprehension")
+      .select("id, title, due_date, require_comprehension, created_at")
       .in("id", assignmentIds)
       .or(`due_date.is.null,due_date.gt.${now}`),
     supabaseServer
@@ -49,13 +49,12 @@ export async function GET() {
   const activeIds = new Set((assignments ?? []).map((a: any) => a.id))
   const activeApData = (apData ?? []).filter((ap: any) => activeIds.has(ap.assignment_id))
 
-  // Latest submission per problem
-  const subMap: Record<string, { isCorrect: boolean; createdAt: string }> = {}
+  // Group submissions by problem_id for efficient per-assignment lookup
+  const subsByProblem: Record<string, Array<{ isCorrect: boolean; createdAt: string }>> = {}
   for (const s of subData ?? []) {
-    const cur = subMap[(s as any).problem_id]
-    if (!cur || (s as any).created_at > cur.createdAt) {
-      subMap[(s as any).problem_id] = { isCorrect: (s as any).is_correct, createdAt: (s as any).created_at }
-    }
+    const pid = (s as any).problem_id
+    if (!subsByProblem[pid]) subsByProblem[pid] = []
+    subsByProblem[pid].push({ isCorrect: (s as any).is_correct, createdAt: (s as any).created_at })
   }
 
   // 3. Fetch problem titles + difficulties
@@ -71,9 +70,14 @@ export async function GET() {
 
   // 4. Build HomeworkItem[]
   const items = activeApData.map((ap: any) => {
-    const assignment = assignMap[ap.assignment_id]
-    const problem    = problemMap[ap.problem_id] ?? {}
-    const sub        = subMap[ap.problem_id]
+    const assignment      = assignMap[ap.assignment_id]
+    const problem         = problemMap[ap.problem_id] ?? {}
+    const assignCreatedAt = (assignment as any)?.created_at ?? ""
+
+    // Only count submissions made AFTER this assignment was created (supports review re-assignment)
+    const subs = (subsByProblem[ap.problem_id] ?? []).filter(s => s.createdAt > assignCreatedAt)
+    const sub  = subs.length > 0 ? subs.reduce((a, b) => a.createdAt > b.createdAt ? a : b) : null
+
     return {
       assignmentId:    ap.assignment_id,
       assignmentTitle: assignment?.title ?? "",

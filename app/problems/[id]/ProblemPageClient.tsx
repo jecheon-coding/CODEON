@@ -686,11 +686,12 @@ function formatSubmitTime(date: Date): string {
 
 // ── HistoryTab ────────────────────────────────────────────────────────────────
 function HistoryTab({
-  history, isDark, onViewCode,
+  history, isDark, onViewCode, hideCode,
 }: {
   history: HistoryEntry[]
   isDark: boolean
   onViewCode: (code: string, time: Date) => void
+  hideCode?: boolean
 }) {
   const STATUS_STYLE: Record<string, string> = isDark ? {
     correct:     "text-emerald-400 bg-emerald-900/30",
@@ -721,7 +722,7 @@ function HistoryTab({
             <th className="px-4 py-3 font-semibold" style={{ width: "60px" }}>번호</th>
             <th className="px-4 py-3 font-semibold" style={{ width: "180px" }}>제출 시간</th>
             <th className="px-4 py-3 font-semibold" style={{ width: "100px" }}>결과</th>
-            <th className="px-4 py-3 font-semibold text-center">소스 코드</th>
+            {!hideCode && <th className="px-4 py-3 font-semibold text-center">소스 코드</th>}
           </tr>
         </thead>
         <tbody className={`divide-y ${isDark ? "divide-white/5" : "divide-gray-100"}`}>
@@ -736,6 +737,7 @@ function HistoryTab({
                   {STATUS_LABEL[entry.result] ?? entry.result}
                 </span>
               </td>
+            {!hideCode && (
               <td className="px-4 py-3 text-center">
                 <button
                   onClick={() => onViewCode(entry.code, entry.time)}
@@ -744,6 +746,7 @@ function HistoryTab({
                   <SvgCode /> 코드 보기
                 </button>
               </td>
+            )}
             </tr>
           ))}
         </tbody>
@@ -901,6 +904,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   const [lastCorrectCode, setLastCorrectCode]       = useState<string | null>(null)
   const [comprehensionKey, setComprehensionKey]     = useState(0)
   const [comprehensionRequired, setComprehensionRequired] = useState(false)
+  const [isAssigned,           setIsAssigned]           = useState(false)
   const [comprehensionDone, setComprehensionDone]   = useState(false)
 
   // ── 유저 상태 ───────────────────────────────────────────────────────────────
@@ -933,7 +937,10 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
     if (!userId) return
     fetch(`/api/student/assignments/check?problemId=${problem.id}`)
       .then(r => r.json())
-      .then(d => { if (d.requireComprehension) setComprehensionRequired(true) })
+      .then(d => {
+        if (d.requireComprehension) setComprehensionRequired(true)
+        if (d.isAssigned) setIsAssigned(true)
+      })
       .catch(() => {})
   }, [session, problem.id])
 
@@ -1971,6 +1978,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
               {activeTab === "history" && (
                 <HistoryTab history={history} isDark={isDark}
                   onViewCode={(code, time) => setHistoryModal({ open: true, code, time })}
+                  hideCode={isAssigned}
                 />
               )}
             </div>

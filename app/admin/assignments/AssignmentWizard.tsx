@@ -126,8 +126,14 @@ export default function AssignmentWizard({
   const [dragIdx,     setDragIdx]     = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
-  // Step 2: no-student warning
+  // Step 1: no-student warning
   const [noStudentWarn, setNoStudentWarn] = useState(false)
+  // Step 2: no-problem warning
+  const [noProblemWarn, setNoProblemWarn] = useState(false)
+  // Step 2: 제출 현황
+  const [subStatus,  setSubStatus]  = useState<Record<string, { submitted: boolean; isCorrect: boolean }>>({})
+  const [subLoading, setSubLoading] = useState(false)
+  const [pShowUnsubmitted, setPShowUnsubmitted] = useState(false)
 
   // Step 3: 이해 확인 필수
   const [requireComprehension, setRequireComprehension] = useState(initialRequireComprehension)
@@ -262,9 +268,10 @@ export default function AssignmentWizard({
       if (pTopic !== "전체") list = list.filter(p => p.topic === pTopic)
     }
 
-    if (pView === "selected") list = list.filter(p => selProblems.has(p.id))
-    if (pSearch.trim())       list = list.filter(p => p.title.toLowerCase().includes(pSearch.toLowerCase()))
-    if (pDiff.length > 0)     list = list.filter(p => pDiff.includes(p.difficulty))
+    if (pView === "selected")    list = list.filter(p => selProblems.has(p.id))
+    if (pSearch.trim())          list = list.filter(p => p.title.toLowerCase().includes(pSearch.toLowerCase()))
+    if (pDiff.length > 0)        list = list.filter(p => pDiff.includes(p.difficulty))
+    if (pShowUnsubmitted)        list = list.filter(p => !subStatus[p.id]?.submitted)
 
     if (pSort === "difficulty") {
       const order: Record<string, number> = { 하: 0, 중: 1, 상: 2 }
@@ -273,7 +280,7 @@ export default function AssignmentWizard({
 
     return list
   }, [problems, pCourse, pTopic, pSearch, pDiff, pSort, pView, selProblems,
-      certGrade, certType, certRound, compYear, compDivision])
+      certGrade, certType, certRound, compYear, compDivision, pShowUnsubmitted, subStatus])
 
   // ── 학생 그룹핑 (학년·반) ────────────────────────────────────────────────
   const filteredStudents = useMemo(() => {
@@ -363,18 +370,24 @@ export default function AssignmentWizard({
   }
 
   // ── Step 전환 ─────────────────────────────────────────────────────────────
-  function goToStep2() {
+  // Step 1(학생) → Step 2(문제): 학생 검증 + 제출 현황 로드
+  async function goToStep2() {
+    if (selStudents.size === 0) { setNoStudentWarn(true); return }
     setNoStudentWarn(false)
+    setSubLoading(true)
+    const ids = [...selStudents].join(",")
+    const res = await fetch(`/api/admin/submissions/status?studentIds=${ids}`)
+    if (res.ok) setSubStatus(await res.json())
+    setSubLoading(false)
     setStep(2)
   }
 
+  // Step 2(문제) → Step 3(설정): 문제 검증
   function goToStep3() {
-    if (selStudents.size === 0) { setNoStudentWarn(true); return }
-    setNoStudentWarn(false)
-    // Initialize ordered list from selection (Set preserves insertion order)
+    if (selProblems.size === 0) { setNoProblemWarn(true); return }
+    setNoProblemWarn(false)
     setOrderedProblemIds(prev => {
       const selected = [...selProblems]
-      // Keep existing order for already-ordered items, append new ones
       const existing = prev.filter(id => selProblems.has(id))
       const added    = selected.filter(id => !prev.includes(id))
       return [...existing, ...added]
@@ -451,23 +464,38 @@ export default function AssignmentWizard({
                 {step > n ? <CheckCircle2 className="w-4 h-4" /> : n}
               </div>
               <span className={`text-sm font-semibold ${step === n ? "text-gray-900" : "text-gray-400"}`}>
-                {n === 1 ? "문제 선택" : n === 2 ? "학생 선택" : "과제 설정"}
+                {n === 1 ? "학생 선택" : n === 2 ? "문제 선택" : "과제 설정"}
               </span>
             </div>
           </div>
         ))}
         <div className="ml-auto text-xs text-gray-400 font-medium">
-          {step === 1 && <span>총 {filteredProblems.length}개 · 선택 {selProblems.size}개</span>}
-          {step === 2 && selStudents.size > 0 && <span>학생 {selStudents.size}명</span>}
+          {step === 1 && selStudents.size > 0 && (
+            <span className="flex items-center gap-1.5">
+              학생 {selStudents.size}명
+              {selStudents.size === 1 && (
+                <span className="text-[11px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">개인 과제</span>
+              )}
+            </span>
+          )}
+          {step === 2 && <span>총 {filteredProblems.length}개 · 선택 {selProblems.size}개</span>}
         </div>
       </div>
 
       {/* Main content card */}
       <div className="flex-1 min-h-0 bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm">
 
-        {/* ══ Step 1: 문제 선택 ══ */}
-        {step === 1 && (
+        {/* ══ Step 2: 문제 선택 ══ */}
+        {step === 2 && (
           <>
+            {/* 경고 배너 */}
+            {noProblemWarn && (
+              <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-700">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                문제를 1개 이상 선택해야 다음 단계로 이동할 수 있습니다.
+              </div>
+            )}
+
             {/* Course tabs */}
             <div className="shrink-0 flex border-b border-gray-100 bg-white overflow-x-auto scrollbar-none">
               {COURSE_TABS.map(({ key, label }) => (
@@ -575,6 +603,13 @@ export default function AssignmentWizard({
                   </button>
                 ))}
               </div>
+              <button onClick={() => setPShowUnsubmitted(v => !v)}
+                className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full border transition-all whitespace-nowrap
+                  ${pShowUnsubmitted
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"}`}>
+                미제출만
+              </button>
               <select value={pSort} onChange={e => setPSort(e.target.value as "title" | "difficulty")}
                 className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-indigo-400 text-gray-700">
                 <option value="title">가나다순</option>
@@ -609,6 +644,7 @@ export default function AssignmentWizard({
                       <th className={TH}>문제명</th>
                       {showTopicCol && <th className={TH}>토픽</th>}
                       <th className={TH}>난이도</th>
+                      <th className={`${TH} w-12 text-center`}>현황</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -637,6 +673,13 @@ export default function AssignmentWizard({
                             {p.difficulty}
                           </span>
                         </td>
+                        <td className="px-3 py-2.5 text-center text-base">
+                          {subStatus[p.id]?.isCorrect
+                            ? "✅"
+                            : subStatus[p.id]?.submitted
+                              ? "❌"
+                              : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -663,7 +706,7 @@ export default function AssignmentWizard({
                   <span className="text-gray-400 font-normal">문제를 선택하면 다음 단계로 이동할 수 있습니다</span>
                 )}
               </div>
-              <button onClick={goToStep2} disabled={selProblems.size === 0}
+              <button onClick={goToStep3} disabled={selProblems.size === 0}
                 className="shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 다음 <ArrowRight className="w-3.5 h-3.5" />
               </button>
@@ -671,8 +714,8 @@ export default function AssignmentWizard({
           </>
         )}
 
-        {/* ══ Step 2: 학생 선택 ══ */}
-        {step === 2 && (
+        {/* ══ Step 1: 학생 선택 ══ */}
+        {step === 1 && (
           <>
             {/* 경고 배너 */}
             {noStudentWarn && (
@@ -775,11 +818,24 @@ export default function AssignmentWizard({
               )}
             </div>
 
-            {selStudents.size > 0 && (
-              <div className="shrink-0 px-4 py-2.5 bg-indigo-50 border-t border-indigo-100 text-xs font-semibold text-indigo-700">
-                {selStudents.size}명 선택됨
+            <div className="shrink-0 px-4 py-2.5 border-t border-gray-100 bg-indigo-50 flex items-center justify-between gap-4">
+              <div className="text-xs font-semibold text-indigo-700">
+                {selStudents.size > 0 ? (
+                  <span className="flex items-center gap-1.5">
+                    {selStudents.size}명 선택됨
+                    {selStudents.size === 1 && (
+                      <span className="text-[11px] font-bold bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">개인 과제</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 font-normal">학생을 선택하면 다음 단계로 이동할 수 있습니다</span>
+                )}
               </div>
-            )}
+              <button onClick={goToStep2} disabled={selStudents.size === 0 || subLoading}
+                className="shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {subLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>다음 <ArrowRight className="w-3.5 h-3.5" /></>}
+              </button>
+            </div>
           </>
         )}
 
@@ -891,13 +947,6 @@ export default function AssignmentWizard({
           <ArrowLeft className="w-4 h-4" />
           {step === 1 ? "취소" : "이전"}
         </button>
-
-        {step === 2 && (
-          <button onClick={goToStep3}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">
-            다음 <ArrowRight className="w-4 h-4" />
-          </button>
-        )}
 
         {step === 3 && (
           <button onClick={handleSubmit} disabled={saving || !title.trim()}
