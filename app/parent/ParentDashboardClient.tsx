@@ -815,7 +815,7 @@ export default function ParentDashboardClient({
             {/* 집중 보완 단원 (자동) */}
             {weakTopics.length > 0 && (
               <div className="mt-5 pt-5 border-t border-slate-100 dark:border-gray-800">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2.5">집중 보완 단원 <span className="normal-case font-normal">(자동 계산)</span></p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2.5">집중 보완 단원</p>
                 <div className="flex flex-wrap gap-2">
                   {weakTopics.slice(0, 4).map((t, i) => {
                     const cls = t.rate >= 50
@@ -842,7 +842,7 @@ export default function ParentDashboardClient({
               </div>
               <div>
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">이번 주 학습 흐름</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">최근 7일 · 자동 집계</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">최근 7일</p>
               </div>
             </div>
             <div className="flex-1 space-y-3">
@@ -1133,7 +1133,7 @@ export default function ParentDashboardClient({
               </div>
               <div>
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">과제 제출 현황</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">전체 과제 완료율 · 자동 집계</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">전체 과제 완료율</p>
               </div>
             </div>
 
@@ -1250,7 +1250,7 @@ export default function ParentDashboardClient({
               </div>
               <div>
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">최근 제출 요약</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">최근 10회 기준 · 자동 집계</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">최근 10회 기준</p>
               </div>
             </div>
 
