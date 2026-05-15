@@ -10,6 +10,7 @@ export async function GET(
     .from("problems")
     .select("id, title, category, topic, difficulty, comprehension_enabled")
     .eq("id", id)
+    .eq("status", "published")
     .single()
 
   if (error || !data) return NextResponse.json({ error: "Not found" }, { status: 404 })
