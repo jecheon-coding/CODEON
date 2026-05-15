@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Send } from "lucide-react"
-import CodeOnLogo from "@/components/ui/CodeOnLogo"
 
 const RELATIONSHIPS = ["어머니", "아버지", "보호자"] as const
 
@@ -48,7 +47,20 @@ export default function RequestLinkPage() {
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-100 h-14 flex items-center px-6">
         <div className="max-w-lg mx-auto w-full flex items-center gap-3">
-          <CodeOnLogo />
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="flex items-center gap-2 select-none shrink-0 opacity-90 hover:opacity-100 transition-opacity"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+            </div>
+            <span className="font-bold tracking-tight text-base text-gray-900">
+              Code<span className="text-indigo-500">O</span>n
+            </span>
+          </button>
         </div>
       </header>
 
