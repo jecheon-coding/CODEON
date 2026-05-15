@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { supabase } from "@/lib/supabase"
 import { useCodeExecution } from "@/hooks/useCodeExecution"
 import { useSubmission } from "@/hooks/useSubmission"
 import { preloadWorker } from "@/lib/pyodideWorker"
@@ -944,27 +943,23 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       .catch(() => {})
   }, [session, problem.id])
 
-  // ── 제출 기록 DB 조회 (재진입 시 복원) ─────────────────────────────────────
+  // ── 제출 기록 서버 API 조회 (재진입 시 복원) ────────────────────────────────
   useEffect(() => {
     const userId = (session?.user as any)?.id as string | undefined
     if (!userId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from("submissions")
-        .select("id, created_at, result, is_correct, code")
-        .eq("user_id", userId)
-        .eq("problem_id", problem.id)
-        .order("created_at", { ascending: false })
-        .limit(20)
-      if (data && data.length > 0) {
-        setHistory(data.map(r => ({
-          id:     r.id,
-          time:   new Date(/Z|[+-]\d{2}:?\d{2}$/.test(r.created_at) ? r.created_at : r.created_at + "Z"),
-          result: (r.is_correct ? "correct" : r.result === "오류" ? "error" : "wrong") as SubmissionStatus,
-          code:   r.code ?? "",
-        })))
-      }
-    })()
+    fetch(`/api/submissions/history?problemId=${problem.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        if (data.length > 0) {
+          setHistory(data.map(r => ({
+            id:     r.id,
+            time:   new Date(/Z|[+-]\d{2}:?\d{2}$/.test(r.created_at) ? r.created_at : r.created_at + "Z"),
+            result: (r.is_correct ? "correct" : r.result === "오류" ? "error" : "wrong") as SubmissionStatus,
+            code:   r.code ?? "",
+          })))
+        }
+      })
+      .catch(() => {})
   }, [session, problem.id])
 
   // ── Monaco 초기화 (문제 변경 시 재생성) ────────────────────────────────────
