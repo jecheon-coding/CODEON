@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
+import { callGemini } from "@/lib/gemini"
 
 async function isAdmin() {
   const session = await getServerSession(authOptions)
@@ -52,27 +53,9 @@ ${description ? `추가 설명: ${description}` : ""}
 - 입력 유형에 맞는 example_input/output 작성
 - 난이도에 맞는 복잡도로 작성`
 
-  const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-  if (!geminiKey) return NextResponse.json({ error: "Gemini API 키가 설정되지 않았습니다." }, { status: 500 })
-
+  let text: string
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      }
-    )
-
-    const data = await res.json()
-
-    if (!res.ok || data?.error) {
-      const errMsg = data?.error?.message ?? "Gemini API 오류"
-      return NextResponse.json({ error: errMsg }, { status: res.status })
-    }
-
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    text = await callGemini(prompt, { timeoutMs: 45_000 })
     if (!text) return NextResponse.json({ error: "AI 응답 없음" }, { status: 500 })
 
     const jsonMatch = text.match(/\{[\s\S]*\}/)

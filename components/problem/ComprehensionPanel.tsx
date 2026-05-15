@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Brain, Send, SkipForward, Sparkles, CheckCircle2, Plus, AlertCircle, BookOpen } from "lucide-react";
 import { Problem } from "@/types/problem";
+import { callGemini } from "@/lib/gemini";
 
 interface Props {
   problem: Problem;
@@ -36,37 +37,15 @@ export default function ComprehensionPanel({ problem, code, isDark, required = f
   const generateQuestion = async () => {
     setPhase("loading");
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `너는 친절한 코딩 강사야. 학생이 방금 이 문제를 풀었어.
-
-문제: ${problem.title}
-학생 코드:
-${code}
-
-학생이 자기 코드를 이해하고 풀었는지 확인하려고 해.
-코드의 핵심 로직이나 사용한 개념에 대해 서술형 질문 1개를 만들어.
-
-조건:
-- 코드를 직접 보지 않고도 자신의 말로 설명해야 하는 질문
-- Yes/No 대답이 아닌 서술형
-- 한국어로, 1문장
-- 질문만 출력 (서론이나 설명 없이)`,
-              }]
-            }]
-          }),
-        }
-      );
+      const res = await fetch("/api/comprehension/question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ problemId: problem.id, code }),
+      });
       const data = await res.json();
-      const q = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-      if (q) { setQuestion(q); setPhase("question"); }
-      else setPhase("error");
+      if (!res.ok || !data.question) { setPhase("error"); return; }
+      setQuestion(data.question);
+      setPhase("question");
     } catch {
       setPhase("error");
     }
@@ -86,15 +65,8 @@ ${code}
     let fb = "";
     let isRelevant = false;
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `너는 코딩 강사야. 학생 답변이 질문에 성실하게 답했는지 엄격하게 판단해.
+      const raw = await callGemini(
+        `너는 코딩 강사야. 학생 답변이 질문에 성실하게 답했는지 엄격하게 판단해.
 
 문제: ${problem.title}
 학생 코드:
@@ -119,15 +91,8 @@ ${code}
 반드시 아래 JSON 형식으로만 응답해 (다른 텍스트 없이):
 {"relevant": true, "feedback": "피드백 1~2문장", "correction": "올바른/보완 설명 또는 null"}
 또는
-{"relevant": false, "feedback": "무엇을 설명해야 하는지 한 문장", "correction": "이 질문에 대한 올바른 설명 2~4문장"}`,
-              }]
-            }]
-          }),
-        }
+{"relevant": false, "feedback": "무엇을 설명해야 하는지 한 문장", "correction": "이 질문에 대한 올바른 설명 2~4문장"}`
       );
-      const data = await res.json();
-      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-      // JSON 파싱 시도
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);

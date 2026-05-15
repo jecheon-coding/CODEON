@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { X, Send, Bot, Zap, RotateCcw, CheckCircle } from "lucide-react"
+import { callGemini } from "@/lib/gemini"
 
 type Message = { role: "user" | "ai"; text: string }
 
@@ -118,19 +119,11 @@ ${trimmed}
 정답 코드를 직접 알려주지 말고, 개념과 방향을 친절하고 간결하게 3~4문장 이내로 답변해줘. 한국어만 사용해.`
 
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        }
-      )
-      const data = await res.json()
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "AI 응답 없음"
-      setMessages([...nextMessages, { role: "ai", text: aiText }])
-    } catch {
-      setMessages([...nextMessages, { role: "ai", text: "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요." }])
+      const aiText = await callGemini(prompt)
+      setMessages([...nextMessages, { role: "ai", text: aiText || "AI 응답 없음" }])
+    } catch (e: any) {
+      const msg = e.message?.includes("초과") ? "응답 시간이 초과됐어요. 다시 시도해 주세요." : "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+      setMessages([...nextMessages, { role: "ai", text: msg }])
     } finally {
       setLoading(false)
     }
