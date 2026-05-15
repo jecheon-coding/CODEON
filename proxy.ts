@@ -6,6 +6,12 @@ export async function proxy(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
   const { pathname } = request.nextUrl
 
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    if (!token || (token as any).role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+  }
+
   if (pathname.startsWith("/parent")) {
     if (!token || (token as any).role !== "parent") {
       return NextResponse.redirect(new URL("/login?role=parent", request.url))
@@ -22,5 +28,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/parent/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/parent/:path*"],
 }
