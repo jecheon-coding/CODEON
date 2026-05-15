@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Clock, CheckCircle2, XCircle } from "lucide-react"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
@@ -55,7 +55,24 @@ export default function ParentPendingPage() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <header className="bg-white border-b border-gray-100 h-14 flex items-center px-6">
         <div className="max-w-lg mx-auto w-full flex items-center gap-3">
-          <CodeOnLogo />
+          {requestStatus === "rejected" ? (
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="flex items-center gap-2 select-none shrink-0 opacity-90 hover:opacity-100 transition-opacity"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+              </div>
+              <span className="font-bold tracking-tight text-base text-gray-900">
+                Code<span className="text-indigo-500">O</span>n
+              </span>
+            </button>
+          ) : (
+            <CodeOnLogo />
+          )}
         </div>
       </header>
 
@@ -82,12 +99,6 @@ export default function ParentPendingPage() {
                 className="w-full py-3.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition-colors"
               >
                 다시 연결 요청하기
-              </button>
-              <button
-                onClick={() => router.push("/")}
-                className="w-full mt-2 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                홈으로
               </button>
             </>
           ) : (
