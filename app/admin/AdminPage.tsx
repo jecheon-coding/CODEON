@@ -2782,7 +2782,7 @@ function SettingsSection() {
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false)
-  const session = useSession()?.data
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [summary,    setSummary]    = useState<Summary | null>(null)
   const [liveUnsub,  setLiveUnsub]  = useState<{ count: number; tab: string } | null>(null)
@@ -2821,9 +2821,9 @@ export default function AdminPage() {
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    if (!session) return
-    if ((session.user as any)?.role !== "admin") router.push("/")
-  }, [session, router])
+    if (status === "loading") return
+    if (!session || (session.user as any)?.role !== "admin") router.push("/")
+  }, [session, status, router])
 
   const loadSummary = useCallback(async () => {
     const res = await fetch("/api/admin/summary")
@@ -2832,7 +2832,7 @@ export default function AdminPage() {
 
   useEffect(() => { loadSummary() }, [loadSummary])
 
-  if (!mounted) return null
+  if (!mounted || status === "loading" || (session?.user as any)?.role !== "admin") return null
 
   return (
     <div className="min-h-screen bg-slate-100">
