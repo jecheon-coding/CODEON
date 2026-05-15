@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import {
   Sparkles, Menu, X,
   Brain, CheckCircle2,
@@ -168,6 +168,14 @@ export default function Landing() {
             >
               {status === "authenticated" ? "대시보드" : "로그인"}
             </button>
+            {status === "authenticated" && (
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 rounded-lg transition-all duration-200"
+              >
+                로그아웃
+              </button>
+            )}
 
             <button
               onClick={() => setMobileMenuOpen(v => !v)}
