@@ -921,7 +921,13 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
     const userId = (session?.user as any)?.id as string | undefined
     if (!userId) return
     fetch(`/api/submissions/history?problemId=${problem.id}`)
-      .then(r => r.ok ? r.json() : [])
+      .then(async r => {
+        if (!r.ok) {
+          console.error("[history] API error", r.status, await r.text())
+          return []
+        }
+        return r.json() as Promise<any[]>
+      })
       .then((data: any[]) => {
         setUserState(calcUserStatus(data.map(r => ({ problem_id: problem.id, is_correct: r.is_correct }))))
         if (data.length > 0) {
@@ -933,7 +939,7 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
           })))
         }
       })
-      .catch(() => {})
+      .catch(e => console.error("[history] fetch failed", e))
   }, [session, problem.id])
 
   // ── 과제 이해 확인 필수 여부 조회 ────────────────────────────────────────────

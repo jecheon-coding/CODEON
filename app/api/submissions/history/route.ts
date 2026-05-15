@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { supabaseServer } from "@/lib/supabaseServer"
 
+export const dynamic = "force-dynamic"
+
 // GET /api/submissions/history?problemId=xxx
 // 현재 로그인 학생의 특정 문제 제출 기록 반환 (service role → RLS 영향 없음)
 export async function GET(req: NextRequest) {
