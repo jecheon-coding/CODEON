@@ -916,18 +916,24 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
   // ── AI 코치 패널 ────────────────────────────────────────────────────────────
   const [coachOpen, setCoachOpen] = useState(false)
 
-  // ── 초기 유저 상태 조회 ───────────────────────────────────────────────────
+  // ── 초기 유저 상태 + 제출 기록 조회 ─────────────────────────────────────────
   useEffect(() => {
     const userId = (session?.user as any)?.id as string | undefined
     if (!userId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from("submissions")
-        .select("problem_id, is_correct")
-        .eq("user_id", userId)
-        .eq("problem_id", problem.id)
-      setUserState(calcUserStatus((data ?? []) as SubmissionSummaryRow[]))
-    })()
+    fetch(`/api/submissions/history?problemId=${problem.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        setUserState(calcUserStatus(data.map(r => ({ problem_id: problem.id, is_correct: r.is_correct }))))
+        if (data.length > 0) {
+          setHistory(data.map(r => ({
+            id:     r.id,
+            time:   new Date(/Z|[+-]\d{2}:?\d{2}$/.test(r.created_at) ? r.created_at : r.created_at + "Z"),
+            result: (r.is_correct ? "correct" : r.result === "오류" ? "error" : "wrong") as SubmissionStatus,
+            code:   r.code ?? "",
+          })))
+        }
+      })
+      .catch(() => {})
   }, [session, problem.id])
 
   // ── 과제 이해 확인 필수 여부 조회 ────────────────────────────────────────────
@@ -943,24 +949,6 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
       .catch(() => {})
   }, [session, problem.id])
 
-  // ── 제출 기록 서버 API 조회 (재진입 시 복원) ────────────────────────────────
-  useEffect(() => {
-    const userId = (session?.user as any)?.id as string | undefined
-    if (!userId) return
-    fetch(`/api/submissions/history?problemId=${problem.id}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: any[]) => {
-        if (data.length > 0) {
-          setHistory(data.map(r => ({
-            id:     r.id,
-            time:   new Date(/Z|[+-]\d{2}:?\d{2}$/.test(r.created_at) ? r.created_at : r.created_at + "Z"),
-            result: (r.is_correct ? "correct" : r.result === "오류" ? "error" : "wrong") as SubmissionStatus,
-            code:   r.code ?? "",
-          })))
-        }
-      })
-      .catch(() => {})
-  }, [session, problem.id])
 
   // ── Monaco 초기화 (문제 변경 시 재생성) ────────────────────────────────────
   useEffect(() => {
