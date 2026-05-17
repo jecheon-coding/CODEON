@@ -92,6 +92,103 @@ export default function CodeEditor({
       const monaco = await import("monaco-editor");
       if (editorInstance.current || !editorRef.current) return;
 
+      // ── Python 자동완성 프로바이더 (한 번만 등록) ──────────────────────────
+      const PYTHON_BUILTINS = [
+        { name: "print",     params: "*objects, sep=' ', end='\\n'" },
+        { name: "input",     params: "prompt=''" },
+        { name: "int",       params: "x=0" },
+        { name: "float",     params: "x=0" },
+        { name: "str",       params: "object=''" },
+        { name: "bool",      params: "x=False" },
+        { name: "len",       params: "s" },
+        { name: "range",     params: "start, stop, step=1" },
+        { name: "list",      params: "iterable=()" },
+        { name: "dict",      params: "" },
+        { name: "set",       params: "iterable=()" },
+        { name: "tuple",     params: "iterable=()" },
+        { name: "sorted",    params: "iterable, key=None, reverse=False" },
+        { name: "reversed",  params: "sequence" },
+        { name: "enumerate", params: "iterable, start=0" },
+        { name: "zip",       params: "*iterables" },
+        { name: "map",       params: "function, iterable" },
+        { name: "filter",    params: "function, iterable" },
+        { name: "sum",       params: "iterable, start=0" },
+        { name: "max",       params: "*args" },
+        { name: "min",       params: "*args" },
+        { name: "abs",       params: "x" },
+        { name: "round",     params: "number, ndigits=0" },
+        { name: "type",      params: "object" },
+        { name: "isinstance", params: "object, classinfo" },
+        { name: "append",    params: "object" },
+        { name: "split",     params: "sep=None, maxsplit=-1" },
+        { name: "join",      params: "iterable" },
+        { name: "strip",     params: "chars=None" },
+        { name: "replace",   params: "old, new, count=-1" },
+        { name: "open",      params: "file, mode='r'" },
+      ]
+
+      function extractUserSymbols(code: string) {
+        const symbols: { name: string; params: string; kind: "function" | "class" | "variable" }[] = []
+        const seen = new Set<string>()
+
+        // def funcname(params):
+        for (const m of code.matchAll(/^[ \t]*def\s+(\w+)\s*\(([^)]*)\)/gm)) {
+          if (!seen.has(m[1])) { seen.add(m[1]); symbols.push({ name: m[1], params: m[2].trim(), kind: "function" }) }
+        }
+        // class ClassName:
+        for (const m of code.matchAll(/^class\s+(\w+)/gm)) {
+          if (!seen.has(m[1])) { seen.add(m[1]); symbols.push({ name: m[1], params: "", kind: "class" }) }
+        }
+        // 단순 변수 할당: varname = ...
+        const RESERVED = new Set(["if","else","for","while","def","class","import","from","return","True","False","None","and","or","not","in","is","lambda"])
+        for (const m of code.matchAll(/^(\w+)\s*=/gm)) {
+          if (!seen.has(m[1]) && !RESERVED.has(m[1])) { seen.add(m[1]); symbols.push({ name: m[1], params: "", kind: "variable" }) }
+        }
+        return symbols
+      }
+
+      if (!(window as any).__monacoCompletionRegistered) {
+        ;(window as any).__monacoCompletionRegistered = true
+        monaco.languages.registerCompletionItemProvider("python", {
+          provideCompletionItems(model, position) {
+            const word  = model.getWordUntilPosition(position)
+            const range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber:   position.lineNumber,
+              startColumn:     word.startColumn,
+              endColumn:       word.endColumn,
+            }
+            const CIK = monaco.languages.CompletionItemKind
+            const ITR = monaco.languages.CompletionItemInsertTextRule
+
+            const userSymbols = extractUserSymbols(model.getValue())
+
+            const CURSOR_LEFT = { id: "cursorLeft", title: "" }
+            const userSuggestions = userSymbols.map(s => ({
+              label:       s.kind === "function" ? `${s.name}(${s.params})` : s.name,
+              kind:        s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
+              detail:      s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
+              insertText:  s.kind === "function" ? `${s.name}()` : s.name,
+              command:     s.kind === "function" ? CURSOR_LEFT : undefined,
+              sortText:    "0" + s.name,
+              range,
+            }))
+
+            const builtinSuggestions = PYTHON_BUILTINS.map(b => ({
+              label:      `${b.name}(${b.params})`,
+              kind:       CIK.Function,
+              detail:     "Python 내장 함수",
+              insertText: `${b.name}()`,
+              command:    CURSOR_LEFT,
+              sortText:   "1" + b.name,
+              range,
+            }))
+
+            return { suggestions: [...userSuggestions, ...builtinSuggestions] }
+          },
+        })
+      }
+
       editorInstance.current = monaco.editor.create(editorRef.current, {
         value:                problem.initial_code ?? "# Python 코드를 작성하세요",
         language:             "python",
@@ -107,10 +204,42 @@ export default function CodeEditor({
         renderLineHighlight:  "line",
         overviewRulerLanes:   0,
         tabSize:              4,
+        quickSuggestions:     { other: true, comments: false, strings: false },
+        suggestOnTriggerCharacters: true,
+        wordBasedSuggestions: "off",
+        tabCompletion:        "on",
+        autoClosingQuotes:    "never",  // 삼중따옴표 감지를 위해 Monaco 자동닫기 해제
       });
 
       editorInstance.current.onDidChangeModelContent(() => {
         onCodeChange?.(editorInstance.current.getValue());
+      });
+
+      // ''' / """ 자동 닫기 — onKeyDown에서 처리해야 Monaco 내부 처리보다 먼저 감지 가능
+      editorInstance.current.onKeyDown((e: any) => {
+        const key = e.browserEvent?.key
+        if (key !== "'" && key !== '"') return
+
+        const editor = editorInstance.current
+        const model  = editor?.getModel()
+        const pos    = editor?.getPosition()
+        if (!model || !pos) return
+
+        const line   = model.getLineContent(pos.lineNumber)
+        const before = line.substring(0, pos.column - 1)
+
+        // 커서 바로 앞에 같은 따옴표 2개 있으면 삼중따옴표 쌍 삽입
+        if (before.endsWith(key + key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          const triple = key.repeat(3)
+          editor.executeEdits("triple-quote", [{
+            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+            text:  triple + triple,    // '''''' 또는 """"""
+          }])
+          // 커서를 닫는 삼중따옴표 앞으로 이동
+          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 3 })
+        }
       });
 
       editorInstance.current.onDidChangeCursorPosition((e: any) => {

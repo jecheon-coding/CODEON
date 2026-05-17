@@ -346,8 +346,8 @@ function TestCasesPage() {
 
     const body = {
       problem_id:      selected.id,
-      input:           fInput.trim() || null,
-      expected_output: fOutput.trim(),
+      input:           fInput.trimEnd() || null,
+      expected_output: fOutput.trimEnd(),
       is_hidden:       fHidden,
       display_order:   fOrder,
     }
