@@ -9,6 +9,7 @@ import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
 import ComprehensionPanel from "@/components/problem/ComprehensionPanel"
 import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/problem"
+import type { CertSessionInfo } from "@/services/problem.service"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
   type SubmissionSummaryRow,
@@ -757,12 +758,13 @@ function HistoryTab({
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
 interface Props {
-  problem: Problem
-  prev:    AdjacentProblem
-  next:    AdjacentProblem
+  problem:     Problem
+  prev:        AdjacentProblem
+  next:        AdjacentProblem
+  certSession: CertSessionInfo | null
 }
 
-export default function ProblemPageClient({ problem, prev, next }: Props) {
+export default function ProblemPageClient({ problem, prev, next, certSession }: Props) {
   const router            = useRouter()
   const { data: session } = useSession()
 
@@ -1669,6 +1671,15 @@ export default function ProblemPageClient({ problem, prev, next }: Props) {
                   <span className={`px-2 py-0.5 text-xs font-bold rounded ${DIFF_BADGE[problem.difficulty] ?? "bg-gray-100 text-gray-600"}`}>
                     {problem.difficulty}
                   </span>
+                  {certSession && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-0.5 bg-violet-50 border border-violet-200 rounded-full text-xs font-bold text-violet-700">
+                      <span>{certSession.grade}급 {certSession.typeName} {certSession.round}차</span>
+                      <span className="text-violet-400">·</span>
+                      <span>{certSession.index}<span className="font-normal text-violet-400">/{certSession.total}</span></span>
+                      <span className="text-violet-400">·</span>
+                      <span className="font-normal text-violet-500">{certSession.total - certSession.index}개 남음</span>
+                    </span>
+                  )}
                 </div>
               </div>
               {/* 우: 폰트 슬라이더 */}

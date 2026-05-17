@@ -34,6 +34,60 @@ export async function getTestCases(problemId: string): Promise<TestCase[]> {
   return data ?? [];
 }
 
+export type CertSessionInfo = {
+  round: number        // 회차 번호 (1차, 2차 ...)
+  index: number        // 현재 문제 위치 (1-based)
+  total: number        // 회차 내 전체 문제 수
+  grade: 1 | 2 | 3    // 급수
+  typeName: string     // "기출" | "모의"
+}
+
+function parseCertFields(topic: string | null, title: string) {
+  const src    = `${topic ?? ""} ${title}`
+  const gradeM = src.match(/([123])급/)
+  const roundM = src.match(/(\d+)차/)
+  return {
+    grade: gradeM ? (parseInt(gradeM[1]) as 1 | 2 | 3) : null,
+    type:  /기출/.test(src) ? "exam" : /모의/.test(src) ? "mock" : null,
+    round: roundM ? parseInt(roundM[1]) : null,
+  }
+}
+
+/** 자격증 과정 회차 정보 — 현재 문제의 위치(index/total) 반환 */
+export async function getCertSessionInfo(
+  problemId: string,
+  topic: string | null,
+  title: string,
+): Promise<CertSessionInfo | null> {
+  const { grade, type, round } = parseCertFields(topic, title)
+  if (!grade || !type || !round) return null
+
+  const { data } = await supabase
+    .from("problems")
+    .select("id, topic, title")
+    .eq("category", "파이썬자격증")
+    .eq("status", "published")
+    .order("id")
+
+  if (!data) return null
+
+  const sessionProblems = data.filter(p => {
+    const m = parseCertFields(p.topic, p.title)
+    return m.grade === grade && m.type === type && m.round === round
+  })
+
+  const idx = sessionProblems.findIndex(p => p.id === problemId)
+  if (idx === -1) return null
+
+  return {
+    round,
+    index: idx + 1,
+    total: sessionProblems.length,
+    grade,
+    typeName: type === "exam" ? "기출" : "모의",
+  }
+}
+
 /**
  * 같은 category 내 이전/다음 문제 조회
  * - course/[slug] 에서 넘어올 때 category 기준으로 순서 결정

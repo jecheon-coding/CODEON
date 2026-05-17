@@ -3,6 +3,8 @@ import {
   getProblemById,
   getTestCases,
   getAdjacentProblems,
+  getCertSessionInfo,
+  type CertSessionInfo,
 } from "@/services/problem.service";
 import ProblemPageClient from "./ProblemPageClient";
 
@@ -13,7 +15,6 @@ interface Props {
 export default async function ProblemPage({ params }: Props) {
   const { id } = await params;
 
-  // 문제 + 테스트케이스 병렬 조회
   const [problem, testCases] = await Promise.all([
     getProblemById(id),
     getTestCases(id),
@@ -21,10 +22,15 @@ export default async function ProblemPage({ params }: Props) {
 
   if (!problem) notFound();
 
-  // 이전/다음 문제 (같은 category 기준)
-  const { prev, next } = await getAdjacentProblems(problem.id, problem.category);
+  const isCert = problem.category === "파이썬자격증"
 
-  // test_cases를 problem 객체에 병합해서 단일 출처로 내려보냄
+  const [{ prev, next }, certSession] = await Promise.all([
+    getAdjacentProblems(problem.id, problem.category),
+    isCert
+      ? getCertSessionInfo(problem.id, problem.topic, problem.title)
+      : Promise.resolve(null),
+  ])
+
   const problemWithCases = { ...problem, test_cases: testCases };
 
   return (
@@ -32,6 +38,7 @@ export default async function ProblemPage({ params }: Props) {
       problem={problemWithCases}
       prev={prev}
       next={next}
+      certSession={certSession}
     />
   );
 }

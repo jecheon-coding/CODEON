@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { redirect, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -15,7 +15,6 @@ import {
   Activity, CheckSquare, ArrowRight, Sparkles,
   Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2,
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { useGoal } from "@/lib/goalContext"
 
 // ── 카테고리 → 표시 라벨 ────────────────────────────────────────────────────
@@ -316,73 +315,30 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     finally  { setNicknameSaving(false) }
   }
 
-  useEffect(() => {
-    if (!userId) return
-    ;(async () => {
-      const [{ data }, { count }] = await Promise.all([
-        supabase
-          .from("submissions")
-          .select("id, problem_id, result, is_correct, created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase
-          .from("submissions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId),
-      ])
-      setSubmissions(data ?? [])
-      setTotalSubmitCount(count ?? 0)
-      setLoadingSubmissions(false)
-    })()
-  }, [userId])
+  const fetchSubmissionSummary = useCallback(async () => {
+    const res = await fetch("/api/submissions/summary")
+    if (!res.ok) return
+    const d = await res.json()
+    setSubmissions(d.recent ?? [])
+    setTotalSubmitCount(d.totalCount ?? 0)
+    setCorrectSubs(d.correctSubs ?? [])
+    setWrongSubs(d.wrongSubs ?? [])
+    setLoadingSubmissions(false)
+    setLoadingProgress(false)
+  }, [])
 
   useEffect(() => {
     if (!userId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from("submissions")
-        .select("problem_id, created_at")
-        .eq("user_id", userId)
-        .eq("is_correct", true)
-        .order("created_at", { ascending: false })
-      setCorrectSubs(data ?? [])
-      setLoadingProgress(false)
-    })()
-  }, [userId])
+    fetchSubmissionSummary()
+  }, [userId, fetchSubmissionSummary])
 
+  // 탭 포커스 시 데이터 갱신 (문제 풀고 돌아왔을 때)
   useEffect(() => {
     if (!userId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from("submissions")
-        .select("problem_id, created_at")
-        .eq("user_id", userId)
-        .eq("is_correct", false)
-        .order("created_at", { ascending: false })
-      setWrongSubs(data ?? [])
-    })()
-  }, [userId])
-
-  useEffect(() => {
-    if (!userId) return
-    const channel = supabase
-      .channel(`dashboard-submissions:${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "submissions", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          const newSub = payload.new as Submission
-          setSubmissions(prev => [newSub, ...prev].slice(0, 20))
-          setTotalSubmitCount(prev => (prev ?? 0) + 1)
-          if (newSub.is_correct && newSub.created_at) {
-            setCorrectSubs(prev => [{ problem_id: newSub.problem_id, created_at: newSub.created_at! }, ...prev])
-          } else if (!newSub.is_correct) {
-            setWrongSubs(prev => [{ problem_id: newSub.problem_id, created_at: newSub.created_at ?? new Date().toISOString() }, ...prev])
-          }
-        }
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [userId])
+    const onFocus = () => fetchSubmissionSummary()
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [userId, fetchSubmissionSummary])
 
   useEffect(() => {
     if (!userId) return
