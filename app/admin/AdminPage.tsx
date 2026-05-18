@@ -9,7 +9,7 @@ import {
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
   FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
-  Settings, Target,
+  Settings, Target, KeyRound,
 } from "lucide-react"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
@@ -243,6 +243,27 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
   const [page,         setPage]         = useState(1)
   const [pageSize,     setPageSize]     = useState(10)
 
+  // 비밀번호 초기화
+  const [resetTarget,  setResetTarget]  = useState<Student | null>(null)
+  const [resetPw,      setResetPw]      = useState("")
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetDone,    setResetDone]    = useState(false)
+  const [resetErr,     setResetErr]     = useState("")
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return
+    if (resetPw.length < 4) { setResetErr("비밀번호는 4자 이상이어야 합니다."); return }
+    setResetLoading(true); setResetErr("")
+    const res = await fetch("/api/admin/students/reset-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: resetTarget.id, newPassword: resetPw }),
+    })
+    setResetLoading(false)
+    if (!res.ok) { const d = await res.json(); setResetErr(d.error ?? "오류가 발생했습니다."); return }
+    setResetDone(true)
+    setTimeout(() => { setResetTarget(null); setResetPw(""); setResetDone(false) }, 1500)
+  }
+
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/students")
     if (res.ok) setStudents(await res.json())
@@ -269,7 +290,8 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
     const matchCls     = clsFilter    === "전체" || s.class  === clsFilter
     const matchStatus  = statusFilter === "전체" ||
       (statusFilter === "활성"   && s.status === "active") ||
-      (statusFilter === "미연결" && !s.hasParentLink)
+      (statusFilter === "미연결" && !s.hasParentLink) ||
+      (statusFilter === "비활성" && s.status === "inactive")
     return matchSearch && matchGrade && matchCls && matchStatus
   }), [students, search, gradeFilter, clsFilter, statusFilter])
 
@@ -296,9 +318,9 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
     const d = new Date(/Z|[+-]\d{2}:?\d{2}$/.test(val) ? val : val + "Z")
     const now = new Date()
     const isToday = d.toDateString() === now.toDateString()
-    if (isToday) return "오늘 " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })
+    if (isToday) return "오늘 " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "numeric", minute: "2-digit" })
     return d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric" }) +
-      " " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })
+      " " + d.toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "numeric", minute: "2-digit" })
   }
 
   function generatePassword() {
@@ -341,6 +363,16 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
     const nextFiltered = filtered.filter(s => s.id !== id)
     const nextTotal = Math.max(1, Math.ceil(nextFiltered.length / pageSize))
     if (page > nextTotal) setPage(nextTotal)
+    load(); onRefreshSummary()
+  }
+
+  async function handleActivate(id: string, name: string) {
+    if (!confirm(`"${name}" 학생 계정을 다시 활성화하시겠습니까?`)) return
+    await fetch(`/api/admin/students/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activate: true }),
+    })
     load(); onRefreshSummary()
   }
 
@@ -422,7 +454,7 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
           <div className="relative">
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
               className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 font-medium focus:outline-none focus:border-indigo-400 cursor-pointer">
-              {["전체", "활성", "미연결"].map(v => <option key={v} value={v}>{v === "전체" ? "전체 상태" : v}</option>)}
+              {["전체", "활성", "미연결", "비활성"].map(v => <option key={v} value={v}>{v === "전체" ? "전체 상태" : v}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
           </div>
@@ -483,6 +515,10 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          <button title="비밀번호 초기화" className={Btn.ghost}
+                            onClick={() => { setResetTarget(s); setResetPw(""); setResetErr(""); setResetDone(false) }}>
+                            <KeyRound className="w-3.5 h-3.5" />
+                          </button>
                           <button title="수정" className={Btn.ghost}
                             onClick={() => {
                               setEditing(s); resetDrawer()
@@ -491,10 +527,18 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                             }}>
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button title="비활성화" className={Btn.danger}
-                            onClick={() => handleDelete(s.id, s.name)}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {s.status === "inactive" ? (
+                            <button title="활성화" className={Btn.ghost}
+                              onClick={() => handleActivate(s.id, s.name)}
+                              style={{ color: "#16a34a" }}>
+                              <UserCheck className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button title="비활성화" className={Btn.danger}
+                              onClick={() => handleDelete(s.id, s.name)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -502,6 +546,54 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                 </tbody>
               </table>
             </div>
+
+            {/* 비밀번호 초기화 모달 */}
+            {resetTarget && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setResetTarget(null)}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <KeyRound className="w-5 h-5 text-amber-500" />
+                    <h3 className="text-base font-bold text-gray-900">비밀번호 초기화</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    <span className="font-bold text-gray-900">{resetTarget.name}</span> 학생의 비밀번호를 새로 설정합니다.
+                  </p>
+                  {resetDone ? (
+                    <div className="flex items-center gap-2 text-emerald-600 font-semibold py-2">
+                      <CheckCircle2 className="w-5 h-5" /> 비밀번호가 변경되었습니다.
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={resetPw}
+                        onChange={e => { setResetPw(e.target.value); setResetErr("") }}
+                        placeholder="새 비밀번호 (4자 이상)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-400 mb-2"
+                        autoFocus
+                        onKeyDown={e => e.key === "Enter" && handleResetPassword()}
+                      />
+                      {resetErr && <p className="text-xs text-red-500 mb-2">{resetErr}</p>}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={handleResetPassword}
+                          disabled={resetLoading}
+                          className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          {resetLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "변경"}
+                        </button>
+                        <button
+                          onClick={() => setResetTarget(null)}
+                          className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 페이지네이션 바 */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2 flex-wrap">
@@ -951,7 +1043,7 @@ function AssignmentSection() {
                                 <td className={TD}><span className="text-gray-500 text-xs">{a.studentCount}명</span></td>
                                 <td className={TD}>
                                   {a.dueDate
-                                    ? <span className="text-gray-700 text-xs">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                    ? <span className="text-gray-700 text-xs">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                                     : <span className="text-gray-300">—</span>}
                                 </td>
                                 <td className="px-3 py-2.5"><Badge variant={st.variant}>{st.label}</Badge></td>
@@ -1002,7 +1094,7 @@ function AssignmentSection() {
                       <td className={TD}><span className="text-gray-600">{a.studentCount}명</span></td>
                       <td className={TD}>
                         {a.dueDate
-                          ? <span className="text-gray-700">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                          ? <span className="text-gray-700">{new Date(toUTC(a.dueDate)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                           : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-3 py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
@@ -1338,7 +1430,7 @@ function SubmissionSection({ onUnsubChange }: {
                                     <td className="px-3 py-3"><ProgressBar submitted={submitted} total={total} /></td>
                                     <td className={TD}>
                                       {lastSub?.submittedAt
-                                        ? <span className="text-gray-600 text-xs">{new Date(toUTC(lastSub.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                        ? <span className="text-gray-600 text-xs">{new Date(toUTC(lastSub.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                                         : <span className="text-gray-300 text-xs">없음</span>}
                                     </td>
                                     <td className="px-3 py-3 text-center">
@@ -1354,7 +1446,7 @@ function SubmissionSection({ onUnsubChange }: {
                                       <td className="px-3 py-2">{submissionBadge(p)}</td>
                                       <td className="px-3 py-2" colSpan={2}>
                                         <span className="text-xs text-gray-500">
-                                          {p.submittedAt ? new Date(toUTC(p.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                                          {p.submittedAt ? new Date(toUTC(p.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
                                         </span>
                                       </td>
                                     </tr>
@@ -1555,7 +1647,7 @@ function SubmissionSection({ onUnsubChange }: {
                         </td>
                         <td className={TD}>
                           {r.submittedAt
-                            ? <span className="text-gray-700">{new Date(toUTC(r.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                            ? <span className="text-gray-700">{new Date(toUTC(r.submittedAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                             : <span className="text-red-400 font-semibold">미제출</span>}
                         </td>
                       </tr>
@@ -1635,7 +1727,7 @@ function SubmissionSection({ onUnsubChange }: {
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-gray-500">{codeModal.entries.length - idx}번째 제출</span>
                       <span className="text-[11px] text-gray-400">
-                        {new Date(entry.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        {new Date(toUTC(entry.createdAt)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border
                         ${entry.isCorrect
@@ -1977,7 +2069,7 @@ function ConsultSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                     {c.status === "pending" ? "대기중" : "처리완료"}
                   </Badge>
                   <span className="text-[11px] text-gray-400">
-                    {new Date(c.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(toUTC(c.created_at)).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
                 {c.status === "pending" && (
