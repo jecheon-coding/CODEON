@@ -343,6 +343,7 @@ function ErrorOutput({ error, isDark }: { error: string; isDark: boolean }) {
 // ── ResultTab ─────────────────────────────────────────────────────────────────
 function ResultTab({
   status, caseResults, isDark, submitting, progress, onNextProblem,
+  onAnalyze, analyzing, analysis,
 }: {
   status: SubmissionStatus
   caseResults: CaseResult[] | null
@@ -350,7 +351,15 @@ function ResultTab({
   submitting: boolean
   progress: { current: number; total: number } | null
   onNextProblem?: () => void
+  onAnalyze?: () => void
+  analyzing?: boolean
+  analysis?: string | null
 }) {
+  const analysisRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (analysis) analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }, [analysis])
+
   if (submitting) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-10">
@@ -407,9 +416,9 @@ function ResultTab({
   return (
     <div className="flex flex-col gap-3">
       {/* 결과 배너 */}
-      <div className={`flex items-center justify-between px-4 py-3 rounded-lg text-white font-bold text-sm ${banner.bg}`}>
-        <div className="flex items-center gap-2">
-          {status === "correct" ? <SvgCheck /> : <SvgX size={16} />}
+      <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-white font-bold text-sm ${banner.bg}`}>
+        <div className="flex items-center gap-1.5">
+          {status === "correct" ? <SvgCheck /> : <SvgX size={14} />}
           <span>{banner.text}</span>
           {total > 0 && (
             <span className="font-normal text-white/70 text-xs">· {passedCount}/{total} 맞음</span>
@@ -418,6 +427,18 @@ function ResultTab({
         {status === "correct" && onNextProblem && (
           <button onClick={onNextProblem} className="flex items-center gap-1 text-xs font-bold bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition-colors">
             다음 문제 <SvgChevronRight />
+          </button>
+        )}
+        {onAnalyze && status !== "correct" && (
+          <button
+            onClick={onAnalyze}
+            disabled={analyzing}
+            className="flex items-center gap-1.5 text-xs font-bold bg-white/20 hover:bg-white/30 disabled:opacity-60 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+          >
+            {analyzing
+              ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />분석 중</>
+              : "✨ AI 오답 분석"
+            }
           </button>
         )}
       </div>
@@ -468,6 +489,14 @@ function ResultTab({
               </pre>
             </div>
           )}
+        </div>
+      )}
+
+      {/* AI 오답 분석 결과 */}
+      {analysis && (
+        <div ref={analysisRef} className={`text-xs leading-relaxed p-3 rounded-lg
+          ${isDark ? "bg-violet-900/20 text-violet-200 border border-violet-800/40" : "bg-violet-50 text-violet-900 border border-violet-100"}`}>
+          {analysis}
         </div>
       )}
     </div>
@@ -917,6 +946,10 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
 
   // ── AI 코치 패널 ────────────────────────────────────────────────────────────
   const [coachOpen, setCoachOpen] = useState(false)
+
+  // ── AI 오답 분석 ─────────────────────────────────────────────────────────────
+  const [analysis,  setAnalysis]  = useState<string | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
 
   // ── 초기 유저 상태 + 제출 기록 조회 ─────────────────────────────────────────
   useEffect(() => {
@@ -1531,6 +1564,33 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   // ── 헬퍼 ────────────────────────────────────────────────────────────────────
   const getCode = useCallback(() => monacoInstanceRef.current?.getValue() ?? "", [])
 
+  const handleAnalyze = useCallback(async () => {
+    if (analyzing) return
+    setAnalyzing(true)
+    setAnalysis(null)
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          problemTitle:   problem.title,
+          problemContent: problem.content ?? "",
+          code:           getCode(),
+          failedCases:    (caseResults ?? [])
+            .filter(r => r.status !== "passed")
+            .slice(0, 3)
+            .map(r => ({ input: r.input, expected: r.expected, actual: r.actual, errorMsg: r.errorMsg })),
+        }),
+      })
+      const data = await res.json()
+      setAnalysis(data.analysis ?? data.error ?? "분석 실패")
+    } catch {
+      setAnalysis("분석 요청 중 오류가 발생했습니다.")
+    } finally {
+      setAnalyzing(false)
+    }
+  }, [analyzing, problem.title, problem.content, getCode, caseResults])
+
   const handleRun = async () => {
     setActiveTab("output")
     resetRun()
@@ -1540,6 +1600,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const handleSubmit = async () => {
     const code   = getCode()
     setActiveTab("result")
+    setAnalysis(null)
     resetRun()
     const result = await submit(code)
     setSubmissionStatus(result)
@@ -1957,6 +2018,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
               <div style={{ display: activeTab === "result" ? undefined : "none" }}>
                 <ResultTab status={subStatus} caseResults={caseResults} isDark={isDark}
                   submitting={submitting} progress={subProgress}
+                  onAnalyze={handleAnalyze} analyzing={analyzing} analysis={analysis}
                   onNextProblem={
                     next && (!comprehensionRequired || comprehensionDone)
                       ? () => router.push(`/problems/${next.id}`)

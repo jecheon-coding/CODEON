@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, BarChart2, Trophy, Target, CheckCircle2, TrendingUp } from "lucide-react"
 import { PageLayout } from "@/components/ui/PageLayout"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
+import { StatCardSkeleton, Skeleton } from "@/components/ui/Skeleton"
 
 interface WeekDay {
   date: string
@@ -138,9 +139,19 @@ export default function MyStatsClient() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-2 border-[#534AB7] border-t-transparent rounded-full animate-spin" />
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              {[0,1,2,3].map(i => <StatCardSkeleton key={i} />)}
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm mb-6">
+              <Skeleton className="h-4 w-24 mb-4" />
+              <div className="flex items-end gap-1 h-24">
+                {Array.from({length: 7}).map((_,i) => (
+                  <Skeleton key={i} className="flex-1 rounded-sm" style={{ height: `${40 + Math.random()*50}%` }} />
+                ))}
+              </div>
+            </div>
+          </>
         ) : (
           <>
             {/* 상단 4-카드 */}

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
+import { RowSkeleton } from "@/components/ui/Skeleton"
 import {
   Code, LogOut, Bell, CheckCircle2, XCircle, Clock,
   Target, MessageSquare, ChevronRight, ChevronLeft, X,
@@ -318,8 +319,8 @@ function SubHistoryPanel({
         {/* 목록 */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-1.5">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+            <div className="px-4 py-3">
+              <RowSkeleton lines={4} />
             </div>
           ) : grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
@@ -345,7 +346,7 @@ function SubHistoryPanel({
                       )}
                       {g.main.topic && <span className="text-[10px] text-slate-400">{g.main.topic}</span>}
                       <span className="text-[10px] text-slate-300 dark:text-gray-600">·</span>
-                      <span className="text-[10px] text-slate-400">{formatDateTime(g.main.createdAt)}</span>
+                      <span suppressHydrationWarning className="text-[10px] text-slate-400">{formatDateTime(g.main.createdAt)}</span>
                     </div>
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-1">
@@ -420,6 +421,16 @@ export default function ParentDashboardClient({
   const [showConsult,    setShowConsult]    = useState(false)
   const [showHistory,    setShowHistory]    = useState(false)
   const [showPwModal,    setShowPwModal]    = useState(false)
+
+  // 마지막 방문 이후 새 활동 감지 (null = 아직 마운트 전 → 배지 숨김)
+  const [lastVisit, setLastVisit] = useState<number | null>(null)
+  useEffect(() => {
+    const key  = "parent_last_visit"
+    const prev = parseInt(localStorage.getItem(key) ?? "0")
+    setLastVisit(prev)
+    const t = setTimeout(() => localStorage.setItem(key, String(Date.now())), 3000)
+    return () => clearTimeout(t)
+  }, [])
   const [pwNew,          setPwNew]          = useState("")
   const [pwConfirm,      setPwConfirm]      = useState("")
   const [pwLoading,      setPwLoading]      = useState(false)
@@ -527,6 +538,9 @@ export default function ParentDashboardClient({
   const recent10Correct   = recent10Subs.filter(s => s.isCorrect).length
   const recent10Wrong     = recent10Subs.length - recent10Correct
   const recent10Rate      = recent10Subs.length > 0 ? Math.round((recent10Correct / recent10Subs.length) * 100) : 0
+  const newSubCount       = lastVisit !== null && lastVisit > 0
+    ? recentSubs.filter(s => new Date(s.createdAt).getTime() > lastVisit).length
+    : 0
   const retryNeeded       = assignments.reduce((s, a) => s + a.problems.filter(p => p.isAttempted && !p.isCorrect).length, 0)
   const submitRate        = assignedTotal > 0 ? Math.round((assignedDone / assignedTotal) * 100) : 0
 
@@ -1217,7 +1231,7 @@ export default function ParentDashboardClient({
 
               {recentSubs[0] && (
                 <p className="text-[11px] text-slate-400 text-center">
-                  마지막 제출: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatDateTime(recentSubs[0].createdAt)}</span>
+                  마지막 제출: <span suppressHydrationWarning className="font-semibold text-slate-600 dark:text-slate-300">{formatDateTime(recentSubs[0].createdAt)}</span>
                 </p>
               )}
             </div>
@@ -1231,13 +1245,21 @@ export default function ParentDashboardClient({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* 최근 제출 요약 — 요약형 유지, 상세는 모달 */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-100 dark:border-gray-800 shadow-sm p-4 sm:p-6">
+          <div className={`bg-white dark:bg-gray-900 rounded-2xl border shadow-sm p-4 sm:p-6 transition-colors
+            ${newSubCount > 0 ? "border-indigo-200 dark:border-indigo-700" : "border-slate-100 dark:border-gray-800"}`}>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-slate-50 dark:bg-gray-800 rounded-xl flex items-center justify-center shrink-0">
                 <History className="w-4 h-4 text-slate-500" />
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-900 dark:text-white">최근 제출 요약</h2>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-gray-900 dark:text-white">최근 제출 요약</h2>
+                  {newSubCount > 0 && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-indigo-500 text-white animate-pulse">
+                      NEW {newSubCount}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">최근 10회 기준</p>
               </div>
             </div>
@@ -1278,16 +1300,23 @@ export default function ParentDashboardClient({
 
                 {/* 대표 최근 2건 */}
                 <div className="space-y-1.5 mb-4">
-                  {recentSubs.slice(0, 2).map((s, i) => (
-                    <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-50 dark:bg-gray-800">
-                      {s.isCorrect
-                        ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        : <XCircle      className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                      }
-                      <span className="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{s.title}</span>
-                      <span className="text-[10px] text-slate-400 shrink-0">{formatRelativeTime(s.createdAt)}</span>
-                    </div>
-                  ))}
+                  {recentSubs.slice(0, 2).map((s, i) => {
+                    const isNew = lastVisit !== null && lastVisit > 0 && new Date(s.createdAt).getTime() > lastVisit
+                    return (
+                      <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg
+                        ${isNew ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800" : "bg-slate-50 dark:bg-gray-800"}`}>
+                        {s.isCorrect
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          : <XCircle      className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                        }
+                        <span className="text-xs text-gray-700 dark:text-gray-200 truncate flex-1">{s.title}</span>
+                        {isNew && (
+                          <span className="shrink-0 text-[9px] font-black text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/40 px-1 py-0.5 rounded">NEW</span>
+                        )}
+                        <span className="text-[10px] text-slate-400 shrink-0">{formatRelativeTime(s.createdAt)}</span>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <button

@@ -240,7 +240,7 @@ export default async function ParentPage() {
     supabaseServer.from("assignment_problems")
       .select("assignment_id, problem_id, display_order"),
     supabaseServer.from("assignments")
-      .select("id, title, due_date")
+      .select("id, title, due_date, created_at")
       .order("due_date", { ascending: true, nullsFirst: false }),
   ])
 
@@ -252,15 +252,23 @@ export default async function ParentPage() {
       const problemRows = ((apRows ?? []) as any[])
         .filter(ap => ap.assignment_id === a.id)
         .sort((ap1, ap2) => ap1.display_order - ap2.display_order)
+      // 학생 API와 동일하게: 과제 생성일 이후 제출만 유효 (복습 재배정 대응)
+      const assignCreatedAt = (a as any).created_at ?? ""
       const problems = problemRows.map(ap => {
-        const p = problemMap.get(ap.problem_id)
+        const p    = problemMap.get(ap.problem_id)
+        const validSubs = subs.filter(s =>
+          s.problem_id === ap.problem_id && s.created_at > assignCreatedAt
+        )
+        const latestSub = validSubs.length > 0
+          ? validSubs.reduce((a, b) => a.created_at > b.created_at ? a : b)
+          : null
         return {
           id:          ap.problem_id as string,
           title:       p?.title       ?? "알 수 없음",
           difficulty:  p?.difficulty  ?? "medium",
           topic:       p?.topic       ?? null,
-          isCorrect:   correctProblemIds.has(ap.problem_id),
-          isAttempted: subs.some(s => s.problem_id === ap.problem_id),
+          isCorrect:   latestSub?.is_correct ?? false,
+          isAttempted: !!latestSub,
         }
       })
       return {

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fira_Code, Noto_Sans_KR } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/Providers"
+import { Toaster } from "sonner"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
         
         <Providers>
           {children}
+          <Toaster position="bottom-center" richColors duration={3500} />
         </Providers>
       </body>
     </html>

@@ -11,6 +11,7 @@ import {
   FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
   Settings, Target, KeyRound,
 } from "lucide-react"
+import { toast } from "sonner"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -254,14 +255,17 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
     if (!resetTarget) return
     if (resetPw.length < 4) { setResetErr("비밀번호는 4자 이상이어야 합니다."); return }
     setResetLoading(true); setResetErr("")
-    const res = await fetch("/api/admin/students/reset-password", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: resetTarget.id, newPassword: resetPw }),
-    })
-    setResetLoading(false)
-    if (!res.ok) { const d = await res.json(); setResetErr(d.error ?? "오류가 발생했습니다."); return }
-    setResetDone(true)
-    setTimeout(() => { setResetTarget(null); setResetPw(""); setResetDone(false) }, 1500)
+    try {
+      const res = await fetch("/api/admin/students/reset-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: resetTarget.id, newPassword: resetPw }),
+      })
+      if (!res.ok) { const d = await res.json(); setResetErr(d.error ?? "오류가 발생했습니다."); return }
+      setResetDone(true)
+      toast.success("비밀번호가 초기화되었습니다.")
+      setTimeout(() => { setResetTarget(null); setResetPw(""); setResetDone(false) }, 1500)
+    } catch { setResetErr("네트워크 오류가 발생했습니다.") }
+    finally { setResetLoading(false) }
   }
 
   const load = useCallback(async () => {
@@ -358,22 +362,29 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`"${name}" 학생을 비활성화 처리하시겠습니까?`)) return
-    await fetch(`/api/admin/students/${id}`, { method: "DELETE" })
-    // 마지막 페이지 유일 항목 삭제 시 이전 페이지로
-    const nextFiltered = filtered.filter(s => s.id !== id)
-    const nextTotal = Math.max(1, Math.ceil(nextFiltered.length / pageSize))
-    if (page > nextTotal) setPage(nextTotal)
-    load(); onRefreshSummary()
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" })
+      if (!res.ok) { toast.error("비활성화 처리에 실패했습니다."); return }
+      toast.success(`${name} 학생을 비활성화했습니다.`)
+      const nextFiltered = filtered.filter(s => s.id !== id)
+      const nextTotal = Math.max(1, Math.ceil(nextFiltered.length / pageSize))
+      if (page > nextTotal) setPage(nextTotal)
+      load(); onRefreshSummary()
+    } catch { toast.error("네트워크 오류가 발생했습니다.") }
   }
 
   async function handleActivate(id: string, name: string) {
     if (!confirm(`"${name}" 학생 계정을 다시 활성화하시겠습니까?`)) return
-    await fetch(`/api/admin/students/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activate: true }),
-    })
-    load(); onRefreshSummary()
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activate: true }),
+      })
+      if (!res.ok) { toast.error("활성화에 실패했습니다."); return }
+      toast.success(`${name} 학생 계정을 활성화했습니다.`)
+      load(); onRefreshSummary()
+    } catch { toast.error("네트워크 오류가 발생했습니다.") }
   }
 
   function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -890,8 +901,12 @@ function AssignmentSection() {
 
   async function handleDelete(id: string, t: string) {
     if (!confirm(`"${t}" 과제를 삭제하시겠습니까?`)) return
-    await fetch(`/api/admin/assignments/${id}`, { method: "DELETE" })
-    load()
+    try {
+      const res = await fetch(`/api/admin/assignments/${id}`, { method: "DELETE" })
+      if (!res.ok) { toast.error("과제 삭제에 실패했습니다."); return }
+      toast.success(`"${t}" 과제를 삭제했습니다.`)
+      load()
+    } catch { toast.error("네트워크 오류가 발생했습니다.") }
   }
 
   const filtered = useMemo(() => {

@@ -39,6 +39,8 @@ export default function CodeEditor({
 
   const [activeTab, setActiveTab] = useState<OutputTab>("output");
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+  const [analysis,  setAnalysis]  = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // ── 입력창 flash 애니메이션 ──
   const [isFlashing,   setIsFlashing]   = useState(false);
@@ -163,14 +165,12 @@ export default function CodeEditor({
 
             const userSymbols = extractUserSymbols(model.getValue())
 
-            const CURSOR_LEFT = { id: "cursorLeft", title: "" }
             const userSuggestions = userSymbols.map(s => ({
-              label:       s.kind === "function" ? `${s.name}(${s.params})` : s.name,
-              kind:        s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
-              detail:      s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
-              insertText:  s.kind === "function" ? `${s.name}()` : s.name,
-              command:     s.kind === "function" ? CURSOR_LEFT : undefined,
-              sortText:    "0" + s.name,
+              label:      s.kind === "function" ? `${s.name}(${s.params})` : s.name,
+              kind:       s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
+              detail:     s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
+              insertText: s.name,
+              sortText:   "0" + s.name,
               range,
             }))
 
@@ -178,8 +178,7 @@ export default function CodeEditor({
               label:      `${b.name}(${b.params})`,
               kind:       CIK.Function,
               detail:     "Python 내장 함수",
-              insertText: `${b.name}()`,
-              command:    CURSOR_LEFT,
+              insertText: b.name,
               sortText:   "1" + b.name,
               range,
             }))
@@ -208,39 +207,13 @@ export default function CodeEditor({
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions: "off",
         tabCompletion:        "on",
-        autoClosingQuotes:    "never",  // 삼중따옴표 감지를 위해 Monaco 자동닫기 해제
+        autoClosingQuotes:    "languageDefined",
       });
 
       editorInstance.current.onDidChangeModelContent(() => {
         onCodeChange?.(editorInstance.current.getValue());
       });
 
-      // ''' / """ 자동 닫기 — onKeyDown에서 처리해야 Monaco 내부 처리보다 먼저 감지 가능
-      editorInstance.current.onKeyDown((e: any) => {
-        const key = e.browserEvent?.key
-        if (key !== "'" && key !== '"') return
-
-        const editor = editorInstance.current
-        const model  = editor?.getModel()
-        const pos    = editor?.getPosition()
-        if (!model || !pos) return
-
-        const line   = model.getLineContent(pos.lineNumber)
-        const before = line.substring(0, pos.column - 1)
-
-        // 커서 바로 앞에 같은 따옴표 2개 있으면 삼중따옴표 쌍 삽입
-        if (before.endsWith(key + key)) {
-          e.preventDefault()
-          e.stopPropagation()
-          const triple = key.repeat(3)
-          editor.executeEdits("triple-quote", [{
-            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-            text:  triple + triple,    // '''''' 또는 """"""
-          }])
-          // 커서를 닫는 삼중따옴표 앞으로 이동
-          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 3 })
-        }
-      });
 
       editorInstance.current.onDidChangeCursorPosition((e: any) => {
         setCursorPos({ line: e.position.lineNumber, col: e.position.column });
@@ -297,8 +270,37 @@ export default function CodeEditor({
 
   const handleSubmit = async () => {
     setActiveTab("result");
+    setAnalysis(null);
     const finalStatus = await submission.submit(getCode());
     onSubmitResult?.(finalStatus);
+  };
+
+  const handleAnalyze = async () => {
+    const code = getCode();
+    const failedCases = (submission.caseResults ?? [])
+      .filter(r => r.status !== "passed")
+      .slice(0, 3)
+      .map(r => ({ input: r.input, expected: r.expected, actual: r.actual, errorMsg: r.errorMsg }));
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          problemTitle:   problem.title,
+          problemContent: (problem as any).content ?? "",
+          code,
+          failedCases,
+        }),
+      });
+      const data = await res.json();
+      setAnalysis(data.analysis ?? "분석에 실패했습니다.");
+    } catch {
+      setAnalysis("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const busy      = execution.running || submission.submitting;
@@ -529,6 +531,9 @@ export default function CodeEditor({
               caseResults={submission.caseResults}
               progress={submission.progress}
               onNextProblem={onNextProblem}
+              onAnalyze={handleAnalyze}
+              analyzing={analyzing}
+              analysis={analysis}
             />
           )}
 
@@ -542,11 +547,15 @@ export default function CodeEditor({
 // ── 제출 결과 뷰 ──
 function ResultView({
   status, caseResults, progress, onNextProblem,
+  onAnalyze, analyzing, analysis,
 }: {
   status: SubmissionStatus;
   caseResults: CaseResult[] | null;
   progress: { current: number; total: number } | null;
   onNextProblem?: () => void;
+  onAnalyze?: () => void;
+  analyzing?: boolean;
+  analysis?: string | null;
 }) {
   // 채점 중 진행 상황
   if (progress) {
@@ -623,13 +632,40 @@ function ResultView({
         </div>
       )}
 
-      {/* 오답/오류: AI 코치 안내 */}
-      {(status === "wrong" || status === "error") && (
-        <p className="text-[11px] text-gray-500 leading-relaxed flex items-start gap-1">
-          <Lightbulb size={11} className="text-indigo-400 mt-0.5 shrink-0" />
-          <span>아래 <span className="text-indigo-400 font-medium">AI 코치</span>에서 단계별 힌트를 받거나,
-          코드를 수정하고 다시 제출해보세요.</span>
-        </p>
+      {/* 오답/오류: AI 오답 분석 */}
+      {(status === "wrong" || status === "error") && onAnalyze && (
+        <div className="flex flex-col gap-2 mt-0.5">
+          {!analysis ? (
+            <button
+              onClick={onAnalyze}
+              disabled={analyzing}
+              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg w-fit
+                bg-indigo-600 hover:bg-indigo-700 text-white transition-colors duration-150 disabled:opacity-60"
+            >
+              {analyzing
+                ? <><Loader2 size={10} className="animate-spin" /> 분석 중...</>
+                : <><Lightbulb size={10} /> AI 오답 분석</>}
+            </button>
+          ) : (
+            <div className="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 flex flex-col gap-2">
+              <div className="flex items-center gap-1.5">
+                <Lightbulb size={11} className="text-indigo-400 shrink-0" />
+                <span className="text-[11px] font-bold text-indigo-300">AI 오답 분석</span>
+              </div>
+              <p className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap">{analysis}</p>
+              <button
+                onClick={onAnalyze}
+                disabled={analyzing}
+                className="text-[10px] text-indigo-400 hover:text-indigo-300 w-fit disabled:opacity-50"
+              >
+                {analyzing ? "분석 중..." : "↺ 다시 분석"}
+              </button>
+            </div>
+          )}
+          <p className="text-[10px] text-gray-600">
+            단계별 힌트는 아래 <span className="text-indigo-400">AI 코치</span>를 이용하세요.
+          </p>
+        </div>
       )}
     </div>
   );

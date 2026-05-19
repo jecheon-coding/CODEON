@@ -9,6 +9,7 @@ import {
   LayoutGrid, ChevronRight, ClipboardList,
   CheckCircle2, Circle, FolderOpen, FileText,
 } from "lucide-react"
+import { PageSpinner } from "@/components/ui/Skeleton"
 import type { WrongNoteItem, WrongNoteResponse } from "@/app/api/wrong-notes/route"
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -201,16 +202,8 @@ export default function WrongNotePage() {
   const completedCount  = data?.completed.length  ?? 0
   const isEmpty         = allItems.length === 0
 
-  if (status === "loading" || (status === "authenticated" && loading)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">오답 노트 불러오는 중...</p>
-        </div>
-      </div>
-    )
-  }
+  if (status === "loading" || (status === "authenticated" && loading))
+    return <PageSpinner text="오답 노트 불러오는 중..." />
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">

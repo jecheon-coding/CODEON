@@ -7,6 +7,8 @@ import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 import { PageLayout } from "@/components/ui/PageLayout"
 import AiTutorChat from "@/components/ui/AiTutorChat"
+import { PageSpinner } from "@/components/ui/Skeleton"
+import { toast } from "sonner"
 import type { LucideIcon } from "lucide-react"
 import {
   CheckCircle, Circle, ChevronRight, BookOpen,
@@ -316,15 +318,21 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   }
 
   const fetchSubmissionSummary = useCallback(async () => {
-    const res = await fetch("/api/submissions/summary")
-    if (!res.ok) return
-    const d = await res.json()
-    setSubmissions(d.recent ?? [])
-    setTotalSubmitCount(d.totalCount ?? 0)
-    setCorrectSubs(d.correctSubs ?? [])
-    setWrongSubs(d.wrongSubs ?? [])
-    setLoadingSubmissions(false)
-    setLoadingProgress(false)
+    try {
+      const res = await fetch("/api/submissions/summary")
+      if (!res.ok) { toast.error("학습 데이터를 불러오지 못했습니다."); return }
+      const d = await res.json()
+      setSubmissions(d.recent ?? [])
+      setTotalSubmitCount(d.totalCount ?? 0)
+      setCorrectSubs(d.correctSubs ?? [])
+      setWrongSubs(d.wrongSubs ?? [])
+      setLoadingSubmissions(false)
+      setLoadingProgress(false)
+    } catch {
+      toast.error("네트워크 오류가 발생했습니다.")
+      setLoadingSubmissions(false)
+      setLoadingProgress(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -345,7 +353,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     fetch("/api/student/assignments")
       .then(r => r.ok ? r.json() : [])
       .then(data => { setHomework(data); setLoadingHomework(false) })
-      .catch(() => setLoadingHomework(false))
+      .catch(() => { toast.error("과제 정보를 불러오지 못했습니다."); setLoadingHomework(false) })
   }, [userId])
 
   // ── 마지막 문제 상세 + 다음 문제 fetch ────────────────────────────────
@@ -528,6 +536,23 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
   const hwTotal     = homework.length
   const hwSubmitted = homework.filter(h => h.isSubmitted).length
+  const hwDone      = homework.filter(h => h.isCorrect === true).length
+
+  // 마감 임박 과제 계산 (D-3 이내, 미완료 과제만)
+  const urgentAssignments = useMemo(() => {
+    const now = Date.now()
+    const map = new Map<string, { title: string; daysLeft: number; allDone: boolean }>()
+    homework.forEach(h => {
+      if (!h.dueDate || map.has(h.assignmentId)) return
+      const due = new Date(/Z|[+-]\d{2}:?\d{2}$/.test(h.dueDate) ? h.dueDate : h.dueDate + "T23:59:59+09:00").getTime()
+      const daysLeft = Math.ceil((due - now) / (1000 * 60 * 60 * 24))
+      if (daysLeft < 0 || daysLeft > 3) return
+      const assignProblems = homework.filter(x => x.assignmentId === h.assignmentId)
+      const allDone = assignProblems.every(x => x.isCorrect === true)
+      if (!allDone) map.set(h.assignmentId, { title: h.assignmentTitle, daysLeft, allDone })
+    })
+    return [...map.values()].sort((a, b) => a.daysLeft - b.daysLeft)
+  }, [homework])
 
   const firstPendingHwId = sortedHomework.find(h => !h.isSubmitted || h.isCorrect === false)?.problemId ?? null
 
@@ -538,16 +563,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     : currentCourse ? `/course/${currentCourse.slug}`
     : "/courses"
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F4F5F8]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#534AB7] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400">불러오는 중...</p>
-        </div>
-      </div>
-    )
-  }
+  if (status === "loading") return <PageSpinner text="불러오는 중..." />
 
   return (
     <div className="min-h-screen bg-[#F4F5F8]" style={{ fontFamily: "var(--font-noto-sans-kr), var(--font-geist-sans), sans-serif" }}>
@@ -1231,11 +1247,60 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
             {/* 4-3. 오늘의 숙제 */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-gray-900">오늘의 숙제</h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-bold text-gray-900">오늘의 숙제</h2>
+                  <div className="relative group">
+                    <button className="w-4 h-4 rounded-full bg-gray-100 text-gray-400 text-[10px] font-bold flex items-center justify-center hover:bg-gray-200 transition-colors">?</button>
+                    <div className="absolute left-0 top-5 z-20 hidden group-hover:flex flex-col gap-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-44 text-[11px]">
+                      <p className="font-bold text-gray-600 mb-1">상태 안내</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-100 font-bold">미제출</span>
+                        <span className="text-gray-500">아직 풀지 않음</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-100 font-bold">진행중</span>
+                        <span className="text-gray-500">제출했지만 오답</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 font-bold">완료</span>
+                        <span className="text-gray-500">정답 맞힘 ✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {hwTotal > 0 && (
-                  <span className="text-[11px] text-gray-400">{hwSubmitted}/{hwTotal}개 완료</span>
+                  <span className="text-[11px] text-gray-400">{hwDone}/{hwTotal}개 완료</span>
                 )}
               </div>
+
+              {/* 마감 임박 배너 */}
+              {!loadingHomework && urgentAssignments.length > 0 && (
+                <div className="mb-3 flex flex-col gap-1.5">
+                  {urgentAssignments.map(a => (
+                    <div key={a.title} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold
+                      ${a.daysLeft === 0
+                        ? "bg-red-50 text-red-600 border border-red-200"
+                        : a.daysLeft === 1
+                          ? "bg-orange-50 text-orange-600 border border-orange-200"
+                          : "bg-amber-50 text-amber-600 border border-amber-200"
+                      }`}>
+                      <span className="text-base leading-none">
+                        {a.daysLeft === 0 ? "🔥" : a.daysLeft === 1 ? "⚠️" : "📅"}
+                      </span>
+                      <span className="flex-1 truncate">{a.title}</span>
+                      <span className={`shrink-0 font-black px-1.5 py-0.5 rounded-full
+                        ${a.daysLeft === 0
+                          ? "bg-red-100 text-red-700"
+                          : a.daysLeft === 1
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                        {a.daysLeft === 0 ? "D-Day" : `D-${a.daysLeft}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {loadingHomework ? (
                 <div className="flex items-center justify-center py-6">
@@ -1249,7 +1314,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                   <p className="text-sm font-bold text-gray-600 mb-1">오늘 배정된 숙제가 없어요</p>
                   <p className="text-[11px] text-gray-400">선생님이 숙제를 배정하면 여기에 표시돼요</p>
                 </div>
-              ) : hwSubmitted === hwTotal ? (
+              ) : hwDone === hwTotal ? (
                 <div className="flex flex-col items-center text-center py-4">
                   <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
                     <CheckCircle className="w-6 h-6 text-emerald-500" />
@@ -1285,13 +1350,33 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                         ? "bg-amber-50 text-amber-600 border-amber-100"
                         : "bg-emerald-50 text-emerald-700 border-emerald-100"
 
+                    const hwDaysLeft = (() => {
+                      if (!hw.dueDate) return null
+                      const due = new Date(/Z|[+-]\d{2}:?\d{2}$/.test(hw.dueDate) ? hw.dueDate : hw.dueDate + "T23:59:59+09:00").getTime()
+                      const d = Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24))
+                      return d >= 0 && d <= 3 ? d : null
+                    })()
+
                     return (
                       <div key={`${hw.assignmentId}-${hw.problemId}-${i}`}
-                        className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border hover:bg-gray-50 transition-colors
+                          ${hwDaysLeft !== null && !isSubmitted
+                            ? hwDaysLeft === 0 ? "border-red-200 bg-red-50/30"
+                              : hwDaysLeft === 1 ? "border-orange-200 bg-orange-50/30"
+                              : "border-amber-200 bg-amber-50/20"
+                            : "border-gray-100"}`}>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-gray-800 truncate">{hw.problemTitle}</p>
                           <p className="text-[10px] text-gray-400 truncate mt-0.5">{hw.assignmentTitle}</p>
                         </div>
+                        {hwDaysLeft !== null && !isSubmitted && (
+                          <span className={`shrink-0 text-[9px] font-black px-1 py-0.5 rounded
+                            ${hwDaysLeft === 0 ? "bg-red-100 text-red-700"
+                              : hwDaysLeft === 1 ? "bg-orange-100 text-orange-700"
+                              : "bg-amber-100 text-amber-700"}`}>
+                            {hwDaysLeft === 0 ? "D-Day" : `D-${hwDaysLeft}`}
+                          </span>
+                        )}
                         <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeCls}`}>
                           {badgeLabel}
                         </span>
