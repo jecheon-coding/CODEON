@@ -57,6 +57,7 @@ type ProblemFull = {
   image_url: string | null; time_limit_ms: number | null; is_community: boolean
   comprehension_enabled: boolean | null
   gen_code: string | null; sol_code: string | null
+  created_at: string | null
   test_case_count?: number
 }
 
