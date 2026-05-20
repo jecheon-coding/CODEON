@@ -24,6 +24,7 @@ type ChallengeProb = Problem & {
   created_at:               string | null;
   status?:                  string;
   problem_type?:            string;
+  is_solved?:               boolean;
 };
 
 type TabValue    = "전체" | "인기" | "최신" | "친구 문제" | "내 문제" | "내가 푼 문제";
@@ -76,16 +77,18 @@ function formatRelative(dateStr: string) {
 
 // ── 커뮤니티 문제 카드 ────────────────────────────────────────────────────────
 function CommunityProblemCard({
-  prob, likedSet, rank, showStatus, onClick, onLike,
+  prob, likedSet, solvedSet, rank, showStatus, onClick, onLike,
 }: {
   prob:        ChallengeProb;
   likedSet:    Set<string>;
+  solvedSet:   Set<string>;
   rank?:       number;
   showStatus?: boolean;
   onClick:     () => void;
   onLike:      (e: React.MouseEvent) => void;
 }) {
   const liked      = likedSet.has(prob.id);
+  const solved     = solvedSet.has(prob.id);
   const safeContent = prob.content ?? "";
   const isHot      = typeof rank === "number" && rank < 3 && (prob.like_count > 0 || prob.solve_count > 0);
   const diffLabel  = friendDiffLabel(prob.community_difficulty_avg);
@@ -111,6 +114,9 @@ function CommunityProblemCard({
         )}
         {statusInfo && (
           <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusInfo.cls}`}>{statusInfo.label}</span>
+        )}
+        {solved && (
+          <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-200">✓ 정답</span>
         )}
         <p
           className="text-sm font-bold transition-colors truncate"
@@ -623,16 +629,9 @@ export default function ChallengeHubPage() {
       setProblems(enriched);
 
       if (userId) {
-        const [likesRes, subsRes] = await Promise.all([
-          supabase.from("problem_likes").select("problem_id").eq("user_id", userId),
-          enriched.length > 0
-            ? supabase.from("submissions").select("problem_id")
-                .eq("user_id", userId).eq("is_correct", true)
-                .in("problem_id", enriched.map(p => p.id))
-            : Promise.resolve({ data: [] }),
-        ]);
+        const likesRes = await supabase.from("problem_likes").select("problem_id").eq("user_id", userId);
         const likedIds  = new Set((likesRes.data ?? []).map((l: { problem_id: string }) => l.problem_id));
-        const solvedIds = new Set(((subsRes as { data: { problem_id: string }[] | null }).data ?? []).map(s => s.problem_id));
+        const solvedIds = new Set(enriched.filter(p => (p as any).is_solved).map(p => p.id));
         setLikedSet(likedIds);
         setSolvedSet(solvedIds);
 
@@ -671,9 +670,11 @@ export default function ChallengeHubPage() {
 
     let list: ChallengeProb[];
     if (activeTab === "인기") {
-      list = [...published].sort((a, b) => (b.like_count ?? 0) - (a.like_count ?? 0));
+      list = [...published].sort((a, b) => (b.solve_count ?? 0) - (a.solve_count ?? 0));
     } else if (activeTab === "최신") {
-      list = [...published].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+      const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
+      list = published.filter(p => p.created_at != null && p.created_at > monthAgo)
+        .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
     } else if (activeTab === "친구 문제") {
       list = published.filter(p => p.is_community && p.author_user_id !== userId);
     } else if (activeTab === "내 문제") {
@@ -809,6 +810,7 @@ export default function ChallengeHubPage() {
                     key={prob.id}
                     prob={prob}
                     likedSet={likedSet}
+                    solvedSet={solvedSet}
                     rank={activeTab === "인기" ? idx : undefined}
                     showStatus={activeTab === "내 문제"}
                     onClick={() => { sessionStorage.setItem("problemListUrl", window.location.href); router.push(`/problems/${prob.id}`) }}

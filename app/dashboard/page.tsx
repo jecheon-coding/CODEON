@@ -14,6 +14,8 @@ export default async function DashboardPage() {
   const { data: problems } = await supabase
     .from("problems")
     .select("id, category, title, status, difficulty")
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("id")
 
   return <DashboardClient initialProblems={problems ?? []} />
 }

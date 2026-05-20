@@ -224,12 +224,15 @@ export default function ProblemsPage() {
       .filter(p => pTopic === "전체" || p.topic === pTopic)
       .filter(p => !pSearch.trim() || p.title.toLowerCase().includes(pSearch.toLowerCase()))
       .sort((a, b) => {
+        if (pCourse === "challenge") {
+          return (b.created_at ?? "").localeCompare(a.created_at ?? "")
+        }
         if (a.display_order == null && b.display_order == null) return 0
         if (a.display_order == null) return 1
         if (b.display_order == null) return -1
         return a.display_order - b.display_order
       })
-  }, [courseProblems, pTopic, pSearch])
+  }, [courseProblems, pTopic, pSearch, pCourse])
 
   // ── 폼의 코스에 속한 기존 topic 목록 (DB + 기본값 병합) ──────────────────
   const formTopics = useMemo(() => {

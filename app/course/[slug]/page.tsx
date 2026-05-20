@@ -33,9 +33,10 @@ export default async function CoursePage({
 
   const baseQuery = supabaseServer
     .from("problems")
-    .select("id, title, category, topic, difficulty, status, content")
+    .select("id, title, category, topic, difficulty, status, content, display_order")
     .eq("category", category)
     .order("display_order", { ascending: true, nullsFirst: false })
+    .order("id")
 
   const { data: problems } = await baseQuery
 

@@ -27,6 +27,7 @@ type CourseProblem = {
   difficulty: Difficulty | null
   status: string | null
   content: string | null
+  display_order: number | null
 }
 
 
@@ -298,14 +299,22 @@ export default function CourseClient({
 
   const certFilteredProblems = useMemo(() =>
     slug !== "certificate" ? [] :
-    problems.filter(p => {
-      const m = parseCertMeta(p)
-      return m.grade === certGrade
-        && m.type  === certType
-        && (certRound === null || m.round === certRound)
-        && (!searchQuery || (p.title ?? "").includes(searchQuery))
-        && (difficultyFilter === "전체" || p.difficulty === difficultyFilter)
-    }),
+    problems
+      .filter(p => {
+        const m = parseCertMeta(p)
+        return m.grade === certGrade
+          && m.type  === certType
+          && (certRound === null || m.round === certRound)
+          && (!searchQuery || (p.title ?? "").includes(searchQuery))
+          && (difficultyFilter === "전체" || p.difficulty === difficultyFilter)
+      })
+      .sort((a, b) => {
+        if (a.display_order == null && b.display_order == null) return a.id < b.id ? -1 : 1
+        if (a.display_order == null) return 1
+        if (b.display_order == null) return -1
+        if (a.display_order !== b.display_order) return a.display_order - b.display_order
+        return a.id < b.id ? -1 : 1
+      }),
     [problems, certGrade, certType, certRound, searchQuery, difficultyFilter, slug],
   )
 
@@ -350,13 +359,21 @@ export default function CourseClient({
 
   const compFilteredProblems = useMemo(() =>
     slug !== "competition" ? [] :
-    problems.filter(p => {
-      const { year, division } = parseCompMeta(p)
-      return year === compYear
-        && division === compDivision
-        && (!searchQuery || (p.title ?? "").includes(searchQuery))
-        && (difficultyFilter === "전체" || p.difficulty === difficultyFilter)
-    }),
+    problems
+      .filter(p => {
+        const { year, division } = parseCompMeta(p)
+        return year === compYear
+          && division === compDivision
+          && (!searchQuery || (p.title ?? "").includes(searchQuery))
+          && (difficultyFilter === "전체" || p.difficulty === difficultyFilter)
+      })
+      .sort((a, b) => {
+        if (a.display_order == null && b.display_order == null) return a.id < b.id ? -1 : 1
+        if (a.display_order == null) return 1
+        if (b.display_order == null) return -1
+        if (a.display_order !== b.display_order) return a.display_order - b.display_order
+        return a.id < b.id ? -1 : 1
+      }),
     [problems, compYear, compDivision, searchQuery, difficultyFilter, slug],
   )
 
