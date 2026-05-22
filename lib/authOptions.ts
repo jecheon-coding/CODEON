@@ -84,7 +84,7 @@ export const authOptions: NextAuthOptions = {
 
   secret:  process.env.NEXTAUTH_SECRET,
   pages:   { signIn: "/login" },
-  session: { strategy: "jwt", maxAge: 60 * 60 },
+  session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
 
   callbacks: {
     async signIn({ user, account }) {

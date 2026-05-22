@@ -2956,6 +2956,12 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => router.push("/admin/learning")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <BookOpen className="w-4 h-4" /> 학습 자료
+          </button>
+          <button
             onClick={() => router.push("/admin/notices")}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
           >

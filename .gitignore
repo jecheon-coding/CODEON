@@ -25,3 +25,7 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# 학습 교재 원본 파일 (PDF, 마크다운 초안 — 저장소 비대화 방지)
+book/
+python/

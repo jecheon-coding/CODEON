@@ -33,9 +33,9 @@ export default function OutputPanel({ output, status }: Props) {
   return (
     <div className="flex flex-col gap-2">
       {/* 출력 창 */}
-      <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+      <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 overflow-x-auto">
         <p className="text-xs font-medium text-gray-400 mb-2">출력</p>
-        <pre className="text-sm text-gray-800 font-mono min-h-[2rem] whitespace-pre-wrap">
+        <pre className="text-sm text-gray-800 min-h-[2rem] whitespace-pre" style={{ fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace" }}>
           {output || (
             <span className="text-gray-300">
               코드를 실행하면 결과가 여기에 표시됩니다.
