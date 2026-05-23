@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useInteractiveExecution } from "@/hooks/useInteractiveExecution"
+import { useInteractiveExecution, type OutputChunk } from "@/hooks/useInteractiveExecution"
 import { preloadWorker } from "@/lib/pyodideWorker"
 import { Play, Square, Terminal, Loader2, RotateCcw } from "lucide-react"
 
@@ -39,7 +39,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   const consoleBottomRef   = useRef<HTMLDivElement>(null)
   const inputRef           = useRef<HTMLInputElement>(null)
 
-  const { output, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
+  const { chunks, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
 
   useEffect(() => { preloadWorker() }, [])
 
@@ -90,7 +90,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   useEffect(() => {
     consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" })
     if (waitingInput) inputRef.current?.focus()
-  }, [output, waitingInput])
+  }, [chunks, waitingInput])
 
   const getCode = useCallback(() => monacoInstanceRef.current?.getValue() ?? "", [])
 
@@ -310,6 +310,21 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         }
       })
 
+      // Shift+Enter → 다음 줄 삽입 (들여쓰기 없이 순수 줄바꿈)
+      editor.addCommand(
+        monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+        () => {
+          const model    = editor.getModel()
+          const position = editor.getPosition()
+          if (!model || !position) return
+          editor.executeEdits("shift-enter", [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: "\n",
+          }])
+          editor.setPosition({ lineNumber: position.lineNumber + 1, column: 1 })
+        }
+      )
+
       // Ctrl+Enter → 실행
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
@@ -329,6 +344,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   useEffect(() => {
     monacoModuleRef.current?.editor.setTheme(isDark ? "vs-dark" : "vs")
   }, [isDark])
+
+  const hasOutput = chunks.length > 0
 
   const handleRun = async () => {
     reset()
@@ -461,11 +478,18 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
 
         {/* 터미널 출력 + 인라인 입력 */}
         <div className="flex-1 px-4 py-3 overflow-y-auto font-mono min-h-0">
-          {output || running || waitingInput ? (
+          {hasOutput || running || waitingInput ? (
             <>
-              <pre className="text-sm text-green-400 whitespace-pre-wrap leading-relaxed">
+              <pre className="text-sm whitespace-pre-wrap leading-relaxed">
                 <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
-                {output}
+                {chunks.map((chunk, i) => (
+                  <span
+                    key={i}
+                    className={chunk.kind === "input" ? "text-cyan-300" : "text-green-400"}
+                  >
+                    {chunk.text}
+                  </span>
+                ))}
               </pre>
 
               {/* input() 대기 중 인라인 입력 */}
@@ -479,7 +503,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     onKeyDown={e => {
                       if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
                     }}
-                    className="flex-1 bg-transparent text-green-300 font-mono text-sm outline-none caret-green-400 placeholder:text-green-900"
+                    className="flex-1 bg-transparent text-cyan-300 font-mono text-sm outline-none caret-cyan-400 placeholder:text-cyan-900"
                     placeholder="입력 후 Enter..."
                     autoComplete="off"
                     spellCheck={false}
