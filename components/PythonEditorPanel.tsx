@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useInteractiveExecution, type OutputChunk } from "@/hooks/useInteractiveExecution"
 import { preloadWorker } from "@/lib/pyodideWorker"
-import { Play, Square, Terminal, Loader2, RotateCcw } from "lucide-react"
+import { Play, Square, Loader2, RotateCcw } from "lucide-react"
 
 // ── 배경 팔레트 ──────────────────────────────────────────────────────────────
 const SvgPalette = () => (
@@ -506,12 +506,6 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         className={`flex flex-col shrink-0 border-t ${D("bg-slate-950 border-white/8", "bg-slate-900 border-gray-700")}`}
         style={{ height: `${consoleH}px` }}
       >
-        {/* 탭 바 */}
-        <div className={`h-7 flex items-center px-3 border-b shrink-0 gap-1.5 ${D("border-white/8", "border-white/8")}`}>
-          <Terminal size={10} className="text-gray-600" />
-          <span className="text-[11px] font-semibold text-white border-b-2 border-indigo-500 pb-[7px]">출력</span>
-        </div>
-
         {/* 터미널 출력 + 인라인 입력 */}
         <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0">
           {hasOutput || running || waitingInput ? (
