@@ -2011,8 +2011,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                             const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
                             if (lines.length === 0) return
                             pendingInputLines.current = lines.slice(1)
-                            submitInput(lines[0])
-                            setInputValue("")
+                            setInputValue(lines[0])
                           }}
                           className="flex-1 bg-transparent outline-none caret-green-400 font-mono text-sm"
                           style={{ color: "#4ade80" }}

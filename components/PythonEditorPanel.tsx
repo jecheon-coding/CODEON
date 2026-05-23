@@ -568,8 +568,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                       const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
                       if (lines.length === 0) return
                       pendingInputLines.current = lines.slice(1)
-                      submitInput(lines[0])
-                      setInputValue("")
+                      setInputValue(lines[0])
                     }}
                     className="flex-1 bg-transparent text-green-600 font-mono text-sm outline-none caret-green-500 placeholder:text-gray-700"
                     placeholder="입력 후 Enter..."
