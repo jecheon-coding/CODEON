@@ -1995,9 +1995,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                           {chunk.text}
                         </span>
                       ))}
-                    </pre>
-                    {waitingInput && (
-                      <div className="flex items-center mt-0.5">
+                      {waitingInput && (
                         <input
                           ref={inlineInputRef}
                           type="text"
@@ -2013,16 +2011,26 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                             pendingInputLines.current = lines.slice(1)
                             setInputValue(lines[0])
                           }}
-                          className="flex-1 bg-transparent outline-none caret-green-400 font-mono text-sm"
-                          style={{ color: "#4ade80" }}
-                          placeholder="입력 후 Enter..."
                           autoComplete="off" spellCheck={false}
+                          style={{
+                            display: "inline",
+                            background: "transparent",
+                            border: "none",
+                            outline: "none",
+                            color: "#4ade80",
+                            caretColor: "#4ade80",
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                            lineHeight: "inherit",
+                            width: "60ch",
+                            verticalAlign: "baseline",
+                          }}
                         />
-                      </div>
-                    )}
-                    {running && !waitingInput && (
-                      <span className="text-xs" style={{ color: isDark ? "#9ca3af" : "#6b7280" }}>실행 중...</span>
-                    )}
+                      )}
+                      {running && !waitingInput && (
+                        <span style={{ color: isDark ? "#6b7280" : "#9ca3af" }} className="animate-pulse"> ▶</span>
+                      )}
+                    </pre>
                     <div ref={consoleBottomRef} />
                   </div>
                 ) : submissionOutput ? (

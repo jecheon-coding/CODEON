@@ -537,54 +537,55 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         {/* 터미널 출력 + 인라인 입력 */}
         <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0">
           {hasOutput || running || waitingInput ? (
-            <>
-              <pre className="text-sm whitespace-pre-wrap leading-relaxed" style={{ fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
-                <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
-                {chunks.map((chunk, i) => (
-                  <span
-                    key={i}
-                    className={chunk.kind === "input" ? "text-green-500" : "text-white"}
-                  >
-                    {chunk.text}
-                  </span>
-                ))}
-              </pre>
-
-              {/* input() 대기 중 인라인 입력 */}
+            <pre className="text-sm whitespace-pre-wrap leading-relaxed" style={{ fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
+              <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
+              {chunks.map((chunk, i) => (
+                <span
+                  key={i}
+                  className={chunk.kind === "input" ? "text-green-500" : "text-white"}
+                >
+                  {chunk.text}
+                </span>
+              ))}
               {waitingInput && (
-                <div className="flex items-center mt-0.5">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={e => setInputValue(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
-                    }}
-                    onPaste={e => {
-                      const text = e.clipboardData.getData("text")
-                      if (!text.includes("\n")) return
-                      e.preventDefault()
-                      const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
-                      if (lines.length === 0) return
-                      pendingInputLines.current = lines.slice(1)
-                      setInputValue(lines[0])
-                    }}
-                    className="flex-1 bg-transparent text-green-600 font-mono text-sm outline-none caret-green-500 placeholder:text-gray-700"
-                    placeholder="입력 후 Enter..."
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
+                  }}
+                  onPaste={e => {
+                    const text = e.clipboardData.getData("text")
+                    if (!text.includes("\n")) return
+                    e.preventDefault()
+                    const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
+                    if (lines.length === 0) return
+                    pendingInputLines.current = lines.slice(1)
+                    setInputValue(lines[0])
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  style={{
+                    display: "inline",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#22c55e",
+                    caretColor: "#22c55e",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
+                    lineHeight: "inherit",
+                    width: "60ch",
+                    verticalAlign: "baseline",
+                  }}
+                />
               )}
-
               {running && !waitingInput && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Loader2 size={11} className="animate-spin text-white" />
-                  <span className="text-xs text-white font-mono">실행 중...</span>
-                </div>
+                <span className="text-gray-500 animate-pulse"> ▶</span>
               )}
-            </>
+            </pre>
           ) : null}
           <div ref={consoleBottomRef} />
         </div>
