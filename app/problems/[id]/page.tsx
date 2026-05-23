@@ -25,7 +25,7 @@ export default async function ProblemPage({ params }: Props) {
   const isCert = problem.category === "파이썬자격증"
 
   const [{ prev, next }, certSession] = await Promise.all([
-    getAdjacentProblems(problem.id, problem.category),
+    getAdjacentProblems(problem.id, problem.category, problem.topic),
     isCert
       ? getCertSessionInfo(problem.id, problem.topic, problem.title)
       : Promise.resolve(null),

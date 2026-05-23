@@ -89,14 +89,15 @@ export async function getCertSessionInfo(
 }
 
 /**
- * 같은 category 내 이전/다음 문제 조회
- * - course/[slug] 에서 넘어올 때 category 기준으로 순서 결정
+ * 같은 category + topic 내 이전/다음 문제 조회
+ * - 목록의 display_order → id 정렬 기준과 동일하게 순서 결정
  */
 export async function getAdjacentProblems(
   problemId: string,
-  category: string
+  category: string,
+  topic: string | null
 ): Promise<{ prev: AdjacentProblem; next: AdjacentProblem }> {
-  const { data } = await supabase
+  let query = supabase
     .from("problems")
     .select("id, title, display_order")
     .eq("category", category)
@@ -104,6 +105,11 @@ export async function getAdjacentProblems(
     .order("display_order", { ascending: true, nullsFirst: false })
     .order("id");
 
+  if (topic) {
+    query = query.eq("topic", topic);
+  }
+
+  const { data } = await query;
   if (!data) return { prev: null, next: null };
 
   // display_order 기준으로 클라이언트 정렬 (목록과 동일한 순서)
