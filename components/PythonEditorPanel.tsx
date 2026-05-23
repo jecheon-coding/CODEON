@@ -277,26 +277,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
       )
 
-      // Enter: Python 자동 들여쓰기
-      editor.addCommand(
-        monaco.KeyCode.Enter,
-        () => {
-          const model    = editor.getModel()
-          const position = editor.getPosition()
-          if (!model || !position) return
-          const lineContent  = model.getLineContent(position.lineNumber)
-          const beforeCursor = lineContent.substring(0, position.column - 1)
-          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
-          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " })
-          } else {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase })
-          }
-        },
-        "!suggestWidgetVisible && !inSnippetMode",
-      )
-
-      // Tab → callable 뒤 () 자동 삽입
+      // Tab + Enter + Shift+Enter 통합 키 핸들러
       const PY_CALLABLES = new Set([
         'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
         'dict','divmod','enumerate','eval','exec','filter','float','format',
@@ -305,9 +286,19 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         'oct','open','ord','pow','print','range','repr','reversed','round',
         'set','setattr','slice','sorted','str','sum','super','tuple','type','vars','zip',
       ])
+      const getSuggestOpen = () => {
+        const ctrl = editor.getContribution('editor.contrib.suggestController') as any
+        return ctrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
+          (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible')
+      }
+      const isInSnippet = () =>
+        !!(editor as any)._contextKeyService?.getContextKeyValue?.('inSnippetMode')
+
       editor.onKeyDown((e: any) => {
+        const { keyCode, shiftKey, ctrlKey, metaKey, altKey } = e
+
         // Shift+Enter → 들여쓰기 없이 순수 줄바꿈
-        if (e.keyCode === monaco.KeyCode.Enter && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (keyCode === monaco.KeyCode.Enter && shiftKey && !ctrlKey && !metaKey) {
           e.preventDefault(); e.stopPropagation()
           const model = editor.getModel()
           const pos   = editor.getPosition()
@@ -320,13 +311,28 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           return
         }
 
-        if (e.keyCode !== monaco.KeyCode.Tab) return
-        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
-        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
-        const isSuggestOpen =
-          suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
-          (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible')
-        if (isSuggestOpen) return
+        // Enter → Python 자동 들여쓰기 (suggest/snippet 열려있으면 Monaco에 위임)
+        if (keyCode === monaco.KeyCode.Enter && !shiftKey && !ctrlKey && !metaKey && !altKey) {
+          if (getSuggestOpen() || isInSnippet()) return
+          e.preventDefault(); e.stopPropagation()
+          const model    = editor.getModel()
+          const position = editor.getPosition()
+          if (!model || !position) return
+          const lineContent  = model.getLineContent(position.lineNumber)
+          const beforeCursor = lineContent.substring(0, position.column - 1)
+          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
+          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " })
+          } else {
+            editor.trigger("keyboard", "type", { text: "\n" + indentBase })
+          }
+          return
+        }
+
+        // Tab → callable 뒤 () 자동 삽입
+        if (keyCode !== monaco.KeyCode.Tab) return
+        if (ctrlKey || metaKey || altKey || shiftKey) return
+        if (getSuggestOpen()) return
         const model = editor.getModel()
         const pos   = editor.getPosition()
         if (!model || !pos) return
