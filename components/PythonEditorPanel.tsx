@@ -396,9 +396,9 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     runState === "done" ? "● 완료"           :
     "● 준비됨"
   const statusColor =
-    waitingInput        ? "text-blue-400"    :
-    running             ? "text-amber-400"   :
-    runState === "done" ? "text-emerald-400" :
+    waitingInput        ? "text-gray-400"    :
+    running             ? "text-gray-400"    :
+    runState === "done" ? "text-gray-400"    :
     "text-gray-600"
 
   const D = (dark: string, light: string) => isDark ? dark : light
@@ -521,7 +521,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                 {chunks.map((chunk, i) => (
                   <span
                     key={i}
-                    className={chunk.kind === "input" ? "text-green-400" : "text-gray-100"}
+                    className={chunk.kind === "input" ? "text-green-600" : "text-gray-100"}
                   >
                     {chunk.text}
                   </span>
@@ -539,7 +539,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     onKeyDown={e => {
                       if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
                     }}
-                    className="flex-1 bg-transparent text-green-400 font-mono text-sm outline-none caret-green-400 placeholder:text-green-900"
+                    className="flex-1 bg-transparent text-green-600 font-mono text-sm outline-none caret-green-500 placeholder:text-gray-700"
                     placeholder="입력 후 Enter..."
                     autoComplete="off"
                     spellCheck={false}
@@ -549,8 +549,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
 
               {running && !waitingInput && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <Loader2 size={11} className="animate-spin text-amber-400" />
-                  <span className="text-xs text-amber-400 font-mono">실행 중...</span>
+                  <Loader2 size={11} className="animate-spin text-white" />
+                  <span className="text-xs text-white font-mono">실행 중...</span>
                 </div>
               )}
             </>
