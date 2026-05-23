@@ -25,7 +25,9 @@ const BG_OPTIONS: Record<BgKey, { label: string; editor: string; panel: string; 
   black:     { label: "블랙",         editor: "#0d0d1a", panel: "#000000", isDark: true  },
 }
 
-const CONSOLE_H = 220
+const CONSOLE_H_DEFAULT = 220
+const CONSOLE_H_MIN = 80
+const CONSOLE_H_MAX = 600
 
 interface Props {
   initialCode: string
@@ -38,6 +40,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   const monacoModuleRef    = useRef<any>(null)
   const consoleBottomRef   = useRef<HTMLDivElement>(null)
   const inputRef           = useRef<HTMLInputElement>(null)
+  const dragStartY         = useRef<number>(0)
+  const dragStartH         = useRef<number>(CONSOLE_H_DEFAULT)
 
   const { chunks, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
 
@@ -82,6 +86,26 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     localStorage.setItem(`${storageKey}EditorFontSize`, String(val))
     monacoInstanceRef.current?.updateOptions({ fontSize: val })
   }
+
+  // 콘솔 높이 (드래그 리사이즈)
+  const [consoleH, setConsoleH] = useState(CONSOLE_H_DEFAULT)
+
+  const onResizeDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragStartY.current = e.clientY
+    dragStartH.current = consoleH
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = dragStartY.current - ev.clientY
+      setConsoleH(Math.min(CONSOLE_H_MAX, Math.max(CONSOLE_H_MIN, dragStartH.current + delta)))
+    }
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove)
+      document.removeEventListener("mouseup", onUp)
+    }
+    document.addEventListener("mousemove", onMove)
+    document.addEventListener("mouseup", onUp)
+  }, [consoleH])
 
   // 인라인 입력값
   const [inputValue, setInputValue] = useState("")
@@ -465,10 +489,22 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         )}
       </div>
 
+      {/* ── 리사이즈 핸들 ── */}
+      <div
+        onMouseDown={onResizeDragStart}
+        className={`h-[6px] shrink-0 flex items-center justify-center cursor-row-resize select-none group
+          ${D("bg-[#1e1e1e] border-y border-white/8 hover:bg-indigo-500/20", "bg-gray-200 border-y border-gray-300 hover:bg-indigo-100")}`}
+      >
+        <div className="flex gap-[3px]">
+          <span className={`w-5 h-[2px] rounded-full ${D("bg-white/20 group-hover:bg-indigo-400", "bg-gray-400 group-hover:bg-indigo-400")}`} />
+          <span className={`w-1 h-[2px] rounded-full ${D("bg-white/20 group-hover:bg-indigo-400", "bg-gray-400 group-hover:bg-indigo-400")}`} />
+        </div>
+      </div>
+
       {/* ── 터미널 콘솔 ── */}
       <div
         className={`flex flex-col shrink-0 border-t ${D("bg-slate-950 border-white/8", "bg-slate-900 border-gray-700")}`}
-        style={{ height: `${CONSOLE_H}px` }}
+        style={{ height: `${consoleH}px` }}
       >
         {/* 탭 바 */}
         <div className={`h-9 flex items-center px-3 border-b shrink-0 gap-2 ${D("border-white/8", "border-white/8")}`}>
