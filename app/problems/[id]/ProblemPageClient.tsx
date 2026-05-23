@@ -809,9 +809,10 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const { caseResults, status: subStatus, submitting, progress: subProgress, submit, submissionOutput } = useSubmission(problem)
 
   // ── 인라인 입력 ──────────────────────────────────────────────────────────────
-  const [inputValue,    setInputValue]    = useState("")
-  const consoleBottomRef = useRef<HTMLDivElement>(null)
-  const inlineInputRef   = useRef<HTMLInputElement>(null)
+  const [inputValue,     setInputValue]    = useState("")
+  const consoleBottomRef  = useRef<HTMLDivElement>(null)
+  const inlineInputRef    = useRef<HTMLInputElement>(null)
+  const pendingInputLines = useRef<string[]>([])
 
   // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
   useEffect(() => { preloadWorker() }, [])
@@ -1595,18 +1596,39 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
 
   useEffect(() => {
     consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" })
-    if (waitingInput) inlineInputRef.current?.focus()
-  }, [chunks, waitingInput])
+    if (waitingInput) {
+      // 큐에 대기 중인 입력이 있으면 자동 제출
+      if (pendingInputLines.current.length > 0) {
+        const line = pendingInputLines.current.shift()!
+        submitInput(line)
+      } else {
+        inlineInputRef.current?.focus()
+      }
+    }
+  }, [chunks, waitingInput, submitInput])
 
   const handleRun = async () => {
     setActiveTab("output")
     resetRun()
+    pendingInputLines.current = []
     await run(getCode())
   }
 
   const handleInputSubmit = () => {
     submitInput(inputValue)
     setInputValue("")
+  }
+
+  // 예제 입력 → 줄 단위 큐에 적재 (실행 전후 모두 동작)
+  const handleSendToInput = (text: string) => {
+    const lines = text.split("\n")
+    if (lines[lines.length - 1] === "") lines.pop()
+    pendingInputLines.current = lines
+    // 이미 입력 대기 중이면 첫 줄 즉시 제출
+    if (waitingInput && lines.length > 0) {
+      const line = pendingInputLines.current.shift()!
+      submitInput(line)
+    }
   }
 
   const handleSubmit = async () => {
@@ -1828,7 +1850,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                     {exampleInput && (
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => navigator.clipboard.writeText(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
-                        <button onClick={() => { navigator.clipboard.writeText(exampleInput) }} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors" title="클립보드에 복사 후 터미널 입력창에 붙여넣기 하세요">입력창으로</button>
+                        <button onClick={() => handleSendToInput(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors">입력창으로</button>
                       </div>
                     )}
                   </div>
