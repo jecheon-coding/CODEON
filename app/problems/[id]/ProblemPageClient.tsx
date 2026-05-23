@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useCodeExecution } from "@/hooks/useCodeExecution"
+import { useInteractiveExecution } from "@/hooks/useInteractiveExecution"
 import { useSubmission } from "@/hooks/useSubmission"
 import { preloadWorker } from "@/lib/pyodideWorker"
 import HintPanel from "@/components/problem/HintPanel"
@@ -805,8 +805,13 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const [cursorPos, setCursorPos] = useState({ ln: 1, col: 1 })
 
   // ── 실행 / 채점 훅 ──────────────────────────────────────────────────────────
-  const { output: runOutput, error: runError, running, pyodideStatus, run, stop: stopRun, reset: resetRun } = useCodeExecution()
+  const { chunks, running, waitingInput, run, submitInput, stop: stopRun, reset: resetRun } = useInteractiveExecution()
   const { caseResults, status: subStatus, submitting, progress: subProgress, submit, submissionOutput } = useSubmission(problem)
+
+  // ── 인라인 입력 ──────────────────────────────────────────────────────────────
+  const [inputValue,    setInputValue]    = useState("")
+  const consoleBottomRef = useRef<HTMLDivElement>(null)
+  const inlineInputRef   = useRef<HTMLInputElement>(null)
 
   // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
   useEffect(() => { preloadWorker() }, [])
@@ -916,9 +921,6 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
     window.addEventListener("mouseup",   onMouseUp)
   }, [])
 
-  // ── 테스트 입력 ──────────────────────────────────────────────────────────────
-  const [testInput, setTestInput] = useState("")
-  const [inputOpen, setInputOpen] = useState(false)
 
   // ── 결과 탭 ─────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"output" | "example" | "result" | "history">("output")
@@ -1591,10 +1593,20 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
     }
   }, [analyzing, problem.title, problem.content, getCode, caseResults])
 
+  useEffect(() => {
+    consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (waitingInput) inlineInputRef.current?.focus()
+  }, [chunks, waitingInput])
+
   const handleRun = async () => {
     setActiveTab("output")
     resetRun()
-    await run(getCode(), testInput)
+    await run(getCode())
+  }
+
+  const handleInputSubmit = () => {
+    submitInput(inputValue)
+    setInputValue("")
   }
 
   const handleSubmit = async () => {
@@ -1629,10 +1641,6 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
     monacoInstanceRef.current?.setValue(problem.initial_code ?? "")
   }
 
-  const handleSendToInput = (text: string) => {
-    setTestInput(text)
-    setInputOpen(true)
-  }
 
   // ── 렌더 ────────────────────────────────────────────────────────────────────
   return (
@@ -1819,7 +1827,6 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                     <h3 className="text-[13px] font-bold text-gray-700">입력 예시</h3>
                     {exampleInput && (
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => handleSendToInput(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors">입력창으로</button>
                         <button onClick={() => navigator.clipboard.writeText(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
                       </div>
                     )}
@@ -1888,8 +1895,9 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
           <div className="h-7 flex items-center justify-between px-4 text-[11px] font-mono shrink-0"
             style={{ background: bg.panel, borderTop: `1px solid ${editorBorderColor}`, color: isDark ? "rgba(255,255,255,0.3)" : "#9ca3af" }}
           >
-            <span style={{ color: running ? "#f59e0b" : submitting ? "#a78bfa" : "#4ade80" }}>
-              {running ? "실행 중..." :
+            <span style={{ color: waitingInput ? "#60a5fa" : running ? "#f59e0b" : submitting ? "#a78bfa" : "#4ade80" }}>
+              {waitingInput ? "● 입력 대기..." :
+               running ? "● 실행 중..." :
                submitting ? (subProgress ? `채점 중... ${subProgress.current}/${subProgress.total}` : "채점 중...") :
                "Ready"}
             </span>
@@ -1900,52 +1908,25 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
             </div>
           </div>
 
-          {/* 테스트 입력 */}
-          {inputOpen && (
-            <div className="shrink-0 border-t px-3 py-2" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-gray-700">테스트 입력</span>
-                <button
-                  onClick={() => setInputOpen(false)}
-                  className="flex items-center justify-center transition-colors"
-                  style={{ width: "22px", height: "22px", background: "rgba(0,0,0,0.06)", borderRadius: "4px" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.14)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.06)")}
-                ><SvgX size={13} /></button>
-              </div>
-              <textarea
-                value={testInput} onChange={e => setTestInput(e.target.value)} rows={2}
-                placeholder="입력값을 입력하세요..."
-                className="w-full text-sm font-mono bg-white border border-[#86efac] rounded-lg px-3 py-2 resize-none outline-none focus:border-[#22c55e] text-gray-700"
-                style={{ maxHeight: "96px", overflowY: "auto" }}
-              />
-            </div>
-          )}
-
           {/* 컨트롤 바 */}
-          <div className="h-14 flex items-center justify-between px-4 shrink-0"
+          <div className="h-14 flex items-center justify-end px-4 shrink-0 gap-2"
             style={{ background: isDark ? "#1e1e2e" : "#ffffff", borderTop: `1px solid ${editorBorderColor}`, borderBottom: `1px solid ${editorBorderColor}` }}
           >
-            <button onClick={() => setInputOpen(v => !v)} className={`flex items-center gap-1 text-xs font-semibold transition-colors ${isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-800"}`}>
-              테스트 입력 {inputOpen ? <SvgChevronUp /> : <SvgChevronDown />}
-            </button>
-            <div className="flex items-center gap-2">
-              {running ? (
-                <button onClick={stopRun}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-[#dc2626] text-white text-sm font-bold rounded-lg hover:bg-[#b91c1c] transition-colors animate-pulse"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
-                  정지
-                </button>
-              ) : (
-                <button onClick={handleRun} disabled={submitting}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-[#639922] text-white text-sm font-bold rounded-lg hover:bg-[#52821a] transition-colors disabled:opacity-50"
-                ><SvgPlay /> 실행</button>
-              )}
-              <button onClick={handleSubmit} disabled={running || submitting}
-                className="flex items-center gap-1.5 px-5 py-2 bg-[#534AB7] text-white text-sm font-bold rounded-lg hover:bg-[#443da0] transition-colors disabled:opacity-50"
-              ><SvgSend /> {submitting ? "채점 중..." : "제출"}</button>
-            </div>
+            {running || waitingInput ? (
+              <button onClick={stopRun}
+                className="flex items-center gap-1.5 px-5 py-2 bg-[#dc2626] text-white text-sm font-bold rounded-lg hover:bg-[#b91c1c] transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+                정지
+              </button>
+            ) : (
+              <button onClick={handleRun} disabled={submitting}
+                className="flex items-center gap-1.5 px-5 py-2 bg-[#639922] text-white text-sm font-bold rounded-lg hover:bg-[#52821a] transition-colors disabled:opacity-50"
+              ><SvgPlay /> 실행</button>
+            )}
+            <button onClick={handleSubmit} disabled={running || waitingInput || submitting}
+              className="flex items-center gap-1.5 px-5 py-2 bg-[#534AB7] text-white text-sm font-bold rounded-lg hover:bg-[#443da0] transition-colors disabled:opacity-50"
+            ><SvgSend /> {submitting ? "채점 중..." : "제출"}</button>
           </div>
 
           {/* 수직 드래그 핸들 */}
@@ -1982,20 +1963,42 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
             </div>
             <div className="flex-1 overflow-auto p-4">
               {activeTab === "output" && (
-                running ? (
-                  <p className="text-sm font-mono" style={{ color: isDark ? "#d1d5db" : "#374151" }}>실행 중...</p>
-                ) : runError ? (
-                  <ErrorOutput error={runError} isDark={isDark} />
-                ) : runOutput ? (
-                  <pre className="text-sm font-mono whitespace-pre-wrap" style={{ color: isDark ? "#d1d5db" : "#374151" }}>{runOutput}</pre>
+                chunks.length > 0 || running || waitingInput ? (
+                  <div className="font-mono text-sm">
+                    <pre className="whitespace-pre-wrap leading-relaxed" style={{ color: isDark ? "#d1d5db" : "#374151" }}>
+                      <span style={{ color: isDark ? "#4b5563" : "#9ca3af" }} className="select-none">$ python main.py{"\n"}</span>
+                      {chunks.map((chunk, i) => (
+                        <span key={i} style={{ color: chunk.kind === "input" ? "#4ade80" : isDark ? "#f3f4f6" : "#111827" }}>
+                          {chunk.text}
+                        </span>
+                      ))}
+                    </pre>
+                    {waitingInput && (
+                      <div className="flex items-center mt-0.5">
+                        <input
+                          ref={inlineInputRef}
+                          type="text"
+                          value={inputValue}
+                          onChange={e => setInputValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() } }}
+                          className="flex-1 bg-transparent outline-none caret-green-400 font-mono text-sm"
+                          style={{ color: "#4ade80" }}
+                          placeholder="입력 후 Enter..."
+                          autoComplete="off" spellCheck={false}
+                        />
+                      </div>
+                    )}
+                    {running && !waitingInput && (
+                      <span className="text-xs" style={{ color: isDark ? "#9ca3af" : "#6b7280" }}>실행 중...</span>
+                    )}
+                    <div ref={consoleBottomRef} />
+                  </div>
                 ) : submissionOutput ? (
                   <div>
                     <p className="text-xs font-semibold mb-2" style={{ color: isDark ? "#6b7280" : "#9ca3af" }}>제출 케이스 1 출력:</p>
                     <pre className="text-sm font-mono whitespace-pre-wrap" style={{ color: isDark ? "#d1d5db" : "#374151" }}>{submissionOutput}</pre>
                   </div>
-                ) : (
-                  <p className="text-sm font-mono" style={{ color: isDark ? "#6b7280" : "#9ca3af" }}>코드를 실행하면 결과가 여기에 표시됩니다.</p>
-                )
+                ) : null
               )}
               {activeTab === "example" && (
                 <div className="grid grid-cols-2 gap-4 max-[600px]:grid-cols-1">
