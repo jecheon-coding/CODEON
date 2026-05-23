@@ -296,11 +296,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         "!suggestWidgetVisible && !inSnippetMode",
       )
 
-      // Shift+Enter → 순수 줄바꿈 (addCommand로 등록해야 Monaco 내부 처리를 덮어씀)
-      editor.addCommand(
-        monaco.KeyMod.Shift | monaco.KeyCode.Enter,
-        () => { editor.trigger("keyboard", "type", { text: "\n" }) },
-      )
+      // Shift+Enter: 핸들러 없음 → Monaco 기본 동작 (언어 자동들여쓰기 없는 순수 줄바꿈)
 
       // Tab → callable 뒤 () 자동 삽입 (onKeyDown은 Tab에는 정상 작동)
       const PY_CALLABLES = new Set([
