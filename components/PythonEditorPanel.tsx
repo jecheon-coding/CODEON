@@ -521,7 +521,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                 {chunks.map((chunk, i) => (
                   <span
                     key={i}
-                    className={chunk.kind === "input" ? "text-cyan-300" : "text-gray-100"}
+                    className={chunk.kind === "input" ? "text-green-400" : "text-gray-100"}
                   >
                     {chunk.text}
                   </span>
@@ -539,7 +539,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     onKeyDown={e => {
                       if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
                     }}
-                    className="flex-1 bg-transparent text-cyan-300 font-mono text-sm outline-none caret-cyan-400 placeholder:text-cyan-900"
+                    className="flex-1 bg-transparent text-green-400 font-mono text-sm outline-none caret-green-400 placeholder:text-green-900"
                     placeholder="입력 후 Enter..."
                     autoComplete="off"
                     spellCheck={false}
