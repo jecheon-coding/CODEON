@@ -217,20 +217,22 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
 
             const userSymbols = extractUserSymbols(model.getValue())
             const userSuggestions = userSymbols.map(s => ({
-              label:      s.kind === "function" ? `${s.name}(${s.params})` : s.name,
-              kind:       s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
-              detail:     s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
-              insertText: s.name,
-              sortText:   "0" + s.name,
+              label:           s.kind === "function" ? `${s.name}(${s.params})` : s.name,
+              kind:            s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
+              detail:          s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
+              insertText:      s.kind === "function" ? `${s.name}($1)` : s.name,
+              insertTextRules: s.kind === "function" ? RULE : undefined,
+              sortText:        "0" + s.name,
               range,
             }))
 
             const builtinSuggestions = PYTHON_BUILTINS.map(b => ({
-              label:      `${b.name}(${b.params})`,
-              kind:       CIK.Function,
-              detail:     "Python 내장 함수",
-              insertText: b.name,
-              sortText:   "1" + b.name,
+              label:           `${b.name}(${b.params})`,
+              kind:            CIK.Function,
+              detail:          "Python 내장 함수",
+              insertText:      `${b.name}($1)`,
+              insertTextRules: RULE,
+              sortText:        "1" + b.name,
               range,
             }))
 
@@ -293,6 +295,45 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         },
         "!suggestWidgetVisible && !inSnippetMode",
       )
+
+      // Tab → 내장 함수명 뒤에 () 자동 삽입 (드롭다운 없을 때)
+      const PY_CALLABLES = new Set([
+        'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
+        'dict','divmod','enumerate','eval','exec','filter','float','format',
+        'frozenset','getattr','hasattr','hash','hex','id','input','int',
+        'isinstance','issubclass','iter','len','list','map','max','min','next',
+        'oct','open','ord','pow','print','range','repr','reversed','round',
+        'set','setattr','slice','sorted','str','sum','super','tuple','type','vars','zip',
+      ])
+      editor.onKeyDown((e: any) => {
+        if (e.keyCode !== monaco.KeyCode.Tab) return
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
+        const isSuggestOpen =
+          suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
+          (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible')
+        if (isSuggestOpen) return
+        const model = editor.getModel()
+        const pos   = editor.getPosition()
+        if (!model || !pos) return
+        // 커서가 () 안에 있으면 ) 밖으로 이동
+        const lineText = model.getLineContent(pos.lineNumber)
+        if (lineText[pos.column - 2] === '(' && lineText[pos.column - 1] === ')') {
+          e.preventDefault(); e.stopPropagation()
+          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
+          return
+        }
+        const word = model.getWordAtPosition(pos)
+        if (!word) return
+        if (PY_CALLABLES.has(word.word)) {
+          e.preventDefault(); e.stopPropagation()
+          editor.executeEdits('tab-fn', [{
+            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+            text: '()',
+          }])
+          editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
+        }
+      })
 
       // Ctrl+Enter → 실행
       editor.addCommand(
