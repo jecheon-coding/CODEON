@@ -25,7 +25,7 @@ const BG_OPTIONS: Record<BgKey, { label: string; editor: string; panel: string; 
   black:     { label: "블랙",         editor: "#0d0d1a", panel: "#000000", isDark: true  },
 }
 
-const CONSOLE_H_DEFAULT = 220
+const CONSOLE_H_DEFAULT = 180
 const CONSOLE_H_MIN = 80
 const CONSOLE_H_MAX = 600
 
@@ -407,21 +407,21 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     <div className={`h-full flex flex-col rounded-xl overflow-hidden border shadow-sm ${D("border-slate-700", "border-gray-200")}`}>
 
       {/* ── 에디터 헤더 ── */}
-      <div className="h-10 flex items-center justify-between px-4 bg-[#2d2d2d] shrink-0">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-          <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-          <div className="w-3 h-3 rounded-full bg-[#28ca41]" />
-          <span className="ml-3 text-xs font-mono text-gray-400 select-none">main.py</span>
+      <div className="h-8 flex items-center justify-between px-3 bg-[#2d2d2d] shrink-0">
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#28ca41]" />
+          <span className="ml-2 text-[11px] font-mono text-gray-400 select-none">main.py</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-gray-500 select-none">{fontSize}px</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-mono text-gray-500 select-none">{fontSize}px</span>
           <input
             type="range" min={11} max={20} step={1} value={fontSize}
             onChange={e => handleFontSizeChange(Number(e.target.value))}
-            className="w-16 h-1.5 accent-[#534AB7] cursor-pointer"
+            className="w-14 h-1 accent-[#534AB7] cursor-pointer"
           />
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-white/10 text-gray-400 select-none">Python 3</span>
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 text-gray-400 select-none">Python 3</span>
           <div className="relative">
             <button
               onClick={() => setBgPickerOpen(v => !v)}
@@ -451,40 +451,40 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
       <div ref={editorContainerRef} className="flex-1 min-h-0" style={{ background: bg.editor }} />
 
       {/* ── 상태바 ── */}
-      <div className={`h-5 flex items-center justify-between px-4 shrink-0 select-none
+      <div className={`h-4 flex items-center justify-between px-3 shrink-0 select-none
         ${D("bg-[#2d2d2d]", "bg-gray-100")} border-t ${D("border-white/5", "border-gray-200")}`}>
-        <span className={`text-[10px] font-mono tabular-nums transition-colors duration-300 ${statusColor}`}>
+        <span className={`text-[9px] font-mono tabular-nums transition-colors duration-300 ${statusColor}`}>
           {statusLabel}
         </span>
-        <span className="text-[10px] font-mono text-gray-500 tabular-nums">
+        <span className="text-[9px] font-mono text-gray-500 tabular-nums">
           Ln {cursorPos.ln}, Col {cursorPos.col}
         </span>
       </div>
 
       {/* ── 버튼 바 ── */}
-      <div className={`h-12 flex items-center justify-between px-4 shrink-0
+      <div className={`h-9 flex items-center justify-between px-3 shrink-0
         border-t ${D("bg-[#252525] border-white/8", "bg-gray-50 border-gray-200")}`}>
         <button
           onClick={handleReset}
-          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors
+          className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors
             ${D("text-gray-500 hover:text-gray-300 hover:bg-white/10", "text-gray-500 hover:text-gray-700 hover:bg-gray-200")}`}
         >
-          <RotateCcw size={11} /> 초기화
+          <RotateCcw size={10} /> 초기화
         </button>
         {running || waitingInput ? (
           <button
             onClick={stop}
-            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
+            className="flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors"
           >
-            <Square size={12} className="fill-current" /> 정지
+            <Square size={10} className="fill-current" /> 정지
           </button>
         ) : (
           <button
             onClick={handleRun}
-            className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors
+            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-md transition-colors
               ${D("bg-emerald-600 hover:bg-emerald-500 text-white", "bg-emerald-500 hover:bg-emerald-600 text-white")}`}
           >
-            <Play size={13} className="fill-current" /> 실행
+            <Play size={11} className="fill-current" /> 실행
           </button>
         )}
       </div>
@@ -507,21 +507,21 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         style={{ height: `${consoleH}px` }}
       >
         {/* 탭 바 */}
-        <div className={`h-9 flex items-center px-3 border-b shrink-0 gap-2 ${D("border-white/8", "border-white/8")}`}>
-          <Terminal size={12} className="text-gray-600" />
-          <span className="text-xs font-semibold text-white border-b-2 border-indigo-500 pb-[9px]">출력</span>
+        <div className={`h-7 flex items-center px-3 border-b shrink-0 gap-1.5 ${D("border-white/8", "border-white/8")}`}>
+          <Terminal size={10} className="text-gray-600" />
+          <span className="text-[11px] font-semibold text-white border-b-2 border-indigo-500 pb-[7px]">출력</span>
         </div>
 
         {/* 터미널 출력 + 인라인 입력 */}
-        <div className="flex-1 px-4 py-3 overflow-y-auto font-mono min-h-0">
+        <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0">
           {hasOutput || running || waitingInput ? (
             <>
-              <pre className="text-sm whitespace-pre-wrap leading-relaxed">
+              <pre className="text-[13px] whitespace-pre-wrap leading-relaxed">
                 <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
                 {chunks.map((chunk, i) => (
                   <span
                     key={i}
-                    className={chunk.kind === "input" ? "text-cyan-300" : "text-green-400"}
+                    className={chunk.kind === "input" ? "text-cyan-300" : "text-gray-100"}
                   >
                     {chunk.text}
                   </span>
@@ -554,9 +554,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                 </div>
               )}
             </>
-          ) : (
-            <p className="text-xs text-gray-600">// 실행 버튼을 눌러 출력 결과를 확인하세요.</p>
-          )}
+          ) : null}
           <div ref={consoleBottomRef} />
         </div>
       </div>
