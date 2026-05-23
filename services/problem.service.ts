@@ -98,15 +98,26 @@ export async function getAdjacentProblems(
 ): Promise<{ prev: AdjacentProblem; next: AdjacentProblem }> {
   const { data } = await supabase
     .from("problems")
-    .select("id, title")
+    .select("id, title, display_order")
     .eq("category", category)
+    .eq("status", "published")
+    .order("display_order", { ascending: true, nullsFirst: false })
     .order("id");
 
   if (!data) return { prev: null, next: null };
 
-  const idx = data.findIndex((p) => p.id === problemId);
+  // display_order 기준으로 클라이언트 정렬 (목록과 동일한 순서)
+  const sorted = [...data].sort((a, b) => {
+    if (a.display_order == null && b.display_order == null) return a.id < b.id ? -1 : 1;
+    if (a.display_order == null) return 1;
+    if (b.display_order == null) return -1;
+    if (a.display_order !== b.display_order) return a.display_order - b.display_order;
+    return a.id < b.id ? -1 : 1;
+  });
+
+  const idx = sorted.findIndex((p) => p.id === problemId);
   return {
-    prev: idx > 0 ? data[idx - 1] : null,
-    next: idx < data.length - 1 ? data[idx + 1] : null,
+    prev: idx > 0 ? sorted[idx - 1] : null,
+    next: idx < sorted.length - 1 ? sorted[idx + 1] : null,
   };
 }
