@@ -1828,6 +1828,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                     {exampleInput && (
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => navigator.clipboard.writeText(exampleInput)} className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-700 bg-gray-100 px-2.5 py-1 rounded transition-colors"><SvgCopy /> 복사</button>
+                        <button onClick={() => { navigator.clipboard.writeText(exampleInput) }} className="flex items-center gap-1 text-xs font-semibold text-[#534AB7] hover:text-[#443da0] bg-[#534AB7]/10 px-2.5 py-1 rounded transition-colors" title="클립보드에 복사 후 터미널 입력창에 붙여넣기 하세요">입력창으로</button>
                       </div>
                     )}
                   </div>
