@@ -1,11 +1,9 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useCodeExecution } from "@/hooks/useCodeExecution"
+import { useInteractiveExecution } from "@/hooks/useInteractiveExecution"
 import { preloadWorker } from "@/lib/pyodideWorker"
-import {
-  Play, Square, Terminal, ChevronDown, Loader2, AlertCircle, RotateCcw,
-} from "lucide-react"
+import { Play, Square, Terminal, Loader2, RotateCcw } from "lucide-react"
 
 // ── 배경 팔레트 ──────────────────────────────────────────────────────────────
 const SvgPalette = () => (
@@ -27,11 +25,8 @@ const BG_OPTIONS: Record<BgKey, { label: string; editor: string; panel: string; 
   black:     { label: "블랙",         editor: "#0d0d1a", panel: "#000000", isDark: true  },
 }
 
-const CONSOLE_H = 180
+const CONSOLE_H = 220
 
-type OutputTab = "output" | "error"
-
-// ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   initialCode: string
   storageKey?: string
@@ -41,8 +36,10 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const monacoInstanceRef  = useRef<any>(null)
   const monacoModuleRef    = useRef<any>(null)
+  const consoleBottomRef   = useRef<HTMLDivElement>(null)
+  const inputRef           = useRef<HTMLInputElement>(null)
 
-  const { output, error, running, run, stop, reset } = useCodeExecution()
+  const { output, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
 
   useEffect(() => { preloadWorker() }, [])
 
@@ -63,9 +60,6 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     }
     return () => clearTimeout(doneTimerRef.current)
   }, [running])
-
-  // 출력 탭
-  const [activeTab, setActiveTab] = useState<OutputTab>("output")
 
   // 배경색
   const [bgKey, setBgKey] = useState<BgKey>(() => {
@@ -89,22 +83,16 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     monacoInstanceRef.current?.updateOptions({ fontSize: val })
   }
 
-  // 테스트 입력
-  const [testInput, setTestInput]   = useState("")
-  const [inputOpen, setInputOpen]   = useState(false)
-  const [isFlashing, setIsFlashing] = useState(false)
-  const flashTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // 인라인 입력값
+  const [inputValue, setInputValue] = useState("")
 
-  const flashInput = useCallback(() => {
-    clearTimeout(flashTimerRef.current)
-    setIsFlashing(true)
-    flashTimerRef.current = setTimeout(() => setIsFlashing(false), 300)
-  }, [])
+  // 콘솔 자동 스크롤 & 입력 포커스
+  useEffect(() => {
+    consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (waitingInput) inputRef.current?.focus()
+  }, [output, waitingInput])
 
   const getCode = useCallback(() => monacoInstanceRef.current?.getValue() ?? "", [])
-
-  const codeHasInput      = output === null && !running && getCode().includes("input(")
-  const needsInputWarning = codeHasInput && !testInput.trim()
 
   // Monaco 초기화
   useEffect(() => {
@@ -185,8 +173,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         ]
 
         const CIK  = monaco.languages.CompletionItemKind
-        const ITR  = monaco.languages.CompletionItemInsertTextRule
-        const RULE = ITR.InsertAsSnippet
+        const RULE = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
 
         function extractUserSymbols(code: string) {
           const symbols: { name: string; params: string; kind: "function" | "class" | "variable" }[] = []
@@ -214,37 +201,26 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
               startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
               startColumn: word.startColumn, endColumn: word.endColumn,
             }
-
-            const userSymbols = extractUserSymbols(model.getValue())
+            const userSymbols    = extractUserSymbols(model.getValue())
             const userSuggestions = userSymbols.map(s => ({
               label:           s.kind === "function" ? `${s.name}(${s.params})` : s.name,
               kind:            s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
               detail:          s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
               insertText:      s.kind === "function" ? `${s.name}($1)` : s.name,
               insertTextRules: s.kind === "function" ? RULE : undefined,
-              sortText:        "0" + s.name,
-              range,
+              sortText:        "0" + s.name, range,
             }))
-
             const builtinSuggestions = PYTHON_BUILTINS.map(b => ({
-              label:           `${b.name}(${b.params})`,
-              kind:            CIK.Function,
-              detail:          "Python 내장 함수",
-              insertText:      `${b.name}($1)`,
-              insertTextRules: RULE,
-              sortText:        "1" + b.name,
-              range,
+              label: `${b.name}(${b.params})`, kind: CIK.Function, detail: "Python 내장 함수",
+              insertText: `${b.name}($1)`, insertTextRules: RULE, sortText: "1" + b.name, range,
             }))
-
             const keywordSuggestions = PY_KEYWORDS.map(kw => ({
               label: kw, kind: CIK.Keyword, insertText: kw, sortText: "2" + kw, range,
             }))
-
             const snippetSuggestions = PY_SNIPPETS.map(s => ({
               label: s.label, kind: CIK.Snippet, insertText: s.insert,
               insertTextRules: RULE, detail: s.detail, sortText: "3" + s.label, range,
             }))
-
             return { suggestions: [...userSuggestions, ...builtinSuggestions, ...keywordSuggestions, ...snippetSuggestions] }
           },
         })
@@ -296,7 +272,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         "!suggestWidgetVisible && !inSnippetMode",
       )
 
-      // Tab → 내장 함수명 뒤에 () 자동 삽입 (드롭다운 없을 때)
+      // Tab → callable 뒤 () 자동 삽입
       const PY_CALLABLES = new Set([
         'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
         'dict','divmod','enumerate','eval','exec','filter','float','format',
@@ -316,7 +292,6 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         const model = editor.getModel()
         const pos   = editor.getPosition()
         if (!model || !pos) return
-        // 커서가 () 안에 있으면 ) 밖으로 이동
         const lineText = model.getLineContent(pos.lineNumber)
         if (lineText[pos.column - 2] === '(' && lineText[pos.column - 1] === ')') {
           e.preventDefault(); e.stopPropagation()
@@ -356,9 +331,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   }, [isDark])
 
   const handleRun = async () => {
-    setActiveTab("output")
     reset()
-    await run(getCode(), testInput)
+    await run(getCode())
   }
 
   const handleRunRef = useRef(handleRun)
@@ -369,12 +343,20 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
     reset()
   }
 
+  const handleInputSubmit = () => {
+    if (!inputValue.trim() && inputValue === "") return
+    submitInput(inputValue)
+    setInputValue("")
+  }
+
   const statusLabel =
-    running           ? "● 실행 중..."  :
-    runState === "done" ? "● 완료"     :
+    waitingInput        ? "● 입력 대기..."   :
+    running             ? "● 실행 중..."     :
+    runState === "done" ? "● 완료"           :
     "● 준비됨"
   const statusColor =
-    running           ? "text-amber-400"   :
+    waitingInput        ? "text-blue-400"    :
+    running             ? "text-amber-400"   :
     runState === "done" ? "text-emerald-400" :
     "text-gray-600"
 
@@ -392,23 +374,17 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           <span className="ml-3 text-xs font-mono text-gray-400 select-none">main.py</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* 글자 크기 슬라이더 */}
           <span className="text-[11px] font-mono text-gray-500 select-none">{fontSize}px</span>
           <input
             type="range" min={11} max={20} step={1} value={fontSize}
             onChange={e => handleFontSizeChange(Number(e.target.value))}
             className="w-16 h-1.5 accent-[#534AB7] cursor-pointer"
-            title="에디터 글자 크기"
           />
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-white/10 text-gray-400 select-none">
-            Python 3
-          </span>
-          {/* 배경 선택 */}
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-white/10 text-gray-400 select-none">Python 3</span>
           <div className="relative">
             <button
               onClick={() => setBgPickerOpen(v => !v)}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              title="배경색 변경"
             >
               <SvgPalette />
               <span className="w-3 h-3 rounded-full border border-gray-600" style={{ background: bg.editor }} />
@@ -431,11 +407,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
       </div>
 
       {/* ── Monaco 에디터 ── */}
-      <div
-        ref={editorContainerRef}
-        className="flex-1 min-h-0"
-        style={{ background: bg.editor }}
-      />
+      <div ref={editorContainerRef} className="flex-1 min-h-0" style={{ background: bg.editor }} />
 
       {/* ── 상태바 ── */}
       <div className={`h-5 flex items-center justify-between px-4 shrink-0 select-none
@@ -451,32 +423,14 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
       {/* ── 버튼 바 ── */}
       <div className={`h-12 flex items-center justify-between px-4 shrink-0
         border-t ${D("bg-[#252525] border-white/8", "bg-gray-50 border-gray-200")}`}>
-
-        {/* 왼쪽: 테스트 입력 + 초기화 */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setInputOpen(v => !v)}
-            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors duration-150
-              ${inputOpen
-                ? D("text-emerald-300 bg-emerald-900/30", "text-emerald-600 bg-emerald-50")
-                : D("text-gray-500 hover:text-emerald-300 hover:bg-emerald-900/20",
-                    "text-gray-500 hover:text-emerald-600 hover:bg-emerald-50")}`}
-          >
-            <Terminal size={11} />
-            테스트 입력
-            <ChevronDown size={10} className={`transition-transform duration-150 ${inputOpen ? "rotate-180" : ""}`} />
-          </button>
-          <button
-            onClick={handleReset}
-            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors
-              ${D("text-gray-500 hover:text-gray-300 hover:bg-white/10", "text-gray-500 hover:text-gray-700 hover:bg-gray-200")}`}
-          >
-            <RotateCcw size={11} /> 초기화
-          </button>
-        </div>
-
-        {/* 오른쪽: 실행 / 정지 */}
-        {running ? (
+        <button
+          onClick={handleReset}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors
+            ${D("text-gray-500 hover:text-gray-300 hover:bg-white/10", "text-gray-500 hover:text-gray-700 hover:bg-gray-200")}`}
+        >
+          <RotateCcw size={11} /> 초기화
+        </button>
+        {running || waitingInput ? (
           <button
             onClick={stop}
             className="flex items-center gap-1.5 text-sm font-semibold px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
@@ -489,117 +443,61 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
             className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors
               ${D("bg-emerald-600 hover:bg-emerald-500 text-white", "bg-emerald-500 hover:bg-emerald-600 text-white")}`}
           >
-            {running
-              ? <><Loader2 size={13} className="animate-spin" /> 실행 중...</>
-              : <><Play size={13} className="fill-current" /> 실행</>}
+            <Play size={13} className="fill-current" /> 실행
           </button>
         )}
       </div>
 
-      {/* ── 테스트 입력 패널 ── */}
-      {inputOpen && (
-        <div className={`shrink-0 border-t transition-colors duration-200
-          ${isFlashing
-            ? D("border-indigo-700/50 bg-indigo-900/40", "border-indigo-300 bg-indigo-100")
-            : D("border-emerald-700/30 bg-[#191e19]",    "border-emerald-200 bg-emerald-50/70")}`}>
-          <div className="px-4 pt-2.5 pb-1.5 flex items-center justify-between">
-            <div className={`flex items-center gap-1.5 text-[11px] font-semibold
-              ${D("text-emerald-400", "text-emerald-600")}`}>
-              <Terminal size={10} />
-              테스트 입력값을 직접 넣고 실행해 보세요
-            </div>
-            {testInput.trim() && (
-              <button
-                onClick={() => setTestInput("")}
-                className={`text-[11px] transition-colors ${D("text-slate-500 hover:text-slate-300", "text-gray-400 hover:text-gray-600")}`}
-              >
-                지우기
-              </button>
-            )}
-          </div>
-          <textarea
-            value={testInput}
-            onChange={e => setTestInput(e.target.value)}
-            placeholder="예) 홍길동 (Enter로 여러 줄 입력 가능)"
-            spellCheck={false}
-            rows={3}
-            className={`w-full px-4 pb-3 text-xs font-mono resize-none focus:outline-none leading-relaxed block bg-transparent
-              ${D("text-emerald-300 placeholder:text-emerald-900/60", "text-gray-700 placeholder:text-gray-400")}`}
-          />
-        </div>
-      )}
-
-      {/* ── 콘솔 ── */}
+      {/* ── 터미널 콘솔 ── */}
       <div
         className={`flex flex-col shrink-0 border-t ${D("bg-slate-950 border-white/8", "bg-slate-900 border-gray-700")}`}
         style={{ height: `${CONSOLE_H}px` }}
       >
         {/* 탭 바 */}
-        <div className={`h-9 flex items-stretch gap-0.5 px-3 border-b shrink-0 ${D("border-white/8", "border-white/8")}`}>
-          <div className="flex items-center mr-1.5">
-            <Terminal size={12} className="text-gray-600" />
-          </div>
-          {(["output", "error"] as const).map(tab => {
-            const labels: Record<OutputTab, string> = { output: "출력", error: "에러" }
-            const isActive    = activeTab === tab
-            const hasErrorDot = tab === "error" && !!error
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-1.5 text-xs px-3 transition-all duration-150 font-medium
-                  ${isActive
-                    ? "text-white font-semibold border-b-2 border-indigo-500 -mb-[1px]"
-                    : "text-gray-500 opacity-50 hover:opacity-75 hover:text-gray-300 hover:bg-white/5"}`}
-              >
-                {labels[tab]}
-                {hasErrorDot && <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />}
-              </button>
-            )
-          })}
+        <div className={`h-9 flex items-center px-3 border-b shrink-0 gap-2 ${D("border-white/8", "border-white/8")}`}>
+          <Terminal size={12} className="text-gray-600" />
+          <span className="text-xs font-semibold text-white border-b-2 border-indigo-500 pb-[9px]">출력</span>
         </div>
 
-        {/* 탭 내용 */}
+        {/* 터미널 출력 + 인라인 입력 */}
         <div className="flex-1 px-4 py-3 overflow-y-auto font-mono min-h-0">
+          {output || running || waitingInput ? (
+            <>
+              <pre className="text-sm text-green-400 whitespace-pre-wrap leading-relaxed">
+                <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
+                {output}
+              </pre>
 
-          {activeTab === "output" && (
-            output
-              ? <pre className="text-sm text-green-400 whitespace-pre-wrap leading-relaxed">
-                  <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
-                  {output}
-                </pre>
-              : running
-              ? <p className="text-xs text-gray-500">// 실행 중...</p>
-              : needsInputWarning
-              ? <div className="flex flex-col gap-2">
-                  <div className="inline-flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25">
-                    <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-                    <div className="text-xs text-amber-300 leading-relaxed">
-                      <p className="font-semibold mb-0.5">입력값이 필요한 코드예요.</p>
-                      <p className="text-amber-400/80">
-                        아래 <strong className="text-amber-300">테스트 입력</strong> 버튼을 눌러 입력값을 넣은 뒤 실행해보세요.
-                      </p>
-                    </div>
-                  </div>
-                  {!inputOpen && (
-                    <button
-                      onClick={() => { setInputOpen(true); flashInput() }}
-                      className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg w-fit
-                        bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50 transition-colors"
-                    >
-                      <Terminal size={10} /> 테스트 입력 열기
-                    </button>
-                  )}
+              {/* input() 대기 중 인라인 입력 */}
+              {waitingInput && (
+                <div className="flex items-center mt-0.5">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputValue}
+                    onChange={e => setInputValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
+                    }}
+                    className="flex-1 bg-transparent text-green-300 font-mono text-sm outline-none caret-green-400 placeholder:text-green-900"
+                    placeholder="입력 후 Enter..."
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
                 </div>
-              : <p className="text-xs text-gray-600">// 실행 버튼을 눌러 출력 결과를 확인하세요.</p>
-          )}
+              )}
 
-          {activeTab === "error" && (
-            error
-              ? <pre className="text-sm text-red-400 whitespace-pre-wrap leading-relaxed">{error}</pre>
-              : <p className="text-xs text-gray-600">// 에러가 없습니다.</p>
+              {running && !waitingInput && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Loader2 size={11} className="animate-spin text-amber-400" />
+                  <span className="text-xs text-amber-400 font-mono">실행 중...</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-gray-600">// 실행 버튼을 눌러 출력 결과를 확인하세요.</p>
           )}
-
+          <div ref={consoleBottomRef} />
         </div>
       </div>
 
