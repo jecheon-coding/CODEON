@@ -277,21 +277,26 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
       )
 
-      // Enter → Python 자동 들여쓰기 (addCommand: Monaco 커맨드 레벨에서만 막을 수 있음)
+      // Enter → Python 자동 들여쓰기
+      // trigger("type","\n...") 는 Monaco가 \n을 다시 Enter 커맨드로 처리해 이중 들여쓰기 발생.
+      // executeEdits로 직접 모델에 써서 연쇄 발동 방지.
       editor.addCommand(
         monaco.KeyCode.Enter,
         () => {
           const model    = editor.getModel()
-          const position = editor.getPosition()
-          if (!model || !position) return
-          const lineContent  = model.getLineContent(position.lineNumber)
-          const beforeCursor = lineContent.substring(0, position.column - 1)
+          const pos      = editor.getPosition()
+          if (!model || !pos) return
+          const lineContent  = model.getLineContent(pos.lineNumber)
+          const beforeCursor = lineContent.substring(0, pos.column - 1)
           const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
-          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " })
-          } else {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase })
-          }
+          const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
+            ? indentBase + "    "
+            : indentBase
+          editor.executeEdits('enter-indent', [{
+            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+            text: "\n" + newIndent,
+          }])
+          editor.setPosition({ lineNumber: pos.lineNumber + 1, column: newIndent.length + 1 })
         },
         "!suggestWidgetVisible && !inSnippetMode",
       )
