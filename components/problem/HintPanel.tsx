@@ -88,7 +88,7 @@ export default function HintPanel({ problem, code, submissionStatus, isDark }: P
 
   return (
     <div className={`${D("bg-slate-800", "bg-white")}`}>
-      <div className={`px-4 py-4 flex flex-col gap-3`}>
+      <div className={`px-4 py-2 flex flex-col gap-2`}>
 
 
           {/* 로딩 */}
@@ -115,12 +115,12 @@ export default function HintPanel({ problem, code, submissionStatus, isDark }: P
                 {steps.slice(0, revealed).map((step, i) => {
                   const s = STEP_STYLE[i] ?? STEP_STYLE[STEP_STYLE.length - 1];
                   return (
-                    <div key={i} className={`rounded-xl rounded-tl-sm px-4 py-3 border
+                    <div key={i} className={`rounded-xl rounded-tl-sm px-3 py-2 border
                       ${isDark ? s.dark : s.light}`}>
-                      <p className={`text-[11px] font-bold mb-1 ${s.label}`}>
+                      <p className={`text-[11px] font-bold mb-0.5 ${s.label}`}>
                         {i + 1}단계 힌트
                       </p>
-                      <p className={`text-sm leading-relaxed ${D("text-slate-200", "text-gray-700")}`}>
+                      <p className={`text-xs leading-relaxed ${D("text-slate-200", "text-gray-700")}`}>
                         {step}
                       </p>
                     </div>
