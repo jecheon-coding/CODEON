@@ -267,7 +267,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         quickSuggestions:        { other: true, comments: false, strings: false },
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions:    "off" as any,
-        autoClosingQuotes:       "languageDefined",
+        autoClosingQuotes:       "always",
         automaticLayout:         true,
       })
 
@@ -306,6 +306,20 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         'set','setattr','slice','sorted','str','sum','super','tuple','type','vars','zip',
       ])
       editor.onKeyDown((e: any) => {
+        // Shift+Enter → 들여쓰기 없이 순수 줄바꿈
+        if (e.keyCode === monaco.KeyCode.Enter && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault(); e.stopPropagation()
+          const model = editor.getModel()
+          const pos   = editor.getPosition()
+          if (!model || !pos) return
+          editor.executeEdits("shift-enter", [{
+            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+            text: "\n",
+          }])
+          editor.setPosition({ lineNumber: pos.lineNumber + 1, column: 1 })
+          return
+        }
+
         if (e.keyCode !== monaco.KeyCode.Tab) return
         if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
         const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
@@ -333,21 +347,6 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 1 })
         }
       })
-
-      // Shift+Enter → 다음 줄 삽입 (들여쓰기 없이 순수 줄바꿈)
-      editor.addCommand(
-        monaco.KeyMod.Shift | monaco.KeyCode.Enter,
-        () => {
-          const model    = editor.getModel()
-          const position = editor.getPosition()
-          if (!model || !position) return
-          editor.executeEdits("shift-enter", [{
-            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-            text: "\n",
-          }])
-          editor.setPosition({ lineNumber: position.lineNumber + 1, column: 1 })
-        }
-      )
 
       // Ctrl+Enter → 실행
       editor.addCommand(
