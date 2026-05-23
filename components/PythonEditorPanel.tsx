@@ -301,20 +301,24 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         "!suggestWidgetVisible && !inSnippetMode",
       )
 
-      // Shift+Enter → 현재 줄 끝에 줄바꿈 삽입 후 다음 줄로 이동 (줄 분리 없음)
-      // executeEdits 사용: trigger("type")와 달리 Enter addCommand를 연쇄 발동하지 않음
+      // Shift+Enter → 줄 끝에 줄바꿈 + 컨텍스트 들여쓰기 (줄 분리 없음)
       editor.addCommand(
         monaco.KeyMod.Shift | monaco.KeyCode.Enter,
         () => {
           const model = editor.getModel()
           const pos   = editor.getPosition()
           if (!model || !pos) return
+          const lineContent = model.getLineContent(pos.lineNumber)
+          const indentBase  = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
+          const newIndent   = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(lineContent.trimEnd())
+            ? indentBase + "    "
+            : indentBase
           const lineEnd = model.getLineMaxColumn(pos.lineNumber)
           editor.executeEdits('shift-enter', [{
             range: new monaco.Range(pos.lineNumber, lineEnd, pos.lineNumber, lineEnd),
-            text: '\n',
+            text: '\n' + newIndent,
           }])
-          editor.setPosition({ lineNumber: pos.lineNumber + 1, column: 1 })
+          editor.setPosition({ lineNumber: pos.lineNumber + 1, column: newIndent.length + 1 })
         },
       )
 
