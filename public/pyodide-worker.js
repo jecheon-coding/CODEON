@@ -64,9 +64,9 @@ function _waitForInput() {
 
   if (Atomics.load(_ctrl, 0) === -1) return null; // stop signal
 
-  const len   = new Int32Array(_data.buffer, 0, 1)[0];
-  const bytes = new Uint8Array(_data.buffer, 4, len);
-  return new TextDecoder().decode(bytes);
+  const len  = new Int32Array(_data.buffer, 0, 1)[0];
+  const copy = new Uint8Array(_data.buffer, 4, len).slice(); // SharedArrayBuffer → 일반 ArrayBuffer 복사
+  return new TextDecoder().decode(copy);
 }
 
 const INTERACTIVE_WRAPPER = `
