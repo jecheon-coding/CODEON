@@ -1286,7 +1286,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
         automaticLayout:         true,
         fontSize:                initFontSize,
         fontFamily:              "var(--font-fira-code), 'Fira Code', Consolas, monospace",
-        fontLigatures:           true,
+        fontLigatures:           false,
         minimap:                 { enabled: false },
         scrollBeyondLastLine:    false,
         renderLineHighlight:     "line",

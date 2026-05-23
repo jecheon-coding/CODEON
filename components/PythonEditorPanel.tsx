@@ -273,7 +273,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         theme:                   isDark ? "vs-dark" : "vs",
         fontSize:                initFontSize,
         fontFamily:              "'JetBrains Mono', 'Fira Code', Menlo, monospace",
-        fontLigatures:           true,
+        fontLigatures:           false,
         lineHeight:              22,
         minimap:                 { enabled: false },
         scrollBeyondLastLine:    false,
