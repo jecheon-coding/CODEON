@@ -277,44 +277,10 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
       )
 
-      // Tab + Enter + Shift+Enter 통합 키 핸들러
-      const PY_CALLABLES = new Set([
-        'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
-        'dict','divmod','enumerate','eval','exec','filter','float','format',
-        'frozenset','getattr','hasattr','hash','hex','id','input','int',
-        'isinstance','issubclass','iter','len','list','map','max','min','next',
-        'oct','open','ord','pow','print','range','repr','reversed','round',
-        'set','setattr','slice','sorted','str','sum','super','tuple','type','vars','zip',
-      ])
-      const getSuggestOpen = () => {
-        const ctrl = editor.getContribution('editor.contrib.suggestController') as any
-        return ctrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
-          (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible')
-      }
-      const isInSnippet = () =>
-        !!(editor as any)._contextKeyService?.getContextKeyValue?.('inSnippetMode')
-
-      editor.onKeyDown((e: any) => {
-        const { keyCode, shiftKey, ctrlKey, metaKey, altKey } = e
-
-        // Shift+Enter → 들여쓰기 없이 순수 줄바꿈
-        if (keyCode === monaco.KeyCode.Enter && shiftKey && !ctrlKey && !metaKey) {
-          e.preventDefault(); e.stopPropagation()
-          const model = editor.getModel()
-          const pos   = editor.getPosition()
-          if (!model || !pos) return
-          editor.executeEdits("shift-enter", [{
-            range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-            text: "\n",
-          }])
-          editor.setPosition({ lineNumber: pos.lineNumber + 1, column: 1 })
-          return
-        }
-
-        // Enter → Python 자동 들여쓰기 (suggest/snippet 열려있으면 Monaco에 위임)
-        if (keyCode === monaco.KeyCode.Enter && !shiftKey && !ctrlKey && !metaKey && !altKey) {
-          if (getSuggestOpen() || isInSnippet()) return
-          e.preventDefault(); e.stopPropagation()
+      // Enter → Python 자동 들여쓰기 (addCommand: Monaco 커맨드 레벨에서만 막을 수 있음)
+      editor.addCommand(
+        monaco.KeyCode.Enter,
+        () => {
           const model    = editor.getModel()
           const position = editor.getPosition()
           if (!model || !position) return
@@ -326,13 +292,33 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           } else {
             editor.trigger("keyboard", "type", { text: "\n" + indentBase })
           }
-          return
-        }
+        },
+        "!suggestWidgetVisible && !inSnippetMode",
+      )
 
-        // Tab → callable 뒤 () 자동 삽입
-        if (keyCode !== monaco.KeyCode.Tab) return
-        if (ctrlKey || metaKey || altKey || shiftKey) return
-        if (getSuggestOpen()) return
+      // Shift+Enter → 순수 줄바꿈 (addCommand로 등록해야 Monaco 내부 처리를 덮어씀)
+      editor.addCommand(
+        monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+        () => { editor.trigger("keyboard", "type", { text: "\n" }) },
+      )
+
+      // Tab → callable 뒤 () 자동 삽입 (onKeyDown은 Tab에는 정상 작동)
+      const PY_CALLABLES = new Set([
+        'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
+        'dict','divmod','enumerate','eval','exec','filter','float','format',
+        'frozenset','getattr','hasattr','hash','hex','id','input','int',
+        'isinstance','issubclass','iter','len','list','map','max','min','next',
+        'oct','open','ord','pow','print','range','repr','reversed','round',
+        'set','setattr','slice','sorted','str','sum','super','tuple','type','vars','zip',
+      ])
+      editor.onKeyDown((e: any) => {
+        if (e.keyCode !== monaco.KeyCode.Tab) return
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
+        const isSuggestOpen =
+          suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
+          (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible')
+        if (isSuggestOpen) return
         const model = editor.getModel()
         const pos   = editor.getPosition()
         if (!model || !pos) return
