@@ -2004,6 +2004,16 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                           value={inputValue}
                           onChange={e => setInputValue(e.target.value)}
                           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() } }}
+                          onPaste={e => {
+                            const text = e.clipboardData.getData("text")
+                            if (!text.includes("\n")) return
+                            e.preventDefault()
+                            const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
+                            if (lines.length === 0) return
+                            pendingInputLines.current = lines.slice(1)
+                            submitInput(lines[0])
+                            setInputValue("")
+                          }}
                           className="flex-1 bg-transparent outline-none caret-green-400 font-mono text-sm"
                           style={{ color: "#4ade80" }}
                           placeholder="입력 후 Enter..."

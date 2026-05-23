@@ -44,6 +44,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   const dragStartH         = useRef<number>(CONSOLE_H_DEFAULT)
 
   const { chunks, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
+  const pendingInputLines = useRef<string[]>([])
 
   useEffect(() => { preloadWorker() }, [])
 
@@ -110,11 +111,18 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   // 인라인 입력값
   const [inputValue, setInputValue] = useState("")
 
-  // 콘솔 자동 스크롤 & 입력 포커스
+  // 콘솔 자동 스크롤 & 입력 포커스 (큐 있으면 자동 제출)
   useEffect(() => {
     consoleBottomRef.current?.scrollIntoView({ behavior: "smooth" })
-    if (waitingInput) inputRef.current?.focus()
-  }, [chunks, waitingInput])
+    if (waitingInput) {
+      if (pendingInputLines.current.length > 0) {
+        const line = pendingInputLines.current.shift()!
+        submitInput(line)
+      } else {
+        inputRef.current?.focus()
+      }
+    }
+  }, [chunks, waitingInput, submitInput])
 
   const getCode = useCallback(() => monacoInstanceRef.current?.getValue() ?? "", [])
 
@@ -552,6 +560,16 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     onChange={e => setInputValue(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter") { e.preventDefault(); handleInputSubmit() }
+                    }}
+                    onPaste={e => {
+                      const text = e.clipboardData.getData("text")
+                      if (!text.includes("\n")) return
+                      e.preventDefault()
+                      const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
+                      if (lines.length === 0) return
+                      pendingInputLines.current = lines.slice(1)
+                      submitInput(lines[0])
+                      setInputValue("")
                     }}
                     className="flex-1 bg-transparent text-green-600 font-mono text-sm outline-none caret-green-500 placeholder:text-gray-700"
                     placeholder="입력 후 Enter..."
