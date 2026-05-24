@@ -576,7 +576,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0">
           {hasOutput || running || waitingInput ? (
             <pre className="text-sm whitespace-pre-wrap leading-relaxed" style={{ fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
-              <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
+
               {chunks.map((chunk, i) => (
                 <span
                   key={i}

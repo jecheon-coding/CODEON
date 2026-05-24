@@ -1989,7 +1989,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                 chunks.length > 0 || running || waitingInput ? (
                   <div className="font-mono text-sm">
                     <pre className="whitespace-pre-wrap leading-relaxed" style={{ color: isDark ? "#d1d5db" : "#374151", fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
-                      <span style={{ color: isDark ? "#4b5563" : "#9ca3af" }} className="select-none">$ python main.py{"\n"}</span>
+
                       {chunks.map((chunk, i) => (
                         <span key={i} style={{ color: chunk.kind === "input" ? "#86efac" : isDark ? "#d1d5db" : "#111827" }}>
                           {chunk.text}

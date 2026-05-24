@@ -3,8 +3,7 @@
 import { usePathname } from "next/navigation"
 import PythonEditorPanel from "@/components/PythonEditorPanel"
 
-const STARTER_CODE = `# 여기에 파이썬 코드를 작성하세요
-`
+const STARTER_CODE = ``
 
 export default function GuideLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

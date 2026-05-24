@@ -535,7 +535,7 @@ export default function CodeEditor({
           {activeTab === "output" && (
             execution.output
               ? <pre className="text-sm text-green-400 whitespace-pre-wrap leading-relaxed">
-                  <span className="text-gray-600 select-none">$ python main.py{"\n"}</span>
+
                   {execution.output}
                 </pre>
               : needsInputWarning
