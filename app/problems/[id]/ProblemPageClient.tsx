@@ -1991,7 +1991,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                     <pre className="whitespace-pre-wrap leading-relaxed" style={{ color: isDark ? "#d1d5db" : "#374151", fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
                       <span style={{ color: isDark ? "#4b5563" : "#9ca3af" }} className="select-none">$ python main.py{"\n"}</span>
                       {chunks.map((chunk, i) => (
-                        <span key={i} style={{ color: chunk.kind === "input" ? "#4ade80" : isDark ? "#ffffff" : "#111827" }}>
+                        <span key={i} style={{ color: chunk.kind === "input" ? "#86efac" : isDark ? "#d1d5db" : "#111827" }}>
                           {chunk.text}
                         </span>
                       ))}
@@ -2017,8 +2017,8 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                             background: "transparent",
                             border: "none",
                             outline: "none",
-                            color: "#4ade80",
-                            caretColor: "#4ade80",
+                            color: "#86efac",
+                            caretColor: "#86efac",
                             fontFamily: "inherit",
                             fontSize: "inherit",
                             lineHeight: "inherit",

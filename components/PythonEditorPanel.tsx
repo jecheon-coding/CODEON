@@ -580,7 +580,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
               {chunks.map((chunk, i) => (
                 <span
                   key={i}
-                  className={chunk.kind === "input" ? "text-green-500" : "text-white"}
+                  className={chunk.kind === "input" ? "text-green-300" : "text-gray-300"}
                 >
                   {chunk.text}
                 </span>
@@ -610,8 +610,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     background: "transparent",
                     border: "none",
                     outline: "none",
-                    color: "#22c55e",
-                    caretColor: "#22c55e",
+                    color: "#86efac",
+                    caretColor: "#86efac",
                     fontFamily: "inherit",
                     fontSize: "inherit",
                     lineHeight: "inherit",
