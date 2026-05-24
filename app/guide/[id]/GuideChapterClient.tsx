@@ -74,11 +74,15 @@ export default function GuideChapterClient({
   allChapters,
   completedIds: initialCompleted,
   userName,
+  showHint,
+  showSolution,
 }: {
   chapter:      Chapter
   allChapters:  ChapterSummary[]
   completedIds: string[]
   userName:     string
+  showHint:     boolean
+  showSolution: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -272,8 +276,8 @@ export default function GuideChapterClient({
                     const lang = match?.[1]
                     const code = String(children).replace(/^\n+/, "").replace(/\n+$/, "")
 
-                    if (lang === "python-solution") return <CollapsibleCode type="solution" code={code} />
-                    if (lang === "python-hint")     return <CollapsibleCode type="hint"     code={code} />
+                    if (lang === "python-solution") return showSolution ? <CollapsibleCode type="solution" code={code} /> : null
+                    if (lang === "python-hint")     return showHint     ? <CollapsibleCode type="hint"     code={code} /> : null
 
                     if (lang) {
                       return (

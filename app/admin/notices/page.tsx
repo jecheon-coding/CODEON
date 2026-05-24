@@ -19,6 +19,11 @@ type Notice = {
 const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-gray-400"
 const labelCls = "block text-xs font-bold text-gray-700 mb-1.5"
 
+// "2026-05-23" ↔ "2026.05.23" 변환
+function toInputDate(stored: string) { return stored.replace(/\./g, "-") }
+function toStoredDate(input: string) { return input.replace(/-/g, ".") }
+function todayInputDate() { return new Date().toISOString().slice(0, 10) }
+
 export default function AdminNoticesPage() {
   const session = useSession()?.data
   const router  = useRouter()
@@ -27,7 +32,7 @@ export default function AdminNoticesPage() {
   const [loading,  setLoading]  = useState(true)
   const [editing,  setEditing]  = useState<Notice | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [form,     setForm]     = useState({ date: "", content: "", is_visible: true })
+  const [form,     setForm]     = useState({ date: todayInputDate(), content: "", is_visible: true })
   const [saving,   setSaving]   = useState(false)
   const [err,      setErr]      = useState("")
   const [toast,    setToast]    = useState("")
@@ -52,14 +57,14 @@ export default function AdminNoticesPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ date: "", content: "", is_visible: true })
+    setForm({ date: todayInputDate(), content: "", is_visible: true })
     setErr("")
     setShowForm(true)
   }
 
   function openEdit(n: Notice) {
     setEditing(n)
-    setForm({ date: n.date, content: n.content, is_visible: n.is_visible })
+    setForm({ date: toInputDate(n.date), content: n.content, is_visible: n.is_visible })
     setErr("")
     setShowForm(true)
   }
@@ -74,17 +79,18 @@ export default function AdminNoticesPage() {
     if (!form.date.trim() || !form.content.trim()) { setErr("날짜와 내용을 입력하세요"); return }
     setSaving(true); setErr("")
     try {
+      const body = { ...form, date: toStoredDate(form.date) }
       if (editing) {
         const res = await fetch(`/api/admin/notices/${editing.id}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         })
         if (!res.ok) { setErr((await res.json()).error ?? "오류 발생"); return }
         showToast("공지가 수정됐습니다")
       } else {
         const res = await fetch("/api/admin/notices", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         })
         if (!res.ok) { setErr((await res.json()).error ?? "오류 발생"); return }
         showToast("공지가 추가됐습니다")
@@ -101,7 +107,14 @@ export default function AdminNoticesPage() {
     load()
   }
 
+  const visibleCount = notices.filter(n => n.is_visible).length
+
   async function toggleVisible(n: Notice) {
+    // 이미 5개 노출 중인데 숨김 공지를 노출로 바꾸려는 경우
+    if (!n.is_visible && visibleCount >= 5) {
+      showToast("노출 공지는 최대 5개까지만 가능합니다")
+      return
+    }
     await fetch(`/api/admin/notices/${n.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_visible: !n.is_visible }),
@@ -109,45 +122,42 @@ export default function AdminNoticesPage() {
     load()
   }
 
-  const visibleCount = notices.filter(n => n.is_visible).length
-
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-[#f8fafc]">
       {/* NavBar */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <BookOpen className="w-4 h-4 text-white" />
+      <div className="bg-white border-b border-gray-100 px-8 py-4 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
+        <button
+          onClick={() => router.push("/admin")}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" /> 대시보드
+        </button>
+        <div className="h-4 w-px bg-gray-200" />
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-indigo-600" />
           </div>
-          <div>
-            <p className="text-sm font-extrabold text-gray-900 leading-none">공지 관리</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">랜딩 페이지 공지사항</p>
-          </div>
+          <span className="text-sm font-extrabold text-gray-900">공지사항 관리</span>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/admin")}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
-          >
-            <ArrowLeft className="w-4 h-4" /> 대시보드
-          </button>
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium"
-          >
-            <LogOut className="w-4 h-4" /> 로그아웃
-          </button>
-        </div>
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="ml-auto flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium"
+        >
+          <LogOut className="w-4 h-4" /> 로그아웃
+        </button>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-8 py-8">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-lg font-extrabold text-gray-900">공지사항 관리</h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              랜딩 페이지 하단에 표시됩니다 · 노출 중 <span className="font-bold text-indigo-600">{visibleCount}</span>/5개
+              랜딩 페이지 하단에 표시됩니다 · 노출 중{" "}
+              <span className={`font-bold ${visibleCount >= 5 ? "text-amber-500" : "text-indigo-600"}`}>
+                {visibleCount}
+              </span>/5개
             </p>
           </div>
           <button
@@ -159,13 +169,13 @@ export default function AdminNoticesPage() {
         </div>
 
         {/* 공지 목록 */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
             </div>
           ) : notices.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <div className="flex flex-col items-center justify-center py-16 gap-2">
               <CheckCircle2 className="w-8 h-8 text-gray-200" />
               <p className="text-sm font-semibold text-gray-500">등록된 공지가 없습니다</p>
             </div>
@@ -173,36 +183,45 @@ export default function AdminNoticesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide w-24">날짜</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide">내용</th>
-                  <th className="px-4 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wide w-20">노출</th>
-                  <th className="px-4 py-3 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wide w-24">관리</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wide w-32">날짜</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wide">내용</th>
+                  <th className="px-6 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wide w-36">노출</th>
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wide w-28">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {notices.map((n, i) => (
-                  <tr key={n.id} className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors ${i === notices.length - 1 ? "border-b-0" : ""}`}>
-                    <td className="px-4 py-3.5">
+                  <tr
+                    key={n.id}
+                    onClick={() => openEdit(n)}
+                    className={`border-b border-gray-50 cursor-pointer hover:bg-indigo-50/40 transition-colors ${
+                      i === notices.length - 1 ? "border-b-0" : ""
+                    }`}
+                  >
+                    <td className="px-6 py-4">
                       <span className="text-xs font-bold text-gray-700 tabular-nums">{n.date}</span>
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-6 py-4">
                       <p className="text-sm text-gray-800 leading-snug">{n.content}</p>
                     </td>
-                    <td className="px-4 py-3.5 text-center">
+                    <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => toggleVisible(n)}
                         title={n.is_visible ? "숨김으로 전환" : "노출로 전환"}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
                           n.is_visible
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                             : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200"
                         }`}
                       >
-                        {n.is_visible ? <><Eye className="w-3 h-3" /> 노출</> : <><EyeOff className="w-3 h-3" /> 숨김</>}
+                        {n.is_visible
+                          ? <><Eye className="w-3 h-3" /> 노출</>
+                          : <><EyeOff className="w-3 h-3" /> 숨김</>
+                        }
                       </button>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-0.5">
                         <button
                           onClick={() => openEdit(n)}
                           className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -247,9 +266,9 @@ export default function AdminNoticesPage() {
               <div>
                 <label className={labelCls}>날짜 <span className="text-red-500">*</span></label>
                 <input
+                  type="date"
                   value={form.date}
                   onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
-                  placeholder="예) 2026.04"
                   className={inputCls}
                 />
               </div>

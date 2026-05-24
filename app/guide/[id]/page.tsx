@@ -47,6 +47,8 @@ export default async function GuideChapterPage({
       allChapters={allChapters ?? []}
       completedIds={completedIds}
       userName={session.user.name ?? "학생"}
+      showHint={(chapter as any).show_hint ?? true}
+      showSolution={(chapter as any).show_solution ?? true}
     />
   )
 }

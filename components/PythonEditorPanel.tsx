@@ -601,7 +601,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
                     const lines = text.split("\n").filter((l, i, a) => i < a.length - 1 || l !== "")
                     if (lines.length === 0) return
                     pendingInputLines.current = lines.slice(1)
-                    setInputValue(lines[0])
+                    setInputValue("")
+                    submitInput(lines[0])
                   }}
                   autoComplete="off"
                   spellCheck={false}

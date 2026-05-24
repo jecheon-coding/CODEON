@@ -9,15 +9,17 @@ import {
 } from "lucide-react"
 
 type Chapter = {
-  id:           string
-  title:        string
-  category:     string | null
-  content:      string
-  parent_id:    string | null
-  order_index:  number
-  is_published: boolean
-  created_at:   string
-  updated_at:   string
+  id:            string
+  title:         string
+  category:      string | null
+  content:       string
+  parent_id:     string | null
+  order_index:   number
+  is_published:  boolean
+  show_hint:     boolean
+  show_solution: boolean
+  created_at:    string
+  updated_at:    string
 }
 
 const CATEGORIES = ["공통", "파이썬기초", "파이썬알고리즘", "파이썬자격증", "파이썬실전"]
@@ -26,12 +28,14 @@ const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tex
 const labelCls = "block text-xs font-bold text-gray-700 mb-1.5"
 
 type FormState = {
-  title:        string
-  category:     string
-  content:      string
-  order_index:  number
-  is_published: boolean
-  parent_id:    string
+  title:         string
+  category:      string
+  content:       string
+  order_index:   number
+  is_published:  boolean
+  show_hint:     boolean
+  show_solution: boolean
+  parent_id:     string
 }
 
 export default function AdminLearningPage() {
@@ -43,7 +47,7 @@ export default function AdminLearningPage() {
   const [editing,   setEditing]   = useState<Chapter | null>(null)
   const [showForm,  setShowForm]  = useState(false)
   const [form,      setForm]      = useState<FormState>({
-    title: "", category: "공통", content: "", order_index: 0, is_published: false, parent_id: "",
+    title: "", category: "공통", content: "", order_index: 0, is_published: false, show_hint: true, show_solution: true, parent_id: "",
   })
   const [saving,    setSaving]    = useState(false)
   const [err,       setErr]       = useState("")
@@ -84,7 +88,7 @@ export default function AdminLearningPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ title: "", category: "공통", content: "", order_index: chapters.length, is_published: false, parent_id: "" })
+    setForm({ title: "", category: "공통", content: "", order_index: chapters.length, is_published: false, show_hint: true, show_solution: true, parent_id: "" })
     setErr("")
     setShowForm(true)
   }
@@ -92,12 +96,14 @@ export default function AdminLearningPage() {
   function openEdit(c: Chapter) {
     setEditing(c)
     setForm({
-      title:        c.title,
-      category:     c.category ?? "공통",
-      content:      c.content,
-      order_index:  c.order_index,
-      is_published: c.is_published,
-      parent_id:    c.parent_id ?? "",
+      title:         c.title,
+      category:      c.category ?? "공통",
+      content:       c.content,
+      order_index:   c.order_index,
+      is_published:  c.is_published,
+      show_hint:     c.show_hint ?? true,
+      show_solution: c.show_solution ?? true,
+      parent_id:     c.parent_id ?? "",
     })
     setErr("")
     setShowForm(true)
@@ -129,12 +135,14 @@ export default function AdminLearningPage() {
     setSaving(true); setErr("")
     try {
       const body = {
-        title:        form.title.trim(),
-        category:     form.category === "공통" ? null : form.category,
-        content:      form.content,
-        order_index:  form.order_index,
-        is_published: form.is_published,
-        parent_id:    form.parent_id || null,
+        title:         form.title.trim(),
+        category:      form.category === "공통" ? null : form.category,
+        content:       form.content,
+        order_index:   form.order_index,
+        is_published:  form.is_published,
+        show_hint:     form.show_hint,
+        show_solution: form.show_solution,
+        parent_id:     form.parent_id || null,
       }
       if (editing) {
         const res = await fetch(`/api/admin/learning/${editing.id}`, {
@@ -420,15 +428,35 @@ export default function AdminLearningPage() {
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={form.is_published}
-                      onChange={e => setForm(p => ({ ...p, is_published: e.target.checked }))}
-                      className="w-4 h-4 accent-indigo-600 rounded"
-                    />
-                    <span className="text-sm font-medium text-gray-700">학생 화면에 발행</span>
-                  </label>
+                  <div className="flex items-center gap-5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={form.is_published}
+                        onChange={e => setForm(p => ({ ...p, is_published: e.target.checked }))}
+                        className="w-4 h-4 accent-indigo-600 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">학생 화면에 발행</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={form.show_hint}
+                        onChange={e => setForm(p => ({ ...p, show_hint: e.target.checked }))}
+                        className="w-4 h-4 accent-amber-500 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">힌트 보기</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={form.show_solution}
+                        onChange={e => setForm(p => ({ ...p, show_solution: e.target.checked }))}
+                        className="w-4 h-4 accent-indigo-500 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">정답 코드 보기</span>
+                    </label>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={closeForm}
