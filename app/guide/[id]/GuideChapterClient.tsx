@@ -15,7 +15,6 @@ import {
   CheckCircle2, Circle, CheckCheck,
   ChevronDown, Lightbulb, ClipboardList,
 } from "lucide-react"
-import PythonEditorPanel from "@/components/PythonEditorPanel"
 
 type ChapterSummary = {
   id:          string
@@ -33,9 +32,6 @@ type Chapter = ChapterSummary & {
 }
 
 type ChapterWithChildren = ChapterSummary & { children: ChapterSummary[] }
-
-const STARTER_CODE = `# 여기에 파이썬 코드를 작성하세요
-`
 
 function CollapsibleCode({ type, code }: { type: "solution" | "hint"; code: string }) {
   const [open, setOpen] = useState(false)
@@ -155,7 +151,7 @@ export default function GuideChapterClient({
 
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-50">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-50">
 
       {/* ── 상단 헤더 ── */}
       <header className="shrink-0 bg-white border-b border-gray-200 px-5 flex items-center gap-4 h-14 z-20">
@@ -363,11 +359,6 @@ export default function GuideChapterClient({
             </div>
           </div>
         </main>
-
-        {/* ── 우측: 코드 에디터 (35%) ── */}
-        <section className="w-[35%] min-w-[320px] shrink-0 overflow-hidden">
-          <PythonEditorPanel initialCode={STARTER_CODE} storageKey="guide" />
-        </section>
 
       </div>
     </div>
