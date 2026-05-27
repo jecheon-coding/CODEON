@@ -56,12 +56,12 @@ export default function GuideMonacoEditor({ value, onChange, onRun }: Props) {
               'nonlocal','not','or','pass','raise','return','try','while','with','yield',
             ]
             const snippets = [
-              { label: 'if',      insert: 'if ${1:condition}:\n\t${2:pass}',                               detail: 'if 문' },
-              { label: 'for',     insert: 'for ${1:i} in ${2:range(10)}:\n\t${3:pass}',                    detail: 'for 반복문' },
-              { label: 'while',   insert: 'while ${1:condition}:\n\t${2:pass}',                            detail: 'while 반복문' },
-              { label: 'def',     insert: 'def ${1:func_name}(${2:}):\n\t${3:pass}',                       detail: '함수 정의' },
-              { label: 'class',   insert: 'class ${1:ClassName}:\n\tdef __init__(self):\n\t\t${2:pass}',   detail: '클래스 정의' },
-              { label: 'try',     insert: 'try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:pass}', detail: 'try/except' },
+              { label: 'if',      insert: 'if ${1:condition}:\n    ${2:pass}',                                   detail: 'if 문' },
+              { label: 'for',     insert: 'for ${1:i} in ${2:range(10)}:\n    ${3:pass}',                      detail: 'for 반복문' },
+              { label: 'while',   insert: 'while ${1:condition}:\n    ${2:pass}',                              detail: 'while 반복문' },
+              { label: 'def',     insert: 'def ${1:func_name}(${2:}):\n    ${3:pass}',                         detail: '함수 정의' },
+              { label: 'class',   insert: 'class ${1:ClassName}:\n    def __init__(self):\n        ${2:pass}', detail: '클래스 정의' },
+              { label: 'try',     insert: 'try:\n    ${1:pass}\nexcept ${2:Exception} as ${3:e}:\n    ${4:pass}', detail: 'try/except' },
               { label: 'print',   insert: 'print(${1})',                                                   detail: '출력' },
               { label: 'input',   insert: 'input(${1:""})',                                                detail: '입력' },
               { label: 'range',   insert: 'range(${1:n})',                                                 detail: 'range(n)' },
@@ -79,7 +79,7 @@ export default function GuideMonacoEditor({ value, onChange, onRun }: Props) {
       }
 
       const editor = monaco.editor.create(containerRef.current, {
-        value,
+        value: value.replace(/\t/g, "    "),
         language:              "python",
         theme:                 "vs-dark",
         fontSize:              13,
@@ -91,6 +91,9 @@ export default function GuideMonacoEditor({ value, onChange, onRun }: Props) {
         renderLineHighlight:   "gutter",
         overviewRulerLanes:    0,
         padding:               { top: 12, bottom: 12 },
+        tabSize:               4,
+        insertSpaces:          true,
+        detectIndentation:     false,
         suggestOnTriggerCharacters: true,
         quickSuggestions:      true,
         automaticLayout:       true,
@@ -120,8 +123,9 @@ export default function GuideMonacoEditor({ value, onChange, onRun }: Props) {
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    if (editor.getValue() !== value) {
-      editor.setValue(value)
+    const normalized = value.replace(/\t/g, "    ")
+    if (editor.getValue() !== normalized) {
+      editor.setValue(normalized)
     }
   }, [value])
 
