@@ -259,7 +259,7 @@ export default function CodeEditor({
         autoClosingQuotes:    "languageDefined",
       });
 
-      editorInstance.current.getModel()?.updateOptions({ tabSize: 4, insertSpaces: true, detectIndentation: false })
+      editorInstance.current.getModel()?.updateOptions({ tabSize: 4, insertSpaces: true })
 
       editorInstance.current.onDidChangeModelContent(() => {
         onCodeChange?.(editorInstance.current.getValue());

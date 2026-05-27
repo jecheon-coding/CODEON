@@ -101,7 +101,7 @@ export default function GuideMonacoEditor({ value, onChange, onRun }: Props) {
 
       editorRef.current = editor
 
-      editor.getModel()?.updateOptions({ tabSize: 4, insertSpaces: true, detectIndentation: false })
+      editor.getModel()?.updateOptions({ tabSize: 4, insertSpaces: true })
 
       editor.onDidChangeModelContent(() => {
         onChangeRef.current(editor.getValue())
