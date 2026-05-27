@@ -287,6 +287,9 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     finally  { setPwLoading(false) }
   }
 
+  // ── Pyodide 미리 로드 (로그인 직후 대시보드에서 Worker 초기화 시작) ─────────
+  useEffect(() => { preloadWorker(true) }, [])
+
   // ── 데이터 로드 ───────────────────────────────────────────────────────
   // 닉네임 fetch — 미설정 시 모달 자동 표시
   useEffect(() => {

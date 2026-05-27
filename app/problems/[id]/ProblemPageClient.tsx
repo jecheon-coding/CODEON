@@ -816,7 +816,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const pendingInputLines = useRef<string[]>([])
 
   // ── Worker 사전 로드 (제출 시 첫 TLE 지연 방지) ─────────────────────────────
-  useEffect(() => { preloadWorker() }, [])
+  useEffect(() => { preloadWorker(true) }, [])
 
   // ── 타이머 ──────────────────────────────────────────────────────────────────
   const [elapsed, setElapsed] = useState(0)
