@@ -301,11 +301,14 @@ export default function CodeEditor({
         },
       );
 
-      // Ctrl+Enter → 실행
-      editorInstance.current.addCommand(
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-        () => handleRunRef.current(),
-      );
+      // Ctrl+Enter → 실행 (onKeyDown으로 addCommand(Enter)보다 먼저 처리)
+      editorInstance.current.onKeyDown((e: any) => {
+        if ((e.ctrlKey || e.metaKey) && e.keyCode === monaco.KeyCode.Enter) {
+          e.preventDefault()
+          e.stopPropagation()
+          handleRunRef.current()
+        }
+      })
     };
 
     load();
