@@ -321,6 +321,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         tabSize:                 4,
         insertSpaces:            true,
         detectIndentation:       false,
+        autoIndent:              "none" as any,
         quickSuggestions:        { other: true, comments: false, strings: false },
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions:    "off" as any,
@@ -355,7 +356,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           if (!model || !pos) return
           const lineContent  = model.getLineContent(pos.lineNumber)
           const beforeCursor = lineContent.substring(0, pos.column - 1)
-          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
+          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1].replace(/\t/g, "    ")
           const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
             ? indentBase + "    "
             : indentBase
@@ -371,7 +372,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
           const pos   = editor.getPosition()
           if (!model || !pos) return
           const lineContent = model.getLineContent(pos.lineNumber)
-          const indentBase  = (lineContent.match(/^(\s*)/) ?? ["", ""])[1]
+          const indentBase  = (lineContent.match(/^(\s*)/) ?? ["", ""])[1].replace(/\t/g, "    ")
           const newIndent   = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(lineContent.trimEnd())
             ? indentBase + "    "
             : indentBase
