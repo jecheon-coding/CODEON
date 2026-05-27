@@ -18,6 +18,7 @@ import {
   Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2,
 } from "lucide-react"
 import { useGoal } from "@/lib/goalContext"
+import { preloadWorker } from "@/lib/pyodideWorker"
 
 // ── 카테고리 → 표시 라벨 ────────────────────────────────────────────────────
 const CATEGORY_LABEL: Record<string, string> = {
@@ -900,6 +901,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
             {/* 3-1.5. 파이썬 가이드 배너 */}
             <Link
               href="/guide"
+              onMouseDown={() => preloadWorker()}
               className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl hover:from-indigo-100 hover:to-violet-100 transition-colors group"
             >
               <div className="flex items-center gap-3">
