@@ -319,6 +319,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         overviewRulerLanes:      0,
         padding:                 { top: 14, bottom: 14 },
         tabSize:                 4,
+        insertSpaces:            true,
+        detectIndentation:       false,
         quickSuggestions:        { other: true, comments: false, strings: false },
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions:    "off" as any,
