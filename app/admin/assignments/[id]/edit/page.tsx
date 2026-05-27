@@ -8,7 +8,7 @@ import AssignmentWizard from "../../AssignmentWizard"
 
 type AssignmentDetail = {
   title: string; dueDate: string | null; problemIds: string[]; studentIds: string[]
-  requireComprehension: boolean
+  requireComprehension: boolean; allowCodeView: boolean
 }
 
 export default function EditAssignmentPage() {
