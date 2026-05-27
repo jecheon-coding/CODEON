@@ -272,42 +272,39 @@ export default function CodeEditor({
         setCursorPos({ line: e.position.lineNumber, col: e.position.column });
       });
 
-      // Python 자동 들여쓰기
-      editorInstance.current.addCommand(
-        monaco.KeyCode.Enter,
-        () => {
-          const editor = editorInstance.current;
-          if (!editor) return;
-
-          // 자동완성 팝업이 열려 있으면 선택 항목 적용
-          const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
-          const isSuggestOpen = !!(suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.());
-          if (isSuggestOpen) {
-            editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
-            return;
-          }
-
-          const model    = editor.getModel();
-          const position = editor.getPosition();
-          if (!model || !position) return;
-
-          const lineContent  = model.getLineContent(position.lineNumber);
-          const beforeCursor = lineContent.substring(0, position.column - 1);
-          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1].replace(/\t/g, "    ");
-          const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
-            ? indentBase + "    "
-            : indentBase;
-          editor.trigger("keyboard", "type", { text: "\n" + newIndent });
-        },
-      );
-
-      // Ctrl+Enter → 실행 (onKeyDown으로 addCommand(Enter)보다 먼저 처리)
+      // Enter 키 전체 처리 (addCommand 대신 onKeyDown — Ctrl+Enter 충돌 방지)
       editorInstance.current.onKeyDown((e: any) => {
-        if ((e.ctrlKey || e.metaKey) && e.keyCode === monaco.KeyCode.Enter) {
+        if (e.keyCode !== monaco.KeyCode.Enter) return
+        if (e.shiftKey || e.altKey) return
+
+        // Ctrl+Enter → 실행
+        if (e.ctrlKey || e.metaKey) {
           e.preventDefault()
           e.stopPropagation()
           handleRunRef.current()
+          return
         }
+
+        // 자동완성 팝업이 열려 있으면 Monaco 기본 동작(선택 항목 적용)에 맡김
+        const editor = editorInstance.current
+        if (!editor) return
+        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any
+        const isSuggestOpen = !!(suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.())
+        if (isSuggestOpen) return
+
+        // 일반 Enter → Python 자동 들여쓰기
+        e.preventDefault()
+        e.stopPropagation()
+        const model    = editor.getModel()
+        const position = editor.getPosition()
+        if (!model || !position) return
+        const lineContent  = model.getLineContent(position.lineNumber)
+        const beforeCursor = lineContent.substring(0, position.column - 1)
+        const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1].replace(/\t/g, "    ")
+        const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
+          ? indentBase + "    "
+          : indentBase
+        editor.trigger("keyboard", "type", { text: "\n" + newIndent })
       })
     };
 
