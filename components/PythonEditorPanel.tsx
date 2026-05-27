@@ -330,6 +330,8 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
 
       monacoInstanceRef.current = editor
 
+      editor.getModel()?.updateOptions({ tabSize: 4, insertSpaces: true, detectIndentation: false })
+
       editor.onDidChangeCursorPosition((e: any) =>
         setCursorPos({ ln: e.position.lineNumber, col: e.position.column })
       )
