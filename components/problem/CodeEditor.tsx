@@ -36,6 +36,7 @@ export default function CodeEditor({
 }: Props) {
   const editorRef      = useRef<HTMLDivElement>(null);
   const editorInstance = useRef<any>(null);
+  const handleRunRef   = useRef<() => void>(() => {});
 
   const [activeTab, setActiveTab] = useState<OutputTab>("output");
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
@@ -252,6 +253,7 @@ export default function CodeEditor({
         tabSize:              4,
         insertSpaces:         true,
         detectIndentation:    false,
+        autoIndent:           "none" as any,
         quickSuggestions:     { other: true, comments: false, strings: false },
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions: "off",
@@ -279,9 +281,7 @@ export default function CodeEditor({
 
           // 자동완성 팝업이 열려 있으면 선택 항목 적용
           const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
-          const isSuggestOpen =
-            suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
-            (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible');
+          const isSuggestOpen = !!(suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.());
           if (isSuggestOpen) {
             editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
             return;
@@ -293,12 +293,18 @@ export default function CodeEditor({
 
           const lineContent  = model.getLineContent(position.lineNumber);
           const beforeCursor = lineContent.substring(0, position.column - 1);
-          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1];
+          const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1].replace(/\t/g, "    ");
           const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
             ? indentBase + "    "
             : indentBase;
           editor.trigger("keyboard", "type", { text: "\n" + newIndent });
         },
+      );
+
+      // Ctrl+Enter → 실행
+      editorInstance.current.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+        () => handleRunRef.current(),
       );
     };
 
@@ -326,6 +332,7 @@ export default function CodeEditor({
     setActiveTab("output");
     execution.run(getCode(), testInput);
   };
+  useEffect(() => { handleRunRef.current = handleRun; });
 
   const handleSubmit = async () => {
     setActiveTab("result");
