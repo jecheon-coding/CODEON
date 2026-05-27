@@ -52,10 +52,11 @@ export function stopExecution() {
   pending.clear();
 }
 
-/** 문제 페이지 진입 시 미리 Worker + Pyodide 로드 (첫 제출 지연 제거) */
-export function preloadWorker() {
+/** 페이지 진입 시 미리 Worker + Pyodide 로드 (첫 실행 지연 제거) */
+export function preloadWorker(interactive = false) {
   if (typeof window === "undefined") return;
   getWorker();
+  if (interactive) getInteractiveWorker();
 }
 
 // ── Interactive mode (가이드 에디터 전용) ─────────────────────────────────

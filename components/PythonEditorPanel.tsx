@@ -46,7 +46,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
   const { chunks, running, waitingInput, run, submitInput, stop, reset } = useInteractiveExecution()
   const pendingInputLines = useRef<string[]>([])
 
-  useEffect(() => { preloadWorker() }, [])
+  useEffect(() => { preloadWorker(true) }, [])
 
   // 커서 위치
   const [cursorPos, setCursorPos] = useState({ ln: 1, col: 1 })
