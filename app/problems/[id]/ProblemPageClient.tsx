@@ -802,6 +802,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const monacoInstanceRef  = useRef<any>(null)
   const monacoModuleRef    = useRef<any>(null)
   const blankDecoRef       = useRef<any>(null)
+  const handleRunRef       = useRef<() => void>(() => {})
   const [cursorPos, setCursorPos] = useState({ ln: 1, col: 1 })
 
   // ── 실행 / 채점 훅 ──────────────────────────────────────────────────────────
@@ -1319,6 +1320,12 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
         () => editor.trigger("keyboard", "editor.action.insertLineAfter", null)
       )
 
+      // Ctrl+Enter → 실행
+      editor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+        () => handleRunRef.current()
+      )
+
       // ── Tab → 함수명 뒤에서 () 자동 삽입 ────────────────────────────────────────
       const PY_CALLABLES = new Set([
         'abs','all','any','bin','bool','bytearray','bytes','callable','chr',
@@ -1615,6 +1622,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
     pendingInputLines.current = []
     await run(getCode())
   }
+  useEffect(() => { handleRunRef.current = handleRun })
 
   const handleInputSubmit = () => {
     submitInput(inputValue)
