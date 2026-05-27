@@ -27,11 +27,11 @@ export async function GET(req: NextRequest) {
   // 활성 과제 전체 조회
   const { data: assignments } = await supabaseServer
     .from("assignments")
-    .select("id, require_comprehension")
+    .select("id, require_comprehension, allow_code_view")
     .in("id", assignmentIds)
     .or(`due_date.is.null,due_date.gt.${now}`)
 
-  if (!assignments || assignments.length === 0) return NextResponse.json({ requireComprehension: false, isAssigned: false })
+  if (!assignments || assignments.length === 0) return NextResponse.json({ requireComprehension: false, isAssigned: false, allowCodeView: true })
 
   const activeIds = assignments.map((a: any) => a.id)
 
@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
   const requireComprehension = isAssigned && assignments.some((a: any) =>
     a.require_comprehension && ap!.some((p: any) => p.assignment_id === a.id)
   )
+  const allowCodeView = !isAssigned || assignments.some((a: any) =>
+    (a.allow_code_view ?? true) && ap!.some((p: any) => p.assignment_id === a.id)
+  )
 
-  return NextResponse.json({ requireComprehension, isAssigned })
+  return NextResponse.json({ requireComprehension, isAssigned, allowCodeView })
 }

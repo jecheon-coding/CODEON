@@ -98,6 +98,7 @@ interface AssignmentWizardProps {
   initialProblemIds?: string[]
   initialStudentIds?: string[]
   initialRequireComprehension?: boolean
+  initialAllowCodeView?: boolean
 }
 
 export default function AssignmentWizard({
@@ -107,6 +108,7 @@ export default function AssignmentWizard({
   initialProblemIds = [],
   initialStudentIds = [],
   initialRequireComprehension = false,
+  initialAllowCodeView = true,
 }: AssignmentWizardProps) {
   const router = useRouter()
 
@@ -135,8 +137,9 @@ export default function AssignmentWizard({
   const [subLoading, setSubLoading] = useState(false)
   const [pShowUnsubmitted, setPShowUnsubmitted] = useState(false)
 
-  // Step 3: 이해 확인 필수
+  // Step 3: 이해 확인 필수 / 코드 보기 허용
   const [requireComprehension, setRequireComprehension] = useState(initialRequireComprehension)
+  const [allowCodeView,        setAllowCodeView]        = useState(initialAllowCodeView)
 
   // Step 1 — common filters
   const [pCourse, setPCourse] = useState<CourseKey>("basic")
@@ -423,6 +426,7 @@ export default function AssignmentWizard({
       problemIds: orderedProblemIds,
       studentIds: [...selStudents],
       requireComprehension,
+      allowCodeView,
     }
 
     const res = assignmentId
@@ -878,6 +882,18 @@ export default function AssignmentWizard({
                   <div>
                     <p className="text-sm font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">이해 확인 필수</p>
                     <p className="text-[11px] text-gray-400 mt-0.5">정답 제출 후 AI 이해 확인을 작성해야 다음 문제로 넘어갈 수 있습니다</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={allowCodeView}
+                    onChange={e => setAllowCodeView(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">제출 코드 보기 허용</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">체크 해제 시 학생이 제출 기록에서 자신의 코드를 볼 수 없습니다</p>
                   </div>
                 </label>
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-3">

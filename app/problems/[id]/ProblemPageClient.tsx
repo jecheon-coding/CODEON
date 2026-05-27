@@ -938,6 +938,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   const [comprehensionKey, setComprehensionKey]     = useState(0)
   const [comprehensionRequired, setComprehensionRequired] = useState(false)
   const [isAssigned,           setIsAssigned]           = useState(false)
+  const [allowCodeView,        setAllowCodeView]        = useState(true)
   const [comprehensionDone, setComprehensionDone]   = useState(false)
 
   // ── 유저 상태 ───────────────────────────────────────────────────────────────
@@ -989,6 +990,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
       .then(d => {
         if (d.requireComprehension) setComprehensionRequired(true)
         if (d.isAssigned) setIsAssigned(true)
+        if (d.allowCodeView === false) setAllowCodeView(false)
       })
       .catch(() => {})
   }, [session, problem.id])
@@ -2084,7 +2086,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
               {activeTab === "history" && (
                 <HistoryTab history={history} isDark={isDark}
                   onViewCode={(code, time) => setHistoryModal({ open: true, code, time })}
-                  hideCode={isAssigned}
+                  hideCode={isAssigned && !allowCodeView}
                 />
               )}
             </div>

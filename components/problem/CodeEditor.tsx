@@ -266,27 +266,35 @@ export default function CodeEditor({
         setCursorPos({ line: e.position.lineNumber, col: e.position.column });
       });
 
-      // Python 자동 들여쓰기: addCommand로 Monaco 커맨드 시스템 레벨에서 Enter 처리
-      // (onKeyDown은 Monaco 내부 처리를 막지 못함)
+      // Python 자동 들여쓰기
       editorInstance.current.addCommand(
         monaco.KeyCode.Enter,
         () => {
-          const editor   = editorInstance.current;
-          const model    = editor?.getModel();
-          const position = editor?.getPosition();
-          if (!editor || !model || !position) return;
+          const editor = editorInstance.current;
+          if (!editor) return;
+
+          // 자동완성 팝업이 열려 있으면 선택 항목 적용
+          const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+          const isSuggestOpen =
+            suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.() ||
+            (editor as any)._contextKeyService?.getContextKeyValue?.('suggestWidgetVisible');
+          if (isSuggestOpen) {
+            editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
+            return;
+          }
+
+          const model    = editor.getModel();
+          const position = editor.getPosition();
+          if (!model || !position) return;
 
           const lineContent  = model.getLineContent(position.lineNumber);
           const beforeCursor = lineContent.substring(0, position.column - 1);
           const indentBase   = (lineContent.match(/^(\s*)/) ?? ["", ""])[1];
-
-          if (/^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)) {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase + "    " });
-          } else {
-            editor.trigger("keyboard", "type", { text: "\n" + indentBase });
-          }
+          const newIndent    = /^\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*:\s*$/.test(beforeCursor)
+            ? indentBase + "    "
+            : indentBase;
+          editor.trigger("keyboard", "type", { text: "\n" + newIndent });
         },
-        "!suggestWidgetVisible && !inSnippetMode",
       );
     };
 

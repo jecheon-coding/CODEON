@@ -71,6 +71,7 @@ export default function EditAssignmentPage() {
             initialProblemIds={data.problemIds}
             initialStudentIds={data.studentIds}
             initialRequireComprehension={data.requireComprehension}
+            initialAllowCodeView={data.allowCodeView ?? true}
           />
         )}
       </div>
