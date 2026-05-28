@@ -2191,20 +2191,20 @@ function QuestionSection() {
         ) : (
           <table className="w-full text-sm table-fixed">
             <colgroup>
-              <col style={{ width: "28%" }} />
+              <col style={{ width: "26%" }} />
               <col style={{ width: "12%" }} />
               <col />
-              <col style={{ width: "68px" }} />
-              <col style={{ width: "56px" }} />
-              <col style={{ width: "52px" }} />
+              <col style={{ width: "96px" }} />
+              <col style={{ width: "60px" }} />
+              <col style={{ width: "44px" }} />
             </colgroup>
             <thead>
               <tr className="bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                <th className="px-4 py-2.5 text-left">문제</th>
-                <th className="px-4 py-2.5 text-left">작성자</th>
-                <th className="px-4 py-2.5 text-left">제목</th>
-                <th className="px-4 py-2.5 text-center">댓글</th>
-                <th className="px-4 py-2.5 text-right">날짜</th>
+                <th className="px-4 py-2 text-left">문제</th>
+                <th className="px-4 py-2 text-left">작성자</th>
+                <th className="px-4 py-2 text-left">제목</th>
+                <th className="px-4 py-2 text-center">댓글</th>
+                <th className="px-4 py-2 text-right">날짜</th>
                 <th />
               </tr>
             </thead>
@@ -2219,7 +2219,7 @@ function QuestionSection() {
                     onClick={() => router.push(`/questions/${q.id}?from=admin`)}
                     className="border-t border-gray-100 hover:bg-indigo-50/60 cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-3 overflow-hidden">
+                    <td className="px-4 py-2 overflow-hidden">
                       {q.problemTitle ? (
                         <div className="flex items-center gap-1 min-w-0">
                           {q.problemNumber != null && (
@@ -2229,19 +2229,19 @@ function QuestionSection() {
                         </div>
                       ) : <span className="text-gray-300 text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3 overflow-hidden">
+                    <td className="px-4 py-2 overflow-hidden">
                       <span className="truncate block text-xs font-bold text-violet-600">{q.nickname}</span>
                     </td>
-                    <td className="px-4 py-3 overflow-hidden">
+                    <td className="px-4 py-2 overflow-hidden">
                       <span className="truncate block text-sm text-gray-700">{displayTitle}</span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-2 text-center">
                       {q.answer_count > 0
                         ? <span className="text-xs font-bold text-indigo-600">[{q.answer_count}]</span>
-                        : <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200 rounded-full">미답변</span>}
+                        : <span className="inline-block px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200 rounded-full">미답변</span>}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-400 whitespace-nowrap tabular-nums">{dateStr}</td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-2 text-right text-xs text-gray-400 whitespace-nowrap tabular-nums">{dateStr}</td>
+                    <td className="px-4 py-2 text-right" onClick={e => e.stopPropagation()}>
                       <button onClick={() => handleDelete(q.id)}
                         className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />

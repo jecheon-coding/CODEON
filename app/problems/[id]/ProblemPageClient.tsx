@@ -1300,7 +1300,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
         lineNumbers:             "on",
         autoClosingQuotes:       "always",
         quickSuggestions:        { other: true, comments: false, strings: false },
-        acceptSuggestionOnEnter: "on",
+        acceptSuggestionOnEnter: "off",
         tabCompletion:           "on",
         suggestOnTriggerCharacters: true,
         wordBasedSuggestions:    "off",

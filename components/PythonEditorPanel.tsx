@@ -285,13 +285,13 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
               label:           s.kind === "function" ? `${s.name}(${s.params})` : s.name,
               kind:            s.kind === "function" ? CIK.Function : s.kind === "class" ? CIK.Class : CIK.Variable,
               detail:          s.kind === "function" ? "사용자 정의 함수" : s.kind === "class" ? "클래스" : "변수",
-              insertText:      s.kind === "function" ? `${s.name}($1)` : s.name,
+              insertText:      s.kind === "function" ? `${s.name}($0)` : s.name,
               insertTextRules: s.kind === "function" ? RULE : undefined,
               sortText:        "0" + s.name, range,
             }))
             const builtinSuggestions = PYTHON_BUILTINS.map(b => ({
               label: `${b.name}(${b.params})`, kind: CIK.Function, detail: "Python 내장 함수",
-              insertText: `${b.name}($1)`, insertTextRules: RULE, sortText: "1" + b.name, range,
+              insertText: `${b.name}($0)`, insertTextRules: RULE, sortText: "1" + b.name, range,
             }))
             const keywordSuggestions = PY_KEYWORDS.map(kw => ({
               label: kw, kind: CIK.Keyword, insertText: kw, sortText: "2" + kw, range,
