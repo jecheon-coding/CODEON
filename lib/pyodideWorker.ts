@@ -96,6 +96,12 @@ export function runPythonInteractive(
   onInputRequest: () => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    // 이전 실행이 아직 완료되지 않았으면 (다른 페이지의 무한루프 포함) Worker 재시작
+    if (iResolve !== null) {
+      iReject?.(new Error("EXECUTION_STOPPED"));
+      if (iWorker) { iWorker.terminate(); iWorker = null; }
+    }
+
     iResolve  = resolve;
     iReject   = reject;
     iOnChunk  = onChunk;
@@ -124,10 +130,12 @@ export function sendInteractiveInput(text: string) {
 /** 인터랙티브 실행 강제 중지 */
 export function stopInteractive() {
   if (iCtrl) { Atomics.store(iCtrl, 0, -1); Atomics.notify(iCtrl, 0); }
-  // 워커가 graceful하게 종료될 때까지 대기하지 않고 즉시 상태 초기화
   iReject?.(new Error("EXECUTION_STOPPED"));
   iResolve = iReject = iOnChunk = iOnInput = null;
   iCtrl = iData = null;
+  // 무한루프로 막힌 Worker 강제 종료 → 즉시 새 Worker 프리로드 (다음 실행 지연 최소화)
+  if (iWorker) { iWorker.terminate(); iWorker = null; }
+  if (typeof window !== "undefined") getInteractiveWorker();
 }
 
 /**
