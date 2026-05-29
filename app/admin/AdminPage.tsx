@@ -2555,6 +2555,90 @@ function MonthlyReviewSection() {
   )
 }
 
+// ── 정답률 낮은 문제 TOP 10 ──────────────────────────────────────────────────
+
+type HardProblem = {
+  id: string; title: string; difficulty: string; topic: string | null
+  total: number; correct: number; rate: number
+}
+
+function HardProblemsSection() {
+  const [problems, setProblems] = useState<HardProblem[]>([])
+  const [loading,  setLoading]  = useState(true)
+
+  useEffect(() => {
+    fetch("/api/admin/problems/hard")
+      .then(r => r.json())
+      .then((data: HardProblem[]) => { setProblems(Array.isArray(data) ? data : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const diffBadge = (d: string): "rose" | "amber" | "sky" | "gray" => {
+    if (d === "상" || d === "어려움") return "rose"
+    if (d === "중" || d === "보통")   return "amber"
+    if (d === "하" || d === "쉬움")   return "sky"
+    return "gray"
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <Target className="w-4 h-4 text-rose-500" />
+        <h3 className="font-bold text-gray-800 text-sm">정답률 낮은 문제 TOP 10</h3>
+        <span className="ml-auto text-xs text-gray-400">최소 5회 이상 제출 기준</span>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+        </div>
+      ) : problems.length === 0 ? (
+        <div className="text-center py-8 text-sm text-gray-400">
+          아직 충분한 제출 기록이 없습니다. (문제당 최소 5회 이상)
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-xs text-gray-500 font-bold">
+                <th className="px-4 py-2 text-left w-10">순위</th>
+                <th className="px-4 py-2 text-left">문제명</th>
+                <th className="px-4 py-2 text-left">난이도</th>
+                <th className="px-4 py-2 text-left">분류</th>
+                <th className="px-4 py-2 text-right">제출</th>
+                <th className="px-4 py-2 text-right">정답</th>
+                <th className="px-4 py-2 text-right">정답률</th>
+              </tr>
+            </thead>
+            <tbody>
+              {problems.map((p, i) => (
+                <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50/80 transition-colors">
+                  <td className="px-4 py-2.5 font-bold text-gray-400 tabular-nums">{i + 1}</td>
+                  <td className="px-4 py-2.5 font-semibold text-gray-900 max-w-[240px]">
+                    <span className="truncate block">{p.title}</span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {p.difficulty ? <Badge variant={diffBadge(p.difficulty)}>{p.difficulty}</Badge> : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{p.topic ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{p.total}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{p.correct}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <span className={`font-bold tabular-nums ${
+                      p.rate <= 30 ? "text-rose-600" : p.rate <= 60 ? "text-amber-600" : "text-gray-700"
+                    }`}>
+                      {p.rate}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
 type AdminTab = "students" | "learning" | "assignments" | "consult" | "settings"
@@ -3090,6 +3174,7 @@ export default function AdminPage() {
               <LeaderboardSection />
             </div>
             <StudentProgressSection />
+            <HardProblemsSection />
           </div>
         )}
 

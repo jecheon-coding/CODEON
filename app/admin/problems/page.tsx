@@ -144,6 +144,8 @@ export default function ProblemsPage() {
   const [pSearch,    setPSearch]    = useState("")
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // ── 편집 폼 ───────────────────────────────────────────────────────────────
   const [isNew,       setIsNew]       = useState(false)
@@ -469,6 +471,20 @@ export default function ProblemsPage() {
     setTimeout(() => setSaveOk(false), 3000)
   }
 
+  // ── 일괄 삭제 ────────────────────────────────────────────────────────────
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!confirm(`선택한 ${selectedIds.size}개 문제를 삭제하시겠습니까?\n테스트케이스도 모두 삭제됩니다.`)) return
+    setBulkDeleting(true)
+    await Promise.all(
+      [...selectedIds].map(id => fetch(`/api/admin/problems/${id}`, { method: "DELETE" }))
+    )
+    setProblems(prev => prev.filter(p => !selectedIds.has(p.id)))
+    if (selected && selectedIds.has(selected.id)) setSelected(null)
+    setSelectedIds(new Set())
+    setBulkDeleting(false)
+  }
+
   // ── 삭제 ─────────────────────────────────────────────────────────────────
   async function deleteProblem() {
     if (!selected) return
@@ -518,7 +534,7 @@ export default function ProblemsPage() {
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex border-b border-gray-100">
               {COURSE_TABS.map(({ key, label }) => (
-                <button key={key} onClick={() => { setPCourse(key); setPTopic("전체") }}
+                <button key={key} onClick={() => { setPCourse(key); setPTopic("전체"); setSelectedIds(new Set()) }}
                   className={`flex-1 py-2 text-[11px] font-semibold transition-all border-b-2
                     ${pCourse === key
                       ? "border-indigo-600 text-indigo-700 bg-indigo-50/60"
@@ -529,22 +545,41 @@ export default function ProblemsPage() {
             </div>
 
             {topicList.length > 1 && (
-              <div className="flex gap-1.5 px-2.5 py-2 flex-wrap border-b border-gray-100">
-                {topicList.map(t => (
-                  <button key={t} onClick={() => setPTopic(t)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all border
-                      ${pTopic === t
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600"}`}>
-                    {t}
-                    {t !== "전체" && (
-                      <span className="ml-1 opacity-60">
-                        {courseProblems.filter(p => p.topic === t).length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              topicList.length > 6 ? (
+                <div className="px-2.5 py-2 border-b border-gray-100 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-gray-400 shrink-0">분류</span>
+                  <select
+                    value={pTopic}
+                    onChange={e => setPTopic(e.target.value)}
+                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 bg-white text-gray-700"
+                  >
+                    {topicList.map(t => (
+                      <option key={t} value={t}>
+                        {t === "전체"
+                          ? `전체 (${courseProblems.length})`
+                          : `${t} (${courseProblems.filter(p => p.topic === t).length})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex gap-1.5 px-2.5 py-2 flex-wrap border-b border-gray-100">
+                  {topicList.map(t => (
+                    <button key={t} onClick={() => setPTopic(t)}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all border
+                        ${pTopic === t
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600"}`}>
+                      {t}
+                      {t !== "전체" && (
+                        <span className="ml-1 opacity-60">
+                          {courseProblems.filter(p => p.topic === t).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
             )}
 
             <div className="p-2 flex gap-2">
@@ -564,7 +599,25 @@ export default function ProblemsPage() {
           <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-gray-200 rounded-xl">
             {!pLoading && filteredProblems.length > 0 && (
               <div className="px-3 py-1.5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                <span className="text-[10px] text-gray-400 font-medium">{filteredProblems.length}개 문제</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredProblems.length && filteredProblems.length > 0}
+                    onChange={e => setSelectedIds(e.target.checked ? new Set(filteredProblems.map(p => p.id)) : new Set())}
+                    className="w-3 h-3 accent-indigo-600 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-gray-400 font-medium">{filteredProblems.length}개 문제</span>
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={bulkDelete}
+                      disabled={bulkDeleting}
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors disabled:opacity-50"
+                    >
+                      {bulkDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      {selectedIds.size}개 삭제
+                    </button>
+                  )}
+                </div>
                 <span className="text-[10px] text-gray-300">드래그로 순서 변경</span>
               </div>
             )}
@@ -612,8 +665,23 @@ export default function ProblemsPage() {
                       ${dragOverId === p.id && draggingId !== p.id
                         ? "bg-indigo-50 border-t-2 border-t-indigo-400"
                         : selected?.id === p.id && !isNew ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
+                    {/* 체크박스 */}
+                    <div className="pl-1.5" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={e => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev)
+                            e.target.checked ? next.add(p.id) : next.delete(p.id)
+                            return next
+                          })
+                        }}
+                        className="w-3 h-3 accent-indigo-600 cursor-pointer"
+                      />
+                    </div>
                     {/* 드래그 핸들 */}
-                    <div className="pl-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
                       <GripVertical className="w-3.5 h-3.5 text-gray-300" />
                     </div>
 

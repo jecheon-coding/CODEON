@@ -256,6 +256,18 @@ export default function GuideChapterClient({
         <main className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
           <div className="px-6 py-8 max-w-none">
 
+            {/* 미니 프로젝트 안내 배너 */}
+            {chapter.title.includes("미니 프로젝트") && (
+              <div className="mb-5 flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                <span className="text-base shrink-0">💡</span>
+                <span>
+                  이 프로젝트는 여러 날에 걸쳐 작업할 수 있습니다.{" "}
+                  <strong>PyCharm, VS Code</strong> 등 로컬 편집기를 사용하면 파일로 저장할 수 있어 더 편리합니다.
+                  오른쪽 에디터는 간단한 테스트 용도로만 활용하세요.
+                </span>
+              </div>
+            )}
+
             {/* 마크다운 본문 */}
             <article className="prose prose-slate prose-sm max-w-none
               prose-headings:font-extrabold prose-headings:text-gray-900

@@ -1282,8 +1282,11 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
         })
       }
 
+      const storageKey = `problem_code_${problem.id}`
+      const savedCode  = localStorage.getItem(storageKey)
+
       const editor = monaco.editor.create(editorContainerRef.current, {
-        value:                   problem.initial_code ?? "",
+        value:                   savedCode ?? problem.initial_code ?? "",
         language:                "python",
         theme:                   bgKey === "dark" || bgKey === "black" ? "vs-dark" : "vs",
         automaticLayout:         true,
@@ -1494,6 +1497,20 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
       updateNumberedBlanks()
       editor.onDidChangeModelContent(updateNumberedBlanks)
 
+      // ── 코드 자동저장 (1초 debounce) ──────────────────────────────────────────
+      let saveTimer: ReturnType<typeof setTimeout> | null = null
+      editor.onDidChangeModelContent(() => {
+        if (saveTimer) clearTimeout(saveTimer)
+        saveTimer = setTimeout(() => {
+          const code = editor.getValue()
+          if (code && code !== (problem.initial_code ?? "")) {
+            localStorage.setItem(storageKey, code)
+          } else if (!code || code === (problem.initial_code ?? "")) {
+            localStorage.removeItem(storageKey)
+          }
+        }, 1000)
+      })
+
       // 클릭 → 빈칸 마커 클릭 처리
       editor.onMouseDown((e: any) => {
         const pos = e.target.position
@@ -1671,6 +1688,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
 
   const handleReset = () => {
     monacoInstanceRef.current?.setValue(problem.initial_code ?? "")
+    localStorage.removeItem(`problem_code_${problem.id}`)
   }
 
 

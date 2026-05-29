@@ -956,6 +956,22 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
               <div className="p-5">
 
+                {/* 오답 복습 유도 배너 (이어서 풀기 탭에서만, 오답이 있을 때) */}
+                {resumeTab === "continue" && wrongReviewProblems.length > 0 && (
+                  <button
+                    onClick={() => setResumeTab("retry")}
+                    className="w-full flex items-center justify-between px-3 py-2 mb-3 rounded-lg bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">🔥</span>
+                      <span className="text-xs font-bold text-orange-700">
+                        아직 못 푼 오답이 {wrongReviewProblems.length}개 있어요
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-orange-600 shrink-0">복습하기 →</span>
+                  </button>
+                )}
+
                 {/* ── Tab 1: 이어서 풀기 ── */}
                 {resumeTab === "continue" && (
                   loadingSubmissions ? (
