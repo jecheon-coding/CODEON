@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useEffect, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
@@ -87,9 +87,20 @@ export default function GuideChapterClient({
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  // 완료 상태 (클라이언트에서 낙관적 업데이트)
+  // 완료 상태 (서버 props로 초기화 후, 챕터 이동 시 API에서 최신 데이터로 동기화)
   const [completedSet, setCompletedSet] = useState(() => new Set(initialCompleted))
   const [markingDone,  setMarkingDone]  = useState(false)
+
+  // Next.js Router Cache가 stale한 completedIds를 서빙할 수 있으므로
+  // 챕터가 바뀔 때마다 API에서 최신 진행 데이터를 다시 가져옴
+  useEffect(() => {
+    fetch("/api/learning/progress")
+      .then(r => r.json())
+      .then((rows: { chapter_id: string }[]) => {
+        if (Array.isArray(rows)) setCompletedSet(new Set(rows.map(r => r.chapter_id)))
+      })
+      .catch(() => {})
+  }, [chapter.id])
 
   // 계층 구조 빌드
   const roots: ChapterWithChildren[] = allChapters
