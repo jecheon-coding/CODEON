@@ -22,7 +22,9 @@ type Chapter = {
   updated_at:    string
 }
 
-const CATEGORIES = ["공통", "파이썬기초", "파이썬알고리즘", "파이썬자격증", "파이썬실전"]
+const CATEGORIES     = ["공통", "파이썬기초", "파이썬알고리즘", "파이썬자격증", "파이썬실전"]
+const CATEGORY_TABS  = ["전체", "파이썬기초", "파이썬알고리즘", "파이썬자격증", "파이썬실전", "공통"] as const
+type CategoryTab = typeof CATEGORY_TABS[number]
 
 const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-gray-400"
 const labelCls = "block text-xs font-bold text-gray-700 mb-1.5"
@@ -42,10 +44,11 @@ export default function AdminLearningPage() {
   const session = useSession()?.data
   const router  = useRouter()
 
-  const [chapters,  setChapters]  = useState<Chapter[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [editing,   setEditing]   = useState<Chapter | null>(null)
-  const [showForm,  setShowForm]  = useState(false)
+  const [chapters,    setChapters]    = useState<Chapter[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [editing,     setEditing]     = useState<Chapter | null>(null)
+  const [showForm,    setShowForm]    = useState(false)
+  const [activeTab,   setActiveTab]   = useState<CategoryTab>("전체")
   const [form,      setForm]      = useState<FormState>({
     title: "", category: "공통", content: "", order_index: 0, is_published: false, show_hint: true, show_solution: true, parent_id: "",
   })
@@ -180,6 +183,12 @@ export default function AdminLearningPage() {
     load()
   }
 
+  const filteredChapters = activeTab === "전체"
+    ? chapters
+    : activeTab === "공통"
+      ? chapters.filter(c => !c.category)
+      : chapters.filter(c => c.category === activeTab)
+
   const publishedCount = chapters.filter(c => c.is_published).length
 
   return (
@@ -220,7 +229,7 @@ export default function AdminLearningPage() {
           {/* 목록 헤더 */}
           <div className="shrink-0 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
-              <h1 className="text-sm font-extrabold text-gray-900">파이썬 가이드 챕터</h1>
+              <h1 className="text-sm font-extrabold text-gray-900">학습 자료 챕터</h1>
               <p className="text-[11px] text-gray-400 mt-0.5">
                 발행 중 <span className="font-bold text-indigo-600">{publishedCount}</span>개 · 전체 {chapters.length}개
               </p>
@@ -233,13 +242,35 @@ export default function AdminLearningPage() {
             </button>
           </div>
 
+          {/* 카테고리 탭 */}
+          <div className="shrink-0 flex overflow-x-auto border-b border-gray-100 px-2 pt-1 gap-0.5">
+            {CATEGORY_TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2 text-[11px] font-bold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
+                  activeTab === tab
+                    ? "border-indigo-500 text-indigo-600 bg-indigo-50/60"
+                    : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {tab}
+                <span className="ml-1 text-[10px] font-semibold text-gray-300">
+                  {tab === "전체" ? chapters.length
+                   : tab === "공통" ? chapters.filter(c => !c.category).length
+                   : chapters.filter(c => c.category === tab).length}
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* 챕터 테이블 */}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
-            ) : chapters.length === 0 ? (
+            ) : filteredChapters.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2">
                 <BookOpen className="w-8 h-8 text-gray-200" />
                 <p className="text-sm font-semibold text-gray-500">등록된 챕터가 없습니다</p>
@@ -259,7 +290,7 @@ export default function AdminLearningPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {chapters.map((c, i) => {
+                  {filteredChapters.map((c, i) => {
                     const isChild = !!c.parent_id
                     const catColor: Record<string, string> = {
                       "파이썬기초":     "bg-blue-50 text-blue-600 border-blue-100",
@@ -274,7 +305,7 @@ export default function AdminLearningPage() {
                       onClick={() => openEdit(c)}
                       className={`border-b border-gray-50 cursor-pointer transition-colors ${
                         editing?.id === c.id ? "bg-indigo-50" : "hover:bg-gray-50/70"
-                      } ${i === chapters.length - 1 ? "border-b-0" : ""}`}
+                      } ${i === filteredChapters.length - 1 ? "border-b-0" : ""}`}
                     >
                       <td className={`py-2 overflow-hidden ${isChild ? "pl-7 pr-2" : "px-4"}`}>
                         {isChild && (

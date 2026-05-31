@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useProgress } from "../progress-context"
 import { signOut } from "next-auth/react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -76,18 +75,22 @@ export default function GuideChapterClient({
   userName,
   showHint,
   showSolution,
+  initialCompletedIds,
 }: {
-  chapter:      Chapter
-  allChapters:  ChapterSummary[]
-  userName:     string
-  showHint:     boolean
-  showSolution: boolean
+  chapter:             Chapter
+  allChapters:         ChapterSummary[]
+  userName:            string
+  showHint:            boolean
+  showSolution:        boolean
+  initialCompletedIds: string[]
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  // 완료 상태는 GuideLayout의 Context에서 관리 (챕터 이동 시에도 유지됨)
-  const { completedSet, setCompletedSet } = useProgress()
+  // 서버에서 받은 데이터로 직접 초기화 — Context 불필요, 마운트마다 정확한 값 보장
+  const [completedSet, setCompletedSet] = useState<Set<string>>(
+    () => new Set(initialCompletedIds)
+  )
   const [markingDone, setMarkingDone] = useState(false)
 
   // 계층 구조 빌드
@@ -107,9 +110,9 @@ export default function GuideChapterClient({
   const prevChapter = currentIdx > 0 ? flat[currentIdx - 1] : null
   const nextChapter = currentIdx < flat.length - 1 ? flat[currentIdx + 1] : null
 
-  // 진행률
+  // 진행률 — 현재 카테고리 챕터만 카운트
   const totalCount     = allChapters.length
-  const completedCount = completedSet.size
+  const completedCount = allChapters.filter(c => completedSet.has(c.id)).length
   const progressPct    = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0
 
   const isCurrent   = (id: string) => id === chapter.id
@@ -121,17 +124,21 @@ export default function GuideChapterClient({
     setMarkingDone(true)
     try {
       if (alreadyDone) {
-        await fetch("/api/learning/progress", {
+        const res = await fetch("/api/learning/progress", {
           method: "DELETE", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chapter_id: chapter.id }),
         })
-        setCompletedSet(prev => { const next = new Set(prev); next.delete(chapter.id); return next })
+        if (res.ok) {
+          setCompletedSet(prev => { const next = new Set(prev); next.delete(chapter.id); return next })
+        }
       } else {
-        await fetch("/api/learning/progress", {
+        const res = await fetch("/api/learning/progress", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chapter_id: chapter.id }),
         })
-        setCompletedSet(prev => new Set([...prev, chapter.id]))
+        if (res.ok) {
+          setCompletedSet(prev => new Set([...prev, chapter.id]))
+        }
       }
     } finally {
       setMarkingDone(false)
@@ -151,7 +158,6 @@ export default function GuideChapterClient({
       startTransition(() => router.push(`/guide/${nextChapter.id}`))
     }
   }
-
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-50">
@@ -199,13 +205,12 @@ export default function GuideChapterClient({
         {/* ── 좌측: 목차 트리 (20%) ── */}
         <aside className="w-[20%] min-w-[180px] max-w-[260px] bg-white border-r border-gray-200 overflow-y-auto shrink-0">
           <div className="py-3">
-            {roots.map((root, gi) => {
+            {roots.map((root) => {
               const rootDone    = isCompleted(root.id)
               const rootCurrent = isCurrent(root.id)
               const hasCurrentChild = root.children.some(c => isCurrent(c.id))
               return (
                 <div key={root.id}>
-                  {/* 장 헤더 */}
                   <Link
                     href={`/guide/${root.id}`}
                     className={`flex items-center gap-2 px-3 py-2.5 text-[13px] font-bold transition-colors ${
@@ -222,8 +227,7 @@ export default function GuideChapterClient({
                     <span className="leading-snug truncate">{root.title}</span>
                   </Link>
 
-                  {/* 절 목록 */}
-                  {root.children.map((sub, si) => {
+                  {root.children.map((sub) => {
                     const subDone    = isCompleted(sub.id)
                     const subCurrent = isCurrent(sub.id)
                     return (
@@ -252,7 +256,7 @@ export default function GuideChapterClient({
           </div>
         </aside>
 
-        {/* ── 중앙: 교재 본문 (flex-1 ~45%) ── */}
+        {/* ── 중앙: 교재 본문 ── */}
         <main className="flex-1 overflow-y-auto bg-white border-r border-gray-100">
           <div className="px-6 py-8 max-w-none">
 
@@ -318,7 +322,6 @@ export default function GuideChapterClient({
 
             {/* 하단 네비게이션 */}
             <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col gap-3">
-              {/* 완료 버튼 */}
               <div className="flex justify-center">
                 <button
                   onClick={toggleComplete}
@@ -339,7 +342,6 @@ export default function GuideChapterClient({
                 </button>
               </div>
 
-              {/* 이전/다음 */}
               <div className="flex items-center justify-between">
                 {prevChapter ? (
                   <Link
