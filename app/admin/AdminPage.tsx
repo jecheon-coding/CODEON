@@ -8,7 +8,7 @@ import {
   LogOut, Users, BookOpen, ClipboardList, CheckCircle2, XCircle,
   Plus, Search, Pencil, Trash2, Eye, EyeOff, ChevronDown, Save, AlertCircle,
   CheckCheck, X, ArrowLeft, ArrowRight, Loader2, UserCheck, Link2Off,
-  FileCheck, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
+  FileCheck, FileText, Clock, Upload, ListChecks, Bell, UserCog, MessageSquare, Trophy, Brain, BarChart2,
   Settings, Target, KeyRound,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -3044,6 +3044,12 @@ export default function AdminPage() {
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
           >
             <BookOpen className="w-4 h-4" /> 학습 자료
+          </button>
+          <button
+            onClick={() => router.push("/admin/blog")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors font-medium"
+          >
+            <FileText className="w-4 h-4" /> 블로그 관리
           </button>
           <button
             onClick={() => router.push("/admin/notices")}

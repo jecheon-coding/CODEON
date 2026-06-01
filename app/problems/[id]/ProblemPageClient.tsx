@@ -1120,6 +1120,20 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
             { label:'issuperset',   insert:'issuperset(${1:other})',  detail:'상위집합 여부' },
             { label:'copy',         insert:'copy()',                  detail:'복사' },
           ],
+          deque: [
+            { label:'append',     insert:'append(${1:item})',      detail:'오른쪽 끝에 추가' },
+            { label:'appendleft', insert:'appendleft(${1:item})',  detail:'왼쪽 끝에 추가' },
+            { label:'pop',        insert:'pop()',                  detail:'오른쪽에서 꺼내기' },
+            { label:'popleft',    insert:'popleft()',              detail:'왼쪽에서 꺼내기' },
+            { label:'extend',     insert:'extend(${1:iterable})',  detail:'오른쪽에 여러 항목 추가' },
+            { label:'extendleft', insert:'extendleft(${1:iter})',  detail:'왼쪽에 여러 항목 추가' },
+            { label:'rotate',     insert:'rotate(${1:n})',         detail:'n칸 회전 (양수=오른쪽)' },
+            { label:'clear',      insert:'clear()',                detail:'모든 항목 제거' },
+            { label:'reverse',    insert:'reverse()',              detail:'역순으로 변경' },
+            { label:'count',      insert:'count(${1:item})',       detail:'항목 개수 반환' },
+            { label:'copy',       insert:'copy()',                 detail:'얕은 복사 반환' },
+            { label:'remove',     insert:'remove(${1:item})',      detail:'첫 번째 항목 제거' },
+          ],
           int: [
             { label:'bit_length', insert:'bit_length()', detail:'이진 표현 비트 수' },
           ],
@@ -1138,8 +1152,11 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
             if (new RegExp(`\\b${esc}\\s*=\\s*["'\`]`).test(line))       return 'str'
             if (new RegExp(`\\b${esc}\\s*=\\s*input\\s*\\(`).test(line)) return 'str'
             if (new RegExp(`\\b${esc}\\s*=\\s*str\\s*\\(`).test(line))   return 'str'
-            if (new RegExp(`\\b${esc}\\s*=\\s*int\\s*\\(`).test(line))   return 'int'
-            if (new RegExp(`\\b${esc}\\s*=\\s*float\\s*\\(`).test(line)) return 'float'
+            if (new RegExp(`\\b${esc}\\s*=\\s*int\\s*\\(`).test(line))        return 'int'
+            if (new RegExp(`\\b${esc}\\s*=\\s*float\\s*\\(`).test(line))      return 'float'
+            if (new RegExp(`\\b${esc}\\s*=\\s*deque\\s*\\(`).test(line))      return 'deque'
+            if (new RegExp(`\\b${esc}\\s*\\.popleft\\s*\\(`).test(line))      return 'deque'
+            if (new RegExp(`\\b${esc}\\s*\\.appendleft\\s*\\(`).test(line))   return 'deque'
             if (new RegExp(`\\b${esc}\\s*\\.append\\s*\\(`).test(line))  return 'list'
             if (new RegExp(`\\b${esc}\\s*\\.keys\\s*\\(`).test(line))    return 'dict'
             if (new RegExp(`\\b${esc}\\s*\\.add\\s*\\(`).test(line))     return 'set'

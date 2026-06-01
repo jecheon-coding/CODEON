@@ -303,6 +303,24 @@ export default async function ParentPage() {
     currentCourse: COURSE_LABEL[currentSlug] ?? "기초 과정",
   }
 
+  // ── 교육 트렌드 블로그 글 (최신 10건) ────────────────────────────────────
+  const { data: blogRows } = await supabaseServer
+    .from("blog_posts")
+    .select("id, title, slug, summary, key_points, tags, published_at")
+    .eq("is_published", true)
+    .order("published_at", { ascending: false })
+    .limit(10)
+
+  const blogPosts = (blogRows ?? []).map((p: any) => ({
+    id:          p.id as string,
+    title:       p.title as string,
+    slug:        p.slug as string,
+    summary:     (p.summary ?? "") as string,
+    keyPoints:   (p.key_points ?? []) as string[],
+    tags:        (p.tags ?? []) as string[],
+    publishedAt: p.published_at as string,
+  }))
+
   return (
     <ParentDashboardClient
       parentName={parentName}
@@ -315,6 +333,7 @@ export default async function ParentPage() {
       topicStats={topicStats}
       assignments={assignments}
       recentSubs={recentSubs}
+      blogPosts={blogPosts}
     />
   )
 }
