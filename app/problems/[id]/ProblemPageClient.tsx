@@ -2029,7 +2029,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
                 {resultCollapsed ? <SvgChevronUp /> : <SvgChevronDown />}
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4" onClick={() => waitingInput && inlineInputRef.current?.focus()}>
               {activeTab === "output" && (
                 chunks.length > 0 || running || waitingInput ? (
                   <div className="font-mono text-sm">

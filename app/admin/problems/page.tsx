@@ -938,17 +938,16 @@ export default function ProblemsPage() {
                   </div>
                   <div>
                     <label className={labelCls}>주제 (topic)</label>
-                    <select
+                    <input
+                      list="topic-datalist"
                       value={form.topic ?? ""}
                       onChange={e => setField("topic", e.target.value)}
+                      placeholder="선택하거나 새 주제 직접 입력"
                       className={inputCls}
-                    >
-                      <option value="">— 선택 —</option>
-                      {formTopics.map(t => <option key={t} value={t}>{t}</option>)}
-                      {form.topic && !formTopics.includes(form.topic) && (
-                        <option value={form.topic}>{form.topic}</option>
-                      )}
-                    </select>
+                    />
+                    <datalist id="topic-datalist">
+                      {formTopics.map(t => <option key={t} value={t} />)}
+                    </datalist>
                   </div>
                 </div>
               </Section>

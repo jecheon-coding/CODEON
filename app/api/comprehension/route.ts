@@ -15,6 +15,26 @@ const CAT_MULT: Record<string, number> = {
   "파이썬대회":     3.0,
 }
 
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const userId    = (session.user as any).id as string
+  const problemId = new URL(req.url).searchParams.get("problemId")
+  if (!problemId) return NextResponse.json({ error: "Missing problemId" }, { status: 400 })
+
+  const { data } = await supabaseServer
+    .from("comprehension_checks")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("problem_id", problemId)
+    .eq("skipped", false)
+    .limit(1)
+    .maybeSingle()
+
+  return NextResponse.json({ submitted: !!data })
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

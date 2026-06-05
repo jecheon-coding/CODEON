@@ -13,7 +13,7 @@ interface Props {
   onComplete?: () => void;
 }
 
-type Phase = "loading" | "question" | "answering" | "evaluating" | "done" | "skipped" | "error";
+type Phase = "loading" | "question" | "answering" | "evaluating" | "done" | "skipped" | "error" | "already_submitted";
 
 export default function ComprehensionPanel({ problem, code, isDark, required = false, onComplete }: Props) {
   const [phase, setPhase]           = useState<Phase>("loading");
@@ -31,7 +31,10 @@ export default function ComprehensionPanel({ problem, code, isDark, required = f
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-    generateQuestion();
+    fetch(`/api/comprehension?problemId=${problem.id}`)
+      .then(r => r.json())
+      .then(({ submitted }) => submitted ? setPhase("already_submitted") : generateQuestion())
+      .catch(() => generateQuestion());
   }, []);
 
   const generateQuestion = async () => {
@@ -301,6 +304,14 @@ ${code}
             건너뛰었습니다. 다음에는 꼭 설명해보세요!
             <span className={`ml-1 font-semibold ${D("text-amber-400", "text-amber-500")}`}>(가산점 없음)</span>
           </p>
+        )}
+
+        {/* 이미 제출 */}
+        {phase === "already_submitted" && (
+          <div className={`flex items-center gap-2 text-xs ${D("text-emerald-300", "text-emerald-600")}`}>
+            <CheckCircle2 size={13} />
+            이미 제출한 문제입니다. 중복 제출은 불가합니다.
+          </div>
         )}
 
       </div>
