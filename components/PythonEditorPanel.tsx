@@ -581,7 +581,7 @@ export default function PythonEditorPanel({ initialCode, storageKey = "guide" }:
         style={{ height: `${consoleH}px` }}
       >
         {/* 터미널 출력 + 인라인 입력 */}
-        <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0">
+        <div className="flex-1 px-3 py-2 overflow-y-auto font-mono min-h-0" onClick={() => waitingInput && inputRef.current?.focus()}>
           {hasOutput || running || waitingInput ? (
             <pre className="text-sm whitespace-pre-wrap leading-relaxed" style={{ fontFeatureSettings: "'liga' 0, 'calt' 0, 'clig' 0" }}>
 
