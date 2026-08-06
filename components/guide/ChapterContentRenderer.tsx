@@ -6,31 +6,30 @@ import remarkGfm from "remark-gfm"
 import remarkBreaks from "remark-breaks"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
-import { ChevronDown, Lightbulb, ClipboardList } from "lucide-react"
+import { ChevronDown, Lightbulb, ClipboardList, BookOpen, Copy, Check } from "lucide-react"
 import GraphVisualizer from "@/components/guide/GraphVisualizer"
 import RecursiveDfsVisualizer from "@/components/guide/RecursiveDfsVisualizer"
 import GraphBuildVisualizer from "@/components/guide/GraphBuildVisualizer"
 import GridDirectionVisualizer from "@/components/guide/GridDirectionVisualizer"
 import GridBfsVisualizer from "@/components/guide/GridBfsVisualizer"
 
-function CollapsibleCode({ type, code }: { type: "solution" | "hint"; code: string }) {
+const COLLAPSIBLE_CODE_CONFIG = {
+  hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
+  solution:    { label: "정답 코드 보기", icon: ClipboardList, className: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200" },
+  explanation: { label: "해설 보기",     icon: BookOpen,      className: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200" },
+} as const
+
+function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanation"; code: string }) {
   const [open, setOpen] = useState(false)
-  const isHint = type === "hint"
+  const { label, icon: Icon, className } = COLLAPSIBLE_CODE_CONFIG[type]
   return (
     <div className="not-prose my-3">
       <button
         onClick={() => setOpen(v => !v)}
-        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors w-full border ${
-          isHint
-            ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200"
-            : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-        }`}
+        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors w-full border ${className}`}
       >
-        {isHint
-          ? <Lightbulb className="w-4 h-4 shrink-0" />
-          : <ClipboardList className="w-4 h-4 shrink-0" />
-        }
-        {isHint ? "힌트 보기" : "정답 코드 보기"}
+        <Icon className="w-4 h-4 shrink-0" />
+        {label}
         <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
@@ -49,14 +48,53 @@ function CollapsibleCode({ type, code }: { type: "solution" | "hint"; code: stri
   )
 }
 
+function GenericCodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+
+  return (
+    <div className="not-prose relative">
+      <button
+        onClick={handleCopy}
+        aria-label="코드 복사"
+        className={`absolute top-2 right-2 z-10 flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+          copied
+            ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+            : "text-gray-400 bg-white border-gray-200 hover:text-gray-700 hover:bg-gray-100"
+        }`}
+      >
+        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+        {copied ? "복사됨" : "복사"}
+      </button>
+      <SyntaxHighlighter
+        style={oneLight}
+        language={language}
+        PreTag="div"
+        customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
+}
+
 export default function ChapterContentRenderer({
   content,
   showHint,
   showSolution,
+  showExplanation,
 }: {
-  content:      string
-  showHint:     boolean
-  showSolution: boolean
+  content:         string
+  showHint:        boolean
+  showSolution:    boolean
+  showExplanation: boolean
 }) {
   return (
     <article className="prose prose-slate prose-sm max-w-none
@@ -83,8 +121,9 @@ export default function ChapterContentRenderer({
             const lang = match?.[1]
             const code = String(children).replace(/^\n+/, "").replace(/\n+$/, "")
 
-            if (lang === "python-solution") return showSolution ? <CollapsibleCode type="solution" code={code} /> : null
-            if (lang === "python-hint")     return showHint     ? <CollapsibleCode type="hint"     code={code} /> : null
+            if (lang === "python-solution")    return showSolution    ? <CollapsibleCode type="solution"    code={code} /> : null
+            if (lang === "python-hint")        return showHint        ? <CollapsibleCode type="hint"         code={code} /> : null
+            if (lang === "python-explanation") return showExplanation ? <CollapsibleCode type="explanation" code={code} /> : null
 
             // ── 그래프 시각화 ──
             if (lang === "graph-dfs") return <GraphVisualizer mode="dfs" code={code} />
@@ -94,20 +133,7 @@ export default function ChapterContentRenderer({
             if (lang === "grid-directions") return <GridDirectionVisualizer code={code} />
             if (lang === "grid-bfs") return <GridBfsVisualizer code={code} />
 
-            if (lang) {
-              return (
-                <div className="not-prose">
-                  <SyntaxHighlighter
-                    style={oneLight}
-                    language={lang}
-                    PreTag="div"
-                    customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
-                  >
-                    {code}
-                  </SyntaxHighlighter>
-                </div>
-              )
-            }
+            if (lang) return <GenericCodeBlock language={lang} code={code} />
             return (
               <code className={className} {...props}>
                 {children}

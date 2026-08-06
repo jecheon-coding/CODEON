@@ -26,21 +26,22 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { title, category, content, order_index, is_published, show_hint, show_solution, parent_id } = await req.json()
+  const { title, category, content, order_index, is_published, show_hint, show_solution, show_explanation, parent_id } = await req.json()
   if (!title?.trim())
     return NextResponse.json({ error: "제목을 입력하세요" }, { status: 400 })
 
   const { data, error } = await supabaseServer
     .from("learning_chapters")
     .insert({
-      title:         title.trim(),
-      category:      category || null,
-      content:       content ?? "",
-      order_index:   order_index ?? 0,
-      is_published:  is_published ?? false,
-      show_hint:     show_hint ?? true,
-      show_solution: show_solution ?? true,
-      parent_id:     parent_id || null,
+      title:            title.trim(),
+      category:         category || null,
+      content:          content ?? "",
+      order_index:      order_index ?? 0,
+      is_published:     is_published ?? false,
+      show_hint:        show_hint ?? true,
+      show_solution:    show_solution ?? true,
+      show_explanation: show_explanation ?? true,
+      parent_id:        parent_id || null,
     })
     .select()
     .single()

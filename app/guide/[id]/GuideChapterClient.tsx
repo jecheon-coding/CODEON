@@ -34,6 +34,7 @@ export default function GuideChapterClient({
   userName,
   showHint,
   showSolution,
+  showExplanation,
   initialCompletedIds,
 }: {
   chapter:             Chapter
@@ -41,6 +42,7 @@ export default function GuideChapterClient({
   userName:            string
   showHint:            boolean
   showSolution:        boolean
+  showExplanation:     boolean
   initialCompletedIds: string[]
 }) {
   const router = useRouter()
@@ -236,6 +238,7 @@ export default function GuideChapterClient({
               content={chapter.content}
               showHint={showHint}
               showSolution={showSolution}
+              showExplanation={showExplanation}
             />
 
             {/* 하단 네비게이션 */}

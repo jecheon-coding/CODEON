@@ -21,8 +21,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("content"       in body) update.content       = body.content
   if ("order_index"   in body) update.order_index   = body.order_index
   if ("is_published"  in body) update.is_published  = body.is_published
-  if ("show_hint"     in body) update.show_hint     = body.show_hint
-  if ("show_solution" in body) update.show_solution = body.show_solution
+  if ("show_hint"        in body) update.show_hint        = body.show_hint
+  if ("show_solution"    in body) update.show_solution    = body.show_solution
+  if ("show_explanation" in body) update.show_explanation = body.show_explanation
   if ("parent_id"     in body) update.parent_id     = body.parent_id || null
 
   const { data, error } = await supabaseServer
