@@ -12,6 +12,10 @@ import RecursiveDfsVisualizer from "@/components/guide/RecursiveDfsVisualizer"
 import GraphBuildVisualizer from "@/components/guide/GraphBuildVisualizer"
 import GridDirectionVisualizer from "@/components/guide/GridDirectionVisualizer"
 import GridBfsVisualizer from "@/components/guide/GridBfsVisualizer"
+import BinarySearchVisualizer from "@/components/guide/BinarySearchVisualizer"
+import ParametricSearchVisualizer from "@/components/guide/ParametricSearchVisualizer"
+import BinarySearchRecursiveVisualizer from "@/components/guide/BinarySearchRecursiveVisualizer"
+import BisectVisualizer from "@/components/guide/BisectVisualizer"
 
 const COLLAPSIBLE_CODE_CONFIG = {
   hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
@@ -48,7 +52,24 @@ function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanat
   )
 }
 
-function GenericCodeBlock({ language, code }: { language: string; code: string }) {
+function PlainCodeBlock({ language, code }: { language: string; code: string }) {
+  return (
+    <div className="not-prose">
+      <SyntaxHighlighter
+        style={oneLight}
+        language={language}
+        PreTag="div"
+        customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
+}
+
+// ```example-input 전용 — 연습문제 "입력 예시"만 복사 버튼을 갖는다 (다른 일반 코드
+// 블록, 예: 그래프 그림 설명용 텍스트 박스에는 복사 버튼이 필요 없다는 요구사항).
+function CopyableCodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -75,7 +96,7 @@ function GenericCodeBlock({ language, code }: { language: string; code: string }
       </button>
       <SyntaxHighlighter
         style={oneLight}
-        language={language}
+        language="text"
         PreTag="div"
         customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
       >
@@ -133,7 +154,14 @@ export default function ChapterContentRenderer({
             if (lang === "grid-directions") return <GridDirectionVisualizer code={code} />
             if (lang === "grid-bfs") return <GridBfsVisualizer code={code} />
 
-            if (lang) return <GenericCodeBlock language={lang} code={code} />
+            if (lang === "binary-search")           return <BinarySearchVisualizer code={code} />
+            if (lang === "parametric-search")       return <ParametricSearchVisualizer code={code} />
+            if (lang === "binary-search-recursive") return <BinarySearchRecursiveVisualizer code={code} />
+            if (lang === "bisect-search")           return <BisectVisualizer code={code} />
+
+            if (lang === "example-input") return <CopyableCodeBlock code={code} />
+
+            if (lang) return <PlainCodeBlock language={lang} code={code} />
             return (
               <code className={className} {...props}>
                 {children}
