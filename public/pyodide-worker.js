@@ -93,6 +93,21 @@ def _input(prompt=''):
 
 builtins.input = _input
 
+class _Stdin:
+    # 'input = sys.stdin.readline' 처럼 sys.stdin을 직접 읽는 코드(코딩테스트 관용구)도
+    # 지원하기 위해 실제 파일의 readline()처럼 개행 문자를 포함해 반환한다.
+    def readline(self, *args, **kwargs):
+        result = _js_wait_for_input()
+        if result is None:
+            raise _StopExecution()
+        return result if result.endswith('\\n') else result + '\\n'
+    def __iter__(self):
+        return self
+    def __next__(self):
+        return self.readline()
+
+sys.stdin = _Stdin()
+
 try:
     exec(_user_code, {"__builtins__": builtins, "sys": sys})
 except SystemExit:
