@@ -7,6 +7,7 @@ import {
   BookOpen, LogOut, Plus, Pencil, Trash2, Eye, EyeOff,
   ArrowLeft, Save, X, AlertCircle, CheckCircle2, Loader2, Upload,
 } from "lucide-react"
+import ChapterContentRenderer from "@/components/guide/ChapterContentRenderer"
 
 type Chapter = {
   id:            string
@@ -55,6 +56,7 @@ export default function AdminLearningPage() {
   const [saving,    setSaving]    = useState(false)
   const [err,       setErr]       = useState("")
   const [toast,     setToast]     = useState("")
+  const [previewMode, setPreviewMode] = useState<"edit" | "preview">("edit")
   const fileInputRef    = useRef<HTMLInputElement>(null)
   const textareaRef     = useRef<HTMLTextAreaElement>(null)
 
@@ -93,6 +95,7 @@ export default function AdminLearningPage() {
     setEditing(null)
     setForm({ title: "", category: "공통", content: "", order_index: chapters.length, is_published: false, show_hint: true, show_solution: true, parent_id: "" })
     setErr("")
+    setPreviewMode("edit")
     setShowForm(true)
   }
 
@@ -109,6 +112,7 @@ export default function AdminLearningPage() {
       parent_id:     c.parent_id ?? "",
     })
     setErr("")
+    setPreviewMode("edit")
     setShowForm(true)
   }
 
@@ -116,6 +120,7 @@ export default function AdminLearningPage() {
     setShowForm(false)
     setEditing(null)
     setErr("")
+    setPreviewMode("edit")
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -435,20 +440,57 @@ export default function AdminLearningPage() {
                 </div>
               </div>
 
-              {/* 마크다운 textarea — 남은 높이 전부 */}
+              {/* 마크다운 편집 / 미리보기 — 남은 높이 전부 */}
               <div className="flex-1 flex flex-col overflow-hidden px-6 py-3 min-h-0">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className={labelCls + " mb-0"}>내용 (마크다운)</label>
+                  <div className="flex items-center gap-3">
+                    <label className={labelCls + " mb-0"}>내용 (마크다운)</label>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewMode("edit")}
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
+                          previewMode === "edit" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        편집
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewMode("preview")}
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
+                          previewMode === "preview" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        미리보기
+                      </button>
+                    </div>
+                  </div>
                   <span className="text-[10px] text-gray-400 tabular-nums">{form.content.length.toLocaleString()} 자</span>
                 </div>
-                <textarea
-                  ref={textareaRef}
-                  value={form.content}
-                  onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
-                  placeholder={`# 제목\n\n내용을 입력하거나 위에서 .md 파일을 업로드하세요.\n\n\`\`\`python\nprint("Hello!")\n\`\`\``}
-                  className="flex-1 min-h-0 resize-none px-3 py-2.5 border border-gray-300 rounded-lg text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-gray-400"
-                  style={{ fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace", fontSize: "14px", lineHeight: "1.65" }}
-                />
+
+                {previewMode === "edit" ? (
+                  <textarea
+                    ref={textareaRef}
+                    value={form.content}
+                    onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
+                    placeholder={`# 제목\n\n내용을 입력하거나 위에서 .md 파일을 업로드하세요.\n\n\`\`\`python\nprint("Hello!")\n\`\`\``}
+                    className="flex-1 min-h-0 resize-none px-3 py-2.5 border border-gray-300 rounded-lg text-gray-800 bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-gray-400"
+                    style={{ fontFamily: "'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace", fontSize: "14px", lineHeight: "1.65" }}
+                  />
+                ) : (
+                  <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-lg px-5 py-4 bg-slate-50">
+                    {form.content.trim() ? (
+                      <ChapterContentRenderer
+                        content={form.content}
+                        showHint={form.show_hint}
+                        showSolution={form.show_solution}
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-400">미리볼 내용이 없습니다.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 하단 고정: 발행 + 오류 + 버튼 */}
