@@ -34,7 +34,7 @@ export function GridCanvas({
   return (
     <div className="flex-1 p-3">
       <div
-        className="grid gap-1 mx-auto"
+        className="grid gap-1 mx-auto justify-items-center"
         style={{ gridTemplateColumns: `repeat(${totalCols}, minmax(0, 1fr))`, maxWidth: totalCols <= 6 ? "280px" : "360px" }}
       >
         {cells.map(({ r, c }) => {
@@ -44,7 +44,8 @@ export function GridCanvas({
           return (
             <div
               key={`${r}-${c}`}
-              className={`relative aspect-square rounded border flex items-center justify-center text-[10px] font-bold transition-colors duration-300 ${style.bg} ${style.border} ${style.text}`}
+              style={{ maxWidth: 48 }}
+              className={`relative w-full aspect-square rounded border flex items-center justify-center text-[10px] font-bold transition-colors duration-300 ${style.bg} ${style.border} ${style.text}`}
             >
               {isCellActive(r, c) && (
                 <span className="absolute inset-0 rounded bg-indigo-400/50 animate-ping" />

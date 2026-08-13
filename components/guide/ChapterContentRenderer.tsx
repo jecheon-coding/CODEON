@@ -16,6 +16,17 @@ import BinarySearchVisualizer from "@/components/guide/BinarySearchVisualizer"
 import ParametricSearchVisualizer from "@/components/guide/ParametricSearchVisualizer"
 import BinarySearchRecursiveVisualizer from "@/components/guide/BinarySearchRecursiveVisualizer"
 import BisectVisualizer from "@/components/guide/BisectVisualizer"
+import StackQueueVisualizer from "@/components/guide/StackQueueVisualizer"
+import StackParensVisualizer from "@/components/guide/StackParensVisualizer"
+import MonotonicStackVisualizer from "@/components/guide/MonotonicStackVisualizer"
+import VarAssignVisualizer from "@/components/guide/VarAssignVisualizer"
+import InputParsePipelineVisualizer from "@/components/guide/InputParsePipelineVisualizer"
+import StringFindVisualizer from "@/components/guide/StringFindVisualizer"
+import StringSplitVisualizer from "@/components/guide/StringSplitVisualizer"
+import StringJoinVisualizer from "@/components/guide/StringJoinVisualizer"
+import FormatAlignVisualizer from "@/components/guide/FormatAlignVisualizer"
+import FormatThousandsVisualizer from "@/components/guide/FormatThousandsVisualizer"
+import FormatBaseVisualizer from "@/components/guide/FormatBaseVisualizer"
 
 const COLLAPSIBLE_CODE_CONFIG = {
   hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
@@ -158,6 +169,21 @@ export default function ChapterContentRenderer({
             if (lang === "parametric-search")       return <ParametricSearchVisualizer code={code} />
             if (lang === "binary-search-recursive") return <BinarySearchRecursiveVisualizer code={code} />
             if (lang === "bisect-search")           return <BisectVisualizer code={code} />
+
+            if (lang === "stack-queue-basic") return <StackQueueVisualizer code={code} />
+            if (lang === "stack-parens")      return <StackParensVisualizer code={code} />
+            if (lang === "monotonic-stack")   return <MonotonicStackVisualizer code={code} />
+
+            if (lang === "var-assign")           return <VarAssignVisualizer code={code} />
+            if (lang === "input-parse-pipeline") return <InputParsePipelineVisualizer code={code} />
+
+            if (lang === "string-find")  return <StringFindVisualizer code={code} />
+            if (lang === "string-split") return <StringSplitVisualizer code={code} />
+            if (lang === "string-join")  return <StringJoinVisualizer code={code} />
+
+            if (lang === "format-align")     return <FormatAlignVisualizer code={code} />
+            if (lang === "format-thousands") return <FormatThousandsVisualizer code={code} />
+            if (lang === "format-base")      return <FormatBaseVisualizer code={code} />
 
             if (lang === "example-input") return <CopyableCodeBlock code={code} />
 
