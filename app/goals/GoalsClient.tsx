@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 import { PageLayout } from "@/components/ui/PageLayout"
 import { ArrowLeft, LogOut, Flame, Trophy, CheckCircle, Sparkles } from "lucide-react"
@@ -47,16 +46,19 @@ export default function GoalsClient() {
   const userName = session?.user?.name ?? "학생"
 
   // 정답 제출 기록 전체 조회
+  // 클라이언트에서 anon 키로 submissions를 직접 조회하면 RLS에 막혀 항상 빈 배열이
+  // 반환된다(이 앱은 NextAuth 기반이라 auth.uid()가 없음). 다른 화면들과 동일하게
+  // service role로 RLS를 우회하는 서버 API(/api/submissions/summary)를 사용한다.
   const fetchSubs = useCallback(async () => {
     if (!userId) return
-    const { data } = await supabase
-      .from("submissions")
-      .select("problem_id, created_at")
-      .eq("user_id", userId)
-      .eq("is_correct", true)
-      .order("created_at", { ascending: false })
-    setCorrectSubs(data ?? [])
-    setLoading(false)
+    try {
+      const res = await fetch("/api/submissions/summary")
+      if (!res.ok) return
+      const d = await res.json()
+      setCorrectSubs(d.correctSubs ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [userId])
 
   useEffect(() => { fetchSubs() }, [fetchSubs])
@@ -66,21 +68,6 @@ export default function GoalsClient() {
     window.addEventListener("focus", fetchSubs)
     return () => window.removeEventListener("focus", fetchSubs)
   }, [fetchSubs])
-
-  // Supabase 실시간 구독 (같은 탭 내 즉시 반영)
-  useEffect(() => {
-    if (!userId) return
-    const ch = supabase
-      .channel(`goals-subs:${userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "submissions", filter: `user_id=eq.${userId}` },
-        payload => {
-          const s = payload.new as { problem_id: string; created_at: string; is_correct: boolean }
-          if (s.is_correct) setCorrectSubs(prev => [{ problem_id: s.problem_id, created_at: s.created_at }, ...prev])
-        }
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [userId])
 
   // 날짜별 정답 수 집계 (UTC → 로컬 날짜 변환)
   const dayCounts = useMemo(() => {

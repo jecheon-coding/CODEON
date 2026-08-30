@@ -27,6 +27,23 @@ import StringJoinVisualizer from "@/components/guide/StringJoinVisualizer"
 import FormatAlignVisualizer from "@/components/guide/FormatAlignVisualizer"
 import FormatThousandsVisualizer from "@/components/guide/FormatThousandsVisualizer"
 import FormatBaseVisualizer from "@/components/guide/FormatBaseVisualizer"
+import ListOpsVisualizer from "@/components/guide/ListOpsVisualizer"
+import ListSliceVisualizer from "@/components/guide/ListSliceVisualizer"
+import ListCopyRefVisualizer from "@/components/guide/ListCopyRefVisualizer"
+import ListIndexCompareVisualizer from "@/components/guide/ListIndexCompareVisualizer"
+import IfElifFlowVisualizer from "@/components/guide/IfElifFlowVisualizer"
+import OrTrapVisualizer from "@/components/guide/OrTrapVisualizer"
+import TruthyCompareVisualizer from "@/components/guide/TruthyCompareVisualizer"
+import ForLoopTraceVisualizer from "@/components/guide/ForLoopTraceVisualizer"
+import WhileLoopTraceVisualizer from "@/components/guide/WhileLoopTraceVisualizer"
+import BreakContinueCompareVisualizer from "@/components/guide/BreakContinueCompareVisualizer"
+import ForElseFlowVisualizer from "@/components/guide/ForElseFlowVisualizer"
+import NestedLoopTraceVisualizer from "@/components/guide/NestedLoopTraceVisualizer"
+import NestedListAliasVisualizer from "@/components/guide/NestedListAliasVisualizer"
+import GridTraverseSumVisualizer from "@/components/guide/GridTraverseSumVisualizer"
+import GridNeighborScanVisualizer from "@/components/guide/GridNeighborScanVisualizer"
+import GridTransposeRotateVisualizer from "@/components/guide/GridTransposeRotateVisualizer"
+import GridMaxPosVisualizer from "@/components/guide/GridMaxPosVisualizer"
 
 const COLLAPSIBLE_CODE_CONFIG = {
   hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
@@ -184,6 +201,27 @@ export default function ChapterContentRenderer({
             if (lang === "format-align")     return <FormatAlignVisualizer code={code} />
             if (lang === "format-thousands") return <FormatThousandsVisualizer code={code} />
             if (lang === "format-base")      return <FormatBaseVisualizer code={code} />
+
+            if (lang === "list-ops")           return <ListOpsVisualizer code={code} />
+            if (lang === "list-slice")         return <ListSliceVisualizer code={code} />
+            if (lang === "list-copy-ref")      return <ListCopyRefVisualizer code={code} />
+            if (lang === "list-index-compare") return <ListIndexCompareVisualizer code={code} />
+
+            if (lang === "if-elif-flow")   return <IfElifFlowVisualizer code={code} />
+            if (lang === "or-trap")        return <OrTrapVisualizer code={code} />
+            if (lang === "truthy-compare") return <TruthyCompareVisualizer code={code} />
+
+            if (lang === "for-loop-trace")          return <ForLoopTraceVisualizer code={code} />
+            if (lang === "while-loop-trace")        return <WhileLoopTraceVisualizer code={code} />
+            if (lang === "break-continue-compare")  return <BreakContinueCompareVisualizer code={code} />
+            if (lang === "for-else-flow")           return <ForElseFlowVisualizer code={code} />
+            if (lang === "nested-loop-trace")       return <NestedLoopTraceVisualizer code={code} />
+
+            if (lang === "nested-list-alias")       return <NestedListAliasVisualizer code={code} />
+            if (lang === "grid-traverse-sum")       return <GridTraverseSumVisualizer code={code} />
+            if (lang === "grid-neighbor-scan")      return <GridNeighborScanVisualizer code={code} />
+            if (lang === "grid-transpose-rotate")   return <GridTransposeRotateVisualizer code={code} />
+            if (lang === "grid-max-pos")            return <GridMaxPosVisualizer code={code} />
 
             if (lang === "example-input") return <CopyableCodeBlock code={code} />
 
