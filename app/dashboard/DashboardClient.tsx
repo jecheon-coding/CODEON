@@ -361,19 +361,19 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   }, [userId])
 
   // ── 마지막 문제 상세 + 다음 문제 fetch ────────────────────────────────
+  const lastSubmittedProblemId = submissions[0]?.problem_id
   useEffect(() => {
-    const id = submissions[0]?.problem_id
-    if (!id || !userId) { setNextProblemFromApi(null); return }
+    if (!lastSubmittedProblemId || !userId) { setNextProblemFromApi(null); return }
     setLoadingProblemDetail(true)
     Promise.all([
-      fetch(`/api/problems/${id}`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/problems/next?currentId=${id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/problems/${lastSubmittedProblemId}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/problems/next?currentId=${lastSubmittedProblemId}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([detail, next]) => {
       setLastProblemDetail(detail)
       setNextProblemFromApi(next ?? null)
       setLoadingProblemDetail(false)
     })
-  }, [submissions[0]?.problem_id, userId])
+  }, [lastSubmittedProblemId, userId])
 
   // ── 추천 문제 fetch ────────────────────────────────────────────────────
   useEffect(() => {
@@ -463,7 +463,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
     if (currentCourse?.slug === "basic")
       return `기초를 탄탄히 다지고 있어요!\n정답률 ${rate}%에서 조금만 더 연습하면 금방 올라갈 거에요. 오늘 목표 ${dailyGoal}문제, 같이 풀어볼까요?`
     return `꾸준히 문제를 풀면 반드시 실력이 올라요!`
-  }, [total, rate, wrong, correct, streak, todaySolved, currentCourse, userName])
+  }, [total, rate, wrong, correct, streak, todaySolved, dailyGoal, currentCourse, userName])
 
   const problemTitles = useMemo<Record<string, string>>(() => {
     const map: Record<string, string> = {}
@@ -539,7 +539,6 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
   }, [homework])
 
   const hwTotal     = homework.length
-  const hwSubmitted = homework.filter(h => h.isSubmitted).length
   const hwDone      = homework.filter(h => h.isCorrect === true).length
 
   // 마감 임박 과제 계산 (D-3 이내, 미완료 과제만)

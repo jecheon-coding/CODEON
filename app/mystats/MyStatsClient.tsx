@@ -146,8 +146,8 @@ export default function MyStatsClient() {
             <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm mb-6">
               <Skeleton className="h-4 w-24 mb-4" />
               <div className="flex items-end gap-1 h-24">
-                {Array.from({length: 7}).map((_,i) => (
-                  <Skeleton key={i} className="flex-1 rounded-sm" style={{ height: `${40 + Math.random()*50}%` }} />
+                {[62, 48, 80, 55, 72, 40, 68].map((h, i) => (
+                  <Skeleton key={i} className="flex-1 rounded-sm" style={{ height: `${h}%` }} />
                 ))}
               </div>
             </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { X, Send, Bot, Zap, RotateCcw, CheckCircle } from "lucide-react"
-import { callGemini } from "@/lib/gemini"
 
 type Message = { role: "user" | "ai"; text: string }
 
@@ -97,33 +96,28 @@ export default function AiTutorChat({
     if (textareaRef.current) textareaRef.current.style.height = "44px"
     setLoading(true)
 
-    const conversationHistory = messages
-      .map(m => `${m.role === "user" ? "학생" : "튜터"}: ${m.text}`)
-      .join("\n")
-
-    const prompt = `너는 친절한 파이썬 코딩 강사 AI 튜터다.
-
-[학생 컨텍스트]
-- 이름: ${userName}
-- 현재 과정: ${currentCourse?.label ?? "미정"}
-- 정답률: ${rate}%
-- 오늘 푼 문제: ${todaySolved}문제 / 목표 ${dailyGoal}문제
-- 최근 오답 횟수: ${wrong}회
-
-[대화 이력]
-${conversationHistory}
-
-[학생 질문]
-${trimmed}
-
-정답 코드를 직접 알려주지 말고, 개념과 방향을 친절하고 간결하게 3~4문장 이내로 답변해줘. 한국어만 사용해.`
-
     try {
-      const aiText = await callGemini(prompt)
-      setMessages([...nextMessages, { role: "ai", text: aiText || "AI 응답 없음" }])
-    } catch (e: any) {
-      const msg = e.message?.includes("초과") ? "응답 시간이 초과됐어요. 다시 시도해 주세요." : "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
-      setMessages([...nextMessages, { role: "ai", text: msg }])
+      const res = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          history: messages,
+          context: {
+            userName,
+            courseLabel: currentCourse?.label ?? "미정",
+            rate,
+            todaySolved,
+            dailyGoal,
+            wrong,
+          },
+        }),
+      })
+      const data = await res.json()
+      const aiText = res.ok ? (data.text || "AI 응답 없음") : "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+      setMessages([...nextMessages, { role: "ai", text: aiText }])
+    } catch {
+      setMessages([...nextMessages, { role: "ai", text: "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요." }])
     } finally {
       setLoading(false)
     }

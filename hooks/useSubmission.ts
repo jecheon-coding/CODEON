@@ -142,7 +142,7 @@ export function useSubmission(problem: Problem) {
       setStatus("no_criteria");
       return "no_criteria";
 
-    } catch (err: any) {
+    } catch {
       setStatus("error");
       return "error";
     } finally {

@@ -22,8 +22,6 @@ export async function GET() {
       .eq("status", "active"),
   ])
 
-  const userMap = new Map((users ?? []).map(u => [u.id, u.name as string]))
-
   type Stat = {
     userId: string
     name: string

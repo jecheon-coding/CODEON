@@ -4,7 +4,6 @@ import {
   getTestCases,
   getAdjacentProblems,
   getCertSessionInfo,
-  type CertSessionInfo,
 } from "@/services/problem.service";
 import ProblemPageClient from "./ProblemPageClient";
 

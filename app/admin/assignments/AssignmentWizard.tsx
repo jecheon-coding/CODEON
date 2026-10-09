@@ -194,7 +194,7 @@ export default function AssignmentWizard({
     if (availableRounds.length > 0 && (certRound === null || !availableRounds.includes(certRound))) {
       setCertRound(availableRounds[0])
     }
-  }, [availableRounds])
+  }, [availableRounds, certRound])
 
   // ── 대회: 연도 & 부문 목록 ────────────────────────────────────────────────
   const availableYears = useMemo(() => {
@@ -224,14 +224,14 @@ export default function AssignmentWizard({
       (compYear === null || !availableYears.includes(compYear))) {
       setCompYear(availableYears[0])
     }
-  }, [availableYears, pCourse])
+  }, [availableYears, pCourse, compYear])
 
   useEffect(() => {
     if (availableDivisions.length > 0 &&
       (compDivision === null || !availableDivisions.includes(compDivision))) {
       setCompDivision(availableDivisions[0])
     }
-  }, [availableDivisions])
+  }, [availableDivisions, compDivision])
 
   // ── 일반 과정 토픽 목록 ────────────────────────────────────────────────────
   const courseTopics = useMemo(() => {
@@ -345,11 +345,11 @@ export default function AssignmentWizard({
   }
 
   function toggleProblem(id: string) {
-    setSelProblems(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setSelProblems(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
 
   function toggleStudent(id: string) {
-    setSelStudents(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setSelStudents(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
 
   function toggleGroupStudents(groupStudents: Student[]) {

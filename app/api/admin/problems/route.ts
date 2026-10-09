@@ -10,11 +10,9 @@ async function isAdmin() {
   return (session?.user as any)?.role === "admin"
 }
 
-// GET /api/admin/problems?full=true
-export async function GET(req: NextRequest) {
+// GET /api/admin/problems
+export async function GET() {
   if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-
-  const full = req.nextUrl.searchParams.get("full") === "true"
 
   // select("*") 로 실제 존재하는 컬럼만 자동 반환 (미적용 마이그레이션 컬럼 오류 방지)
   const { data, error } = await supabaseServer

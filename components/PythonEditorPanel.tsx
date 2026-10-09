@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useInteractiveExecution, type OutputChunk } from "@/hooks/useInteractiveExecution"
+import { useInteractiveExecution } from "@/hooks/useInteractiveExecution"
 import { preloadWorker } from "@/lib/pyodideWorker"
-import { Play, Square, Loader2, RotateCcw } from "lucide-react"
+import { Play, Square, RotateCcw } from "lucide-react"
 
 // ── 배경 팔레트 ──────────────────────────────────────────────────────────────
 const SvgPalette = () => (

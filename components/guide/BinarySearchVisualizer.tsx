@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { AlertCircle } from "lucide-react"
-import { buildBinarySearchVisualization, type BinarySearchStep, type BinarySearchSpec } from "@/lib/binarySearchTraversal"
+import { buildBinarySearchVisualization, type BinarySearchStep } from "@/lib/binarySearchTraversal"
 import { useStepPlayback, DEFAULT_SPEEDS } from "@/hooks/useStepPlayback"
 import { CodePanel } from "@/components/guide/graph/CodePanel"
 import { CaptionBar } from "@/components/guide/graph/CaptionBar"

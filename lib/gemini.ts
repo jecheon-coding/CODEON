@@ -1,6 +1,11 @@
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
+// 이 모듈은 서버 전용이다. API 키가 클라이언트 번들에 포함되면 안 된다.
+if (typeof window !== "undefined") {
+  throw new Error("lib/gemini 는 서버에서만 사용할 수 있습니다. API 라우트를 통해 호출하세요.")
+}
+
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
@@ -14,7 +19,8 @@ export async function callGemini(
   prompt: string,
   { timeoutMs = 30_000, maxRetries = 2 }: { timeoutMs?: number; maxRetries?: number } = {}
 ): Promise<string> {
-  const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+  const key = process.env.GEMINI_API_KEY
+  if (!key) throw new Error("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.")
   let lastErr: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -41,9 +47,11 @@ export async function callGemini(
       }
 
       return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? ""
-    } catch (err: any) {
+    } catch (err) {
       clearTimeout(timer)
-      lastErr = err.name === "AbortError" ? new Error("요청 시간이 초과되었습니다.") : err
+      lastErr = err instanceof Error && err.name === "AbortError"
+        ? new Error("요청 시간이 초과되었습니다.")
+        : err
       if (attempt < maxRetries) await sleep(1_000 * 2 ** attempt)
     }
   }

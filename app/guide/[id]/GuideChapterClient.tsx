@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
-  BookOpen, ArrowLeft, LogOut,
+  BookOpen, BarChart2, ArrowLeft, LogOut,
   ChevronLeft, ChevronRight, Loader2,
   CheckCircle2, Circle, CheckCheck,
 } from "lucide-react"
@@ -28,10 +28,20 @@ type Chapter = ChapterSummary & {
 
 type ChapterWithChildren = ChapterSummary & { children: ChapterSummary[] }
 
+// app/guide/page.tsx의 CAT_META와 동일한 트랙 구분 — "파이썬기초"(또는 category 없음)는
+// 파이썬 가이드, "파이썬알고리즘"은 알고리즘 학습. 헤더 배지가 실제 보고 있는 챕터의
+// 트랙과 무관하게 항상 "파이썬 가이드"로 고정 표시되던 버그를 여기서 고친다.
+const CAT_META: Record<string, { label: string; Icon: typeof BookOpen; iconBg: string; barColor: string }> = {
+  "파이썬기초":     { label: "파이썬 가이드", Icon: BookOpen,  iconBg: "bg-indigo-600",  barColor: "bg-indigo-500" },
+  "파이썬알고리즘": { label: "알고리즘 학습", Icon: BarChart2, iconBg: "bg-emerald-600", barColor: "bg-emerald-500" },
+}
+function catMeta(category: string | null) {
+  return CAT_META[category ?? "파이썬기초"] ?? CAT_META["파이썬기초"]
+}
+
 export default function GuideChapterClient({
   chapter,
   allChapters,
-  userName,
   showHint,
   showSolution,
   showExplanation,
@@ -78,6 +88,9 @@ export default function GuideChapterClient({
 
   const isCurrent   = (id: string) => id === chapter.id
   const isCompleted = (id: string) => completedSet.has(id)
+
+  const meta = catMeta(chapter.category)
+  const MetaIcon = meta.Icon
 
   // 완료 표시 / 취소
   async function toggleComplete() {
@@ -133,17 +146,17 @@ export default function GuideChapterClient({
         </button>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="w-5 h-5 bg-indigo-600 rounded-md flex items-center justify-center">
-            <BookOpen className="w-3 h-3 text-white" />
+          <div className={`w-5 h-5 ${meta.iconBg} rounded-md flex items-center justify-center`}>
+            <MetaIcon className="w-3 h-3 text-white" />
           </div>
-          <span className="text-sm font-extrabold text-gray-900">파이썬 가이드</span>
+          <span className="text-sm font-extrabold text-gray-900">{meta.label}</span>
         </div>
 
         {/* 진행률 바 */}
         <div className="flex-1 flex items-center gap-3 min-w-0">
           <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden min-w-0">
             <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+              className={`h-full ${meta.barColor} rounded-full transition-all duration-500`}
               style={{ width: `${progressPct}%` }}
             />
           </div>

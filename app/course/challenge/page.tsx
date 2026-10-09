@@ -697,7 +697,7 @@ export default function ChallengeHubPage() {
     e.stopPropagation();
     if (!userId) return;
     const wasLiked = likedSet.has(probId);
-    setLikedSet(prev => { const n = new Set(prev); wasLiked ? n.delete(probId) : n.add(probId); return n; });
+    setLikedSet(prev => { const n = new Set(prev); if (wasLiked) n.delete(probId); else n.add(probId); return n; });
     setProblems(prev => prev.map(p => p.id === probId ? { ...p, like_count: (p.like_count ?? 0) + (wasLiked ? -1 : 1) } : p));
     await fetch("/api/challenge/like", {
       method: "POST", headers: { "Content-Type": "application/json" },

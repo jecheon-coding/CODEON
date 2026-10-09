@@ -1,36 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Lightbulb, Sparkles, RotateCcw, ChevronRight, CheckSquare, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Lightbulb, Sparkles, RotateCcw, ChevronRight, CheckSquare } from "lucide-react";
 import { Problem, SubmissionStatus } from "@/types/problem";
 
 interface Props {
   problem:          Problem;
-  code:             string;
   submissionStatus: SubmissionStatus;
   isDark:           boolean;
 }
-
-const STATUS_LABEL: Record<string, { light: string; dark: string; text: string; Icon: any }> = {
-  correct: {
-    light: "text-emerald-600 bg-emerald-50 border-emerald-200",
-    dark:  "text-emerald-300 bg-emerald-900/30 border-emerald-700",
-    text:  "정답 — 훌륭해요!",
-    Icon:  CheckCircle2,
-  },
-  wrong: {
-    light: "text-red-600 bg-red-50 border-red-200",
-    dark:  "text-red-300 bg-red-900/30 border-red-700",
-    text:  "오답 — 힌트를 확인해보세요.",
-    Icon:  XCircle,
-  },
-  error: {
-    light: "text-yellow-600 bg-yellow-50 border-yellow-200",
-    dark:  "text-yellow-300 bg-yellow-900/30 border-yellow-700",
-    text:  "오류 — 코드를 점검해보세요.",
-    Icon:  AlertCircle,
-  },
-};
 
 function parseSteps(text: string): string[] {
   // "N단계:" 또는 "**N단계**" 마커를 인식하고 접두사를 제거
@@ -54,13 +32,12 @@ function parseSteps(text: string): string[] {
   return steps.length >= 2 ? steps : [text.replace(/\*\*/g, "").trim()];
 }
 
-export default function HintPanel({ problem, code, submissionStatus, isDark }: Props) {
+export default function HintPanel({ problem, isDark }: Props) {
   const [rawHint,  setRawHint]  = useState("");
   const [loading,  setLoading]  = useState(false);
   const [revealed, setRevealed] = useState(0);
 
   const steps      = rawHint ? parseSteps(rawHint) : [];
-  const statusMeta = STATUS_LABEL[submissionStatus];
   const D          = (dark: string, light: string) => isDark ? dark : light;
 
   const fetchHint = async () => {

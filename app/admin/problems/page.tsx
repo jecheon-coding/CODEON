@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react"
 import {
   ArrowLeft, LogOut, Search, Plus, Trash2, Save,
   Loader2, BookOpen, Wand2, Eye, EyeOff, ChevronDown, ChevronUp,
-  Copy, ExternalLink, ListChecks, CheckCircle2, ChevronUp as Up,
+  Copy, ExternalLink, ListChecks, CheckCircle2,
   History, RotateCcw, GripVertical, Table2,
 } from "lucide-react"
 import ContentRenderer from "@/components/ui/ContentRenderer"
@@ -673,7 +673,7 @@ export default function ProblemsPage() {
                         onChange={e => {
                           setSelectedIds(prev => {
                             const next = new Set(prev)
-                            e.target.checked ? next.add(p.id) : next.delete(p.id)
+                            if (e.target.checked) next.add(p.id); else next.delete(p.id)
                             return next
                           })
                         }}

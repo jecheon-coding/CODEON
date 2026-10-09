@@ -2,11 +2,10 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { signOut } from "next-auth/react"
-import Link from "next/link"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 import { RowSkeleton } from "@/components/ui/Skeleton"
 import {
-  Code, LogOut, Bell, CheckCircle2, XCircle, Clock,
+  LogOut, Bell, CheckCircle2, XCircle, Clock,
   Target, MessageSquare, ChevronRight, ChevronLeft, X,
   AlertCircle, Flame, Send, Phone, ChevronDown, ChevronUp,
   BookOpen, Minus, Users, History, FileText, BarChart2, Sparkles,
@@ -529,7 +528,7 @@ export default function ParentDashboardClient({
     if (m === 0) return `약 ${h}시간`
     return `약 ${h}시간 ${m}분`
   })()
-  const weakTopics        = useMemo(() => topicStats.filter(t => t.total >= 2 && t.rate < 60), [topicStats])
+  const weakTopics        = topicStats.filter(t => t.total >= 2 && t.rate < 60)
   const assignedTotal     = assignments.reduce((s, a) => s + a.totalCount, 0)
   const assignedDone      = assignments.reduce((s, a) => s + a.completedCount, 0)
   const assignedPending   = assignedTotal - assignedDone
@@ -598,36 +597,28 @@ export default function ParentDashboardClient({
   const attitudeStyle = ATTITUDE_STYLE[attitude] ?? ATTITUDE_STYLE["보통"]
 
   /* ── 과제 정렬: 미완료·기한임박 우선, 완료 후순위 ── */
-  const sortedAssignments = useMemo(() => {
-    const now = Date.now()
-    return [...assignments].sort((a, b) => {
-      const aDone = a.completedCount === a.totalCount && a.totalCount > 0
-      const bDone = b.completedCount === b.totalCount && b.totalCount > 0
-      if (aDone && !bDone) return 1
-      if (!aDone && bDone) return -1
-      const aTime = a.dueDate ? new Date(toUTC(a.dueDate)).getTime() : Infinity
-      const bTime = b.dueDate ? new Date(toUTC(b.dueDate)).getTime() : Infinity
-      // 기한 지난 것은 맨 뒤로
-      const aExp = aTime < now, bExp = bTime < now
-      if (aExp && !bExp) return 1
-      if (!aExp && bExp) return -1
-      return aTime - bTime
-    })
-  }, [assignments])
+  const now = Date.now()
+  const sortedAssignments = [...assignments].sort((a, b) => {
+    const aDone = a.completedCount === a.totalCount && a.totalCount > 0
+    const bDone = b.completedCount === b.totalCount && b.totalCount > 0
+    if (aDone && !bDone) return 1
+    if (!aDone && bDone) return -1
+    const aTime = a.dueDate ? new Date(toUTC(a.dueDate)).getTime() : Infinity
+    const bTime = b.dueDate ? new Date(toUTC(b.dueDate)).getTime() : Infinity
+    // 기한 지난 것은 맨 뒤로
+    const aExp = aTime < now, bExp = bTime < now
+    if (aExp && !bExp) return 1
+    if (!aExp && bExp) return -1
+    return aTime - bTime
+  })
 
-  const activeAssignments = useMemo(() => {
-    const now = Date.now()
-    return sortedAssignments.filter(a =>
-      !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > now
-    )
-  }, [sortedAssignments])
+  const activeAssignments = sortedAssignments.filter(a =>
+    !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > now
+  )
 
-  const pastAssignments = useMemo(() => {
-    const now = Date.now()
-    return sortedAssignments.filter(a =>
-      !!a.dueDate && new Date(toUTC(a.dueDate)).getTime() <= now
-    )
-  }, [sortedAssignments])
+  const pastAssignments = sortedAssignments.filter(a =>
+    !!a.dueDate && new Date(toUTC(a.dueDate)).getTime() <= now
+  )
 
   /* ── 과정 진도 ── */
   const COURSE_ORDER  = ["basic", "intermediate", "advanced"]
@@ -964,7 +955,7 @@ export default function ParentDashboardClient({
                         className="w-full flex items-center gap-4 px-5 py-4 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors text-left"
                         onClick={() => setExpandedIds(prev => {
                           const next = new Set(prev)
-                          next.has(a.id) ? next.delete(a.id) : next.add(a.id)
+                          if (next.has(a.id)) next.delete(a.id); else next.add(a.id)
                           return next
                         })}
                       >
@@ -1048,11 +1039,9 @@ export default function ParentDashboardClient({
                   </button>
                 )}
                 {showPastAssignments && pastAssignments.map(a => {
-                  const now        = new Date()
                   const due        = a.dueDate ? new Date(toUTC(a.dueDate)) : null
                   const isExpired  = true
                   const allDone    = a.completedCount === a.totalCount && a.totalCount > 0
-                  const inProgress = a.completedCount > 0 && !allDone
                   const hasRetry   = a.problems.some(p => p.isAttempted && !p.isCorrect)
                   const status     = getAssignmentStatus(a.completedCount, a.totalCount, isExpired, hasRetry)
                   const pct        = a.totalCount > 0 ? Math.round((a.completedCount / a.totalCount) * 100) : 0
@@ -1064,7 +1053,7 @@ export default function ParentDashboardClient({
                         className="w-full flex items-center gap-4 px-5 py-4 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors text-left"
                         onClick={() => setExpandedIds(prev => {
                           const next = new Set(prev)
-                          next.has(a.id) ? next.delete(a.id) : next.add(a.id)
+                          if (next.has(a.id)) next.delete(a.id); else next.add(a.id)
                           return next
                         })}
                       >

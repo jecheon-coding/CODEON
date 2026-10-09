@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from "react"
-import { supabase } from "@/lib/supabase"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import {
@@ -64,8 +63,6 @@ type ConsultRequest = {
   message: string; status: string; admin_memo: string | null
   created_at: string; resolved_at: string | null
 }
-
-type Problem = { id: string; title: string; category: string; difficulty: string; topic: string | null }
 
 // ── 공통 컴포넌트 ────────────────────────────────────────────────────────────
 
@@ -670,7 +667,7 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
             </div>
             <div className="text-center">
               <p className="text-sm font-extrabold text-gray-900 mb-1">등록 완료!</p>
-              <p className="text-xs text-gray-500">"{form.name}" 학생이 성공적으로 등록되었습니다.</p>
+              <p className="text-xs text-gray-500">&quot;{form.name}&quot; 학생이 성공적으로 등록되었습니다.</p>
             </div>
             <div className="flex gap-2 w-full">
               <button onClick={() => { setSavedOk(false); setForm({ name: "", grade: "", cls: "", loginId: "", password: "" }); setShowPw(false); setErr("") }}
@@ -1025,7 +1022,7 @@ function AssignmentSection() {
                 const isCollapsed = weekToggles.has(key) ? !defaultCollapsed : defaultCollapsed
                 const toggleWeek = () => setWeekToggles(prev => {
                   const next = new Set(prev)
-                  next.has(key) ? next.delete(key) : next.add(key)
+                  if (next.has(key)) next.delete(key); else next.add(key)
                   return next
                 })
                 return (
@@ -1188,7 +1185,6 @@ function SubmissionSection({ onUnsubChange }: {
   const [loading,       setLoading]       = useState(true)
   const [viewMode,      setViewMode]      = useState<SubViewMode>("student")
   const [expanded,      setExpanded]      = useState<Set<string>>(new Set())
-  const [unsubOnly,     setUnsubOnly]     = useState<Set<string>>(new Set()) // 과제별: 미제출만 보기
   const [detailSearch,  setDetailSearch]  = useState("")
   const [detailFilter,  setDetailFilter]  = useState<"all" | "unsubmitted" | "correct" | "wrong">("all")
   const [detailPage,    setDetailPage]    = useState(1)
@@ -1198,6 +1194,8 @@ function SubmissionSection({ onUnsubChange }: {
   const [customEnd,     setCustomEnd]     = useState("")
   const [studentPage,        setStudentPage]        = useState(1)
   const [hideExpiredAssigns, setHideExpiredAssigns] = useState(true)
+  // 마감 판정 기준 시각 — 마운트 시 1회 고정 (렌더 순수성 유지)
+  const [nowMs] = useState(() => Date.now())
   const STUDENT_PAGE_SIZE = 10
 
   const [codeModal,    setCodeModal]    = useState<CodeModalState | null>(null)
@@ -1225,13 +1223,13 @@ function SubmissionSection({ onUnsubChange }: {
   useEffect(() => { setStudentPage(1) }, [dateRange])
 
   function toggleExpand(key: string) {
-    setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+    setExpanded(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })
   }
 
   // 기간 필터
   const filteredRows = useMemo(() => {
     const now = new Date()
-    let result = hideExpiredAssigns
+    const result = hideExpiredAssigns
       ? rows.filter(r => !r.dueDate || new Date(toUTC(r.dueDate)) > now)
       : rows
     if (dateRange === "all") return result
@@ -1281,19 +1279,18 @@ function SubmissionSection({ onUnsubChange }: {
       if (!map.has(r.assignmentId)) map.set(r.assignmentId, { assignmentId: r.assignmentId, assignmentTitle: r.assignmentTitle, dueDate: r.dueDate, problems: [] })
       map.get(r.assignmentId)!.problems.push(r)
     }
-    const now = Date.now()
     let list = [...map.values()]
     if (hideExpiredAssigns) {
-      list = list.filter(a => !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > now)
+      list = list.filter(a => !a.dueDate || new Date(toUTC(a.dueDate)).getTime() > nowMs)
     }
     return list.sort((a, b) => {
-      const aExp = a.dueDate ? new Date(toUTC(a.dueDate)).setHours(23, 59, 59) < now : false
-      const bExp = b.dueDate ? new Date(toUTC(b.dueDate)).setHours(23, 59, 59) < now : false
+      const aExp = a.dueDate ? new Date(toUTC(a.dueDate)).setHours(23, 59, 59) < nowMs : false
+      const bExp = b.dueDate ? new Date(toUTC(b.dueDate)).setHours(23, 59, 59) < nowMs : false
       if (aExp && !bExp) return 1
       if (!aExp && bExp) return -1
       return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
     })
-  }, [filteredRows, hideExpiredAssigns])
+  }, [filteredRows, hideExpiredAssigns, nowMs])
 
   const assignmentOptions = useMemo(() =>
     ["전체", ...[...new Set(filteredRows.map(r => r.assignmentTitle))]]
@@ -1517,7 +1514,7 @@ function SubmissionSection({ onUnsubChange }: {
                     const doneStudents = studentIds.filter(sid => problems.filter(p => p.studentId === sid).every(p => p.isSubmitted)).length
                     const submitted    = problems.filter(p => p.isSubmitted).length
                     const total        = problems.length
-                    const isExpired    = dueDate ? new Date(toUTC(dueDate)).setHours(23, 59, 59) < Date.now() : false
+                    const isExpired    = dueDate ? new Date(toUTC(dueDate)).setHours(23, 59, 59) < nowMs : false
                     const isExp        = expanded.has(assignmentId)
                     return (
                       <div key={assignmentId}
@@ -2701,7 +2698,7 @@ function StudentProgressSection() {
   }, [])
 
   const toggleCat = (name: string) =>
-    setExpanded(prev => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })
+    setExpanded(prev => { const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next })
 
   return (
     <SectionCard title="학생 진도 현황" desc="학생을 클릭하면 카테고리별 상세 진도를 확인할 수 있습니다">

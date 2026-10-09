@@ -7,6 +7,7 @@ import remarkBreaks from "remark-breaks"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { ChevronDown, Lightbulb, ClipboardList, BookOpen, Copy, Check } from "lucide-react"
+import { remarkFixKoreanBold } from "@/lib/remarkFixKoreanBold"
 import GraphVisualizer from "@/components/guide/GraphVisualizer"
 import RecursiveDfsVisualizer from "@/components/guide/RecursiveDfsVisualizer"
 import GraphBuildVisualizer from "@/components/guide/GraphBuildVisualizer"
@@ -157,7 +158,7 @@ export default function ChapterContentRenderer({
       prose-table:text-sm prose-th:bg-gray-50
     ">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={[remarkGfm, remarkBreaks, remarkFixKoreanBold]}
         components={{
           // react-markdown은 코드펜스를 기본적으로 <pre>로 감싸는데, <pre>의 기본 white-space: pre가
           // 안쪽 자연어 텍스트(그래프 시각화의 캡션 등)의 줄바꿈까지 막아버려서 명시적으로 되돌린다.
@@ -165,7 +166,7 @@ export default function ChapterContentRenderer({
           pre({ children }: any) {
             return <pre className="whitespace-normal">{children}</pre>
           },
-          code({ node, className, children, ...props }: any) {
+          code({ className, children, ...props }: any) {
             const match = /language-([\w-]+)/.exec(className || "")
             const lang = match?.[1]
             const code = String(children).replace(/^\n+/, "").replace(/\n+$/, "")

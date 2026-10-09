@@ -110,7 +110,7 @@ export default function LeaderboardClient({ leaderboard, myRank, myScore, total 
                 </tr>
               </thead>
               <tbody>
-                {rest.map((e, i) => (
+                {rest.map((e) => (
                   <tr
                     key={e.rank}
                     className={`border-b border-gray-50 last:border-0 transition-colors

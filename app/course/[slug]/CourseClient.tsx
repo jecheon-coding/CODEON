@@ -227,14 +227,6 @@ export default function CourseClient({
     [problems, statusMap],
   )
 
-  const remainingDays    = Math.ceil((problems.length - completedCount) / 3)
-  const estimatedWeeks   =
-    remainingDays <= 7  ? "약 1주 후"   :
-    remainingDays <= 14 ? "약 2주 후"   :
-    remainingDays <= 21 ? "약 3주 후"   :
-    remainingDays <= 35 ? "약 3~4주 후" :
-    `약 ${Math.ceil(remainingDays / 7)}주 후`
-
   // ── 탭/필터 ───────────────────────────────────────────────────────────────
   const topics = useMemo(() => {
     // topic별 최소 id 기준 정렬 → display_order 변경에 영향 안 받음
@@ -292,7 +284,7 @@ export default function CourseClient({
       setCertRound(r)
       updateCertUrl(certGrade, certType, r)
     }
-  }, [availableRounds])
+  }, [availableRounds, certRound, certGrade, certType, updateCertUrl])
 
   // 탭/필터 변경 시 페이지 초기화
   useEffect(() => { setPage(1) }, [activeTab, searchQuery, difficultyFilter, certGrade, certType, certRound, compYear, compDivision])
@@ -384,7 +376,7 @@ export default function CourseClient({
       setCompDivision(div)
       updateCompUrl(compYear, div)
     }
-  }, [availableDivisions])
+  }, [availableDivisions, compDivision, compYear, updateCompUrl])
 
   // 첫 진입 시 첫 번째 연도 자동 선택
   useEffect(() => {
@@ -393,7 +385,7 @@ export default function CourseClient({
       setCompYear(y)
       updateCompUrl(y, compDivision)
     }
-  }, [availableYears])
+  }, [availableYears, compYear, compDivision, updateCompUrl])
 
   const displayProblems = slug === "certificate" ? certFilteredProblems :
                           slug === "competition"  ? compFilteredProblems :
@@ -841,7 +833,7 @@ export default function CourseClient({
                     const maxVisible = 5
                     const half = Math.floor(maxVisible / 2)
                     let start = Math.max(1, page - half)
-                    let end   = Math.min(totalPages, start + maxVisible - 1)
+                    const end = Math.min(totalPages, start + maxVisible - 1)
                     if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
                     const pageNums = Array.from({ length: end - start + 1 }, (_, i) => start + i)
                     return (

@@ -2,12 +2,10 @@
 
 import { useState } from "react"
 import { signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import { Loader2, AlertCircle, CheckCircle2, Lock } from "lucide-react"
 import CodeOnLogo from "@/components/ui/CodeOnLogo"
 
 export default function ChangePasswordPage() {
-  const router = useRouter()
   const [newPassword, setNewPassword]     = useState("")
   const [confirmPassword, setConfirm]     = useState("")
   const [loading, setLoading]             = useState(false)

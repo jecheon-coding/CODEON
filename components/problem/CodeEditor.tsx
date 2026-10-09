@@ -72,7 +72,6 @@ export default function CodeEditor({
       doneTimerRef.current = setTimeout(() => setRunState("idle"), 2000);
     }
     return () => clearTimeout(doneTimerRef.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [execution.running]);
 
   // ── Monaco 초기화 ──
@@ -209,7 +208,6 @@ export default function CodeEditor({
               endColumn:       word.endColumn,
             }
             const CIK = monaco.languages.CompletionItemKind
-            const ITR = monaco.languages.CompletionItemInsertTextRule
 
             const userSymbols = extractUserSymbols(model.getValue())
 
@@ -578,9 +576,7 @@ export default function CodeEditor({
                     </button>
                   )}
                 </div>
-              : <p className="text-xs text-gray-600">
-                  // 실행 버튼을 눌러 출력 결과를 확인하세요.
-                </p>
+              : <p className="text-xs text-gray-600">{"// 실행 버튼을 눌러 출력 결과를 확인하세요."}</p>
           )}
 
           {activeTab === "error" && (
@@ -588,7 +584,7 @@ export default function CodeEditor({
               ? <pre className="text-sm text-red-400 whitespace-pre-wrap leading-relaxed">
                   {execution.error}
                 </pre>
-              : <p className="text-xs text-gray-600">// 에러가 없습니다.</p>
+              : <p className="text-xs text-gray-600">{"// 에러가 없습니다."}</p>
           )}
 
           {activeTab === "result" && (
@@ -634,7 +630,7 @@ function ResultView({
   }
 
   if (!status) return (
-    <p className="text-xs text-gray-600">// 제출 버튼을 눌러 채점 결과를 확인하세요.</p>
+    <p className="text-xs text-gray-600">{"// 제출 버튼을 눌러 채점 결과를 확인하세요."}</p>
   );
 
   const CONFIG: Record<string, { Icon: any; color: string; bar: string; msg: string }> = {

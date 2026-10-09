@@ -12,7 +12,6 @@ import { Problem, AdjacentProblem, SubmissionStatus, CaseResult } from "@/types/
 import type { CertSessionInfo } from "@/services/problem.service"
 import {
   ProblemUserState, calcUserStatus, USER_STATUS_BADGE,
-  type SubmissionSummaryRow,
 } from "@/lib/submissionStatus"
 
 // ── 인라인 SVG 아이콘 ─────────────────────────────────────────────────────────
@@ -251,7 +250,6 @@ function CodeViewerModal({
       editorRef.current?.dispose()
       editorRef.current = null
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code])
 
   const startDrag = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -300,42 +298,6 @@ function CodeViewerModal({
           : <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">저장된 코드가 없습니다.</div>
         }
       </div>
-    </div>
-  )
-}
-
-// ── ErrorOutput — 에러 메시지 파싱 표시 ──────────────────────────────────────
-function ErrorOutput({ error, isDark }: { error: string; isDark: boolean }) {
-  const [expanded, setExpanded] = useState(false)
-  const lines    = error.split("\n").filter(Boolean)
-  const lastLine = lines[lines.length - 1] ?? error
-  const colonIdx = lastLine.indexOf(": ")
-  const errType  = colonIdx > -1 ? lastLine.slice(0, colonIdx) : null
-  const errMsg   = colonIdx > -1 ? lastLine.slice(colonIdx + 2) : lastLine
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg"
-        style={{ background: isDark ? "rgba(239,68,68,0.12)" : "#fef2f2", border: `1px solid ${isDark ? "rgba(239,68,68,0.25)" : "#fecaca"}` }}>
-        <span className="shrink-0 mt-px" style={{ color: "#ef4444", fontSize: "13px" }}>⚠</span>
-        <p className="font-mono text-xs leading-relaxed break-all">
-          {errType && <span className="font-bold" style={{ color: "#ef4444" }}>{errType}: </span>}
-          <span style={{ color: isDark ? "#fca5a5" : "#b91c1c" }}>{errMsg}</span>
-        </p>
-      </div>
-      {lines.length > 1 && (
-        <button
-          onClick={() => setExpanded(v => !v)}
-          className="self-start text-xs px-2 py-1 rounded transition-colors"
-          style={{ color: isDark ? "#9ca3af" : "#6b7280", background: isDark ? "rgba(255,255,255,0.05)" : "#f3f4f6" }}
-        >{expanded ? "접기" : `자세히 보기 (${lines.length}줄)`}</button>
-      )}
-      {expanded && (
-        <pre className="font-mono text-xs whitespace-pre-wrap rounded-lg p-3 overflow-auto"
-          style={{ background: isDark ? "rgba(0,0,0,0.3)" : "#f9fafb", color: isDark ? "#9ca3af" : "#6b7280", maxHeight: "200px" }}>
-          {error}
-        </pre>
-      )}
     </div>
   )
 }
@@ -1598,7 +1560,6 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
   }, [isDark])
 
   // ── 계산값 ──────────────────────────────────────────────────────────────────
-  const slug   = CATEGORY_SLUG[problem.category] ?? "basic"
   const mm     = String(Math.floor(elapsed / 60)).padStart(2, "0")
   const ss     = String(elapsed % 60).padStart(2, "0")
 
@@ -2150,7 +2111,7 @@ export default function ProblemPageClient({ problem, prev, next, certSession }: 
               {coachOpen ? <SvgChevronUp /> : <SvgChevronDown />}
             </button>
             <div className="overflow-y-auto" style={{ maxHeight: "220px", display: coachOpen ? "block" : "none" }}>
-              <HintPanel problem={problem} code={getCode()} submissionStatus={submissionStatus} isDark={isDark} />
+              <HintPanel problem={problem} submissionStatus={submissionStatus} isDark={isDark} />
             </div>
           </div>
         </div>
