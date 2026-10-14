@@ -82,8 +82,8 @@ function LoginForm() {
 
       {/* 제목 */}
       <div className="text-center mb-8">
-        <h1 className="text-[28px] font-extrabold text-gray-900 mb-1">제천코딩학원</h1>
-        <p className="text-sm font-medium text-gray-400">코딩앤플레이 AI 학습 플랫폼</p>
+        <h1 className="text-[28px] font-extrabold text-gray-900 mb-1">CodeOn</h1>
+        <p className="text-sm font-medium text-gray-400">AI 코딩 학습 플랫폼</p>
       </div>
 
       {/* 1단계 탭: 수강생 / 학부모 */}
@@ -257,7 +257,7 @@ export default function LoginPage() {
       
       {/* 하단 텍스트 */}
       <div className="mt-8 text-center text-gray-400 text-[13px] font-medium">
-        제천코딩학원 Coding & Play
+        CodeOn
       </div>
     </main>
   )

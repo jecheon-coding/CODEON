@@ -30,7 +30,7 @@ export default function HeroSection() {
         <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-600
           text-xs font-semibold px-3 py-1 rounded-full mb-7 select-none">
           <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-          제천코딩학원 수강생 전용 AI 학습 플랫폼
+          CodeOn 수강생 전용 AI 학습 플랫폼
         </div>
 
         {/* 헤드라인 */}

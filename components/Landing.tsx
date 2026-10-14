@@ -212,7 +212,7 @@ export default function Landing() {
           <div className="inline-flex items-center gap-2 bg-white/15 border border-white/20
             text-white text-xs font-semibold px-4 py-1.5 rounded-full mb-8 select-none">
             <Sparkles className="w-3.5 h-3.5" />
-            제천코딩학원 학생 전용 코딩 플랫폼
+            CodeOn 학생 전용 코딩 플랫폼
           </div>
 
           <h1 className="text-5xl lg:text-7xl font-black leading-tight tracking-tight mb-8">
@@ -636,7 +636,7 @@ export default function Landing() {
 
           <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-[11px] text-slate-700">
-              © {new Date().getFullYear()} 제천코딩학원 Coding & Play. All rights reserved.
+              © {new Date().getFullYear()} CodeOn. All rights reserved.
             </p>
             <p className="text-[11px] text-slate-700">Powered by CodeOn AI Platform</p>
           </div>
