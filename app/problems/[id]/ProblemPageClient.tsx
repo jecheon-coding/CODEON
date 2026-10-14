@@ -86,7 +86,7 @@ function ProblemImageRow({ line, altPrefix }: { line: string; altPrefix?: string
         {entries.map((raw, i) => {
           const { url, width } = parseImageEntry(raw)
           return (
-            <img key={i} src={url} alt={`${altPrefix ?? "그림"} ${i + 1}`}
+            <img key={i} src={url} alt={`${altPrefix ?? "그림"} ${i + 1}`} crossOrigin="anonymous"
               className="rounded-lg"
               style={{ maxWidth: width ? `${width}px` : "45%", maxHeight: "320px", width: "auto", height: "auto" }} />
           )
@@ -99,7 +99,7 @@ function ProblemImageRow({ line, altPrefix }: { line: string; altPrefix?: string
   const alignCls = align === "center" ? "mx-auto" : align === "right" ? "ml-auto" : "mr-auto"
   return (
     <div className="flex my-1">
-      <img src={url} alt={altPrefix ?? "문제 그림"}
+      <img src={url} alt={altPrefix ?? "문제 그림"} crossOrigin="anonymous"
         className={`rounded-lg ${alignCls}`}
         style={{ maxWidth: width ? `${width}px` : "100%", maxHeight: "320px", width: "auto", height: "auto" }} />
     </div>

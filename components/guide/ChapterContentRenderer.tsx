@@ -45,6 +45,12 @@ import GridTraverseSumVisualizer from "@/components/guide/GridTraverseSumVisuali
 import GridNeighborScanVisualizer from "@/components/guide/GridNeighborScanVisualizer"
 import GridTransposeRotateVisualizer from "@/components/guide/GridTransposeRotateVisualizer"
 import GridMaxPosVisualizer from "@/components/guide/GridMaxPosVisualizer"
+import KeySortTraceVisualizer from "@/components/guide/KeySortTraceVisualizer"
+import DictCountTraceVisualizer from "@/components/guide/DictCountTraceVisualizer"
+import ListVsSetLookupVisualizer from "@/components/guide/ListVsSetLookupVisualizer"
+import MinMaxTrackVisualizer from "@/components/guide/MinMaxTrackVisualizer"
+import SetOperationsVisualizer from "@/components/guide/SetOperationsVisualizer"
+import SortMutateCompareVisualizer from "@/components/guide/SortMutateCompareVisualizer"
 
 const COLLAPSIBLE_CODE_CONFIG = {
   hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
@@ -56,7 +62,7 @@ function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanat
   const [open, setOpen] = useState(false)
   const { label, icon: Icon, className } = COLLAPSIBLE_CODE_CONFIG[type]
   return (
-    <div className="not-prose my-3">
+    <div className="my-3">
       <button
         onClick={() => setOpen(v => !v)}
         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors w-full border ${className}`}
@@ -66,16 +72,28 @@ function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanat
         <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="mt-1.5">
-          <SyntaxHighlighter
-            style={oneLight}
-            language="python"
-            PreTag="div"
-            customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
-          >
-            {code}
-          </SyntaxHighlighter>
-        </div>
+        type === "explanation" ? (
+          // 해설은 코드가 아니라 글(표/굵게 등 마크다운을 포함할 수 있는 설명문)이라
+          // 파이썬 문법 하이라이터가 아닌 마크다운으로 렌더링한다. hint/solution은
+          // 실제 코드이므로 그대로 SyntaxHighlighter를 쓴다.
+          <div className="mt-1.5 prose prose-sm max-w-none px-4 py-3 rounded-xl border border-gray-200 bg-white
+            prose-table:text-sm prose-th:bg-gray-50 prose-p:text-gray-700 prose-headings:text-gray-900">
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkFixKoreanBold]}>
+              {code}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className="not-prose mt-1.5">
+            <SyntaxHighlighter
+              style={oneLight}
+              language="python"
+              PreTag="div"
+              customStyle={{ borderRadius: "0.75rem", fontSize: "13px", margin: 0, border: "1px solid #e5e7eb" }}
+            >
+              {code}
+            </SyntaxHighlighter>
+          </div>
+        )
       )}
     </div>
   )
@@ -223,6 +241,13 @@ export default function ChapterContentRenderer({
             if (lang === "grid-neighbor-scan")      return <GridNeighborScanVisualizer code={code} />
             if (lang === "grid-transpose-rotate")   return <GridTransposeRotateVisualizer code={code} />
             if (lang === "grid-max-pos")            return <GridMaxPosVisualizer code={code} />
+
+            if (lang === "key-sort-trace")         return <KeySortTraceVisualizer code={code} />
+            if (lang === "dict-count-trace")       return <DictCountTraceVisualizer code={code} />
+            if (lang === "list-vs-set-lookup")     return <ListVsSetLookupVisualizer code={code} />
+            if (lang === "min-max-track")          return <MinMaxTrackVisualizer code={code} />
+            if (lang === "set-operations")         return <SetOperationsVisualizer code={code} />
+            if (lang === "sort-mutate-compare")    return <SortMutateCompareVisualizer code={code} />
 
             if (lang === "example-input") return <CopyableCodeBlock code={code} />
 

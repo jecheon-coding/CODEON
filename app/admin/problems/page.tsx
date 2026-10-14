@@ -982,7 +982,7 @@ export default function ProblemsPage() {
                         const alignCls = align === "center" ? "mx-auto" : align === "right" ? "ml-auto" : "mr-auto"
                         return (
                           <div key={i} className="flex">
-                            <img src={url} alt={`미리보기 ${i + 1}`}
+                            <img src={url} alt={`미리보기 ${i + 1}`} crossOrigin="anonymous"
                               className={`rounded-lg border border-gray-200 object-contain ${alignCls}`}
                               style={{ maxWidth: width ? `${width}px` : "100%", maxHeight: "160px" }} />
                           </div>
