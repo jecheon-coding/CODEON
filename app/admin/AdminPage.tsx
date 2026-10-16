@@ -11,13 +11,14 @@ import {
   Settings, Target, KeyRound,
 } from "lucide-react"
 import { toast } from "sonner"
+import { COURSE_ACCESS_META, ALL_COURSE_SLUGS, type CourseSlug } from "@/lib/courseAccess"
 
 // ── 타입 ────────────────────────────────────────────────────────────────────
 
 type Student = {
   id: string; name: string; grade: string | null; class: string | null
   status: string; login_id: string | null; hasParentLink: boolean
-  last_login_at: string | null
+  last_login_at: string | null; allowed_courses: string[] | null
 }
 
 type Assignment = {
@@ -228,7 +229,7 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
   const [statusFilter, setStatusFilter] = useState("전체")
   const [drawer,       setDrawer]       = useState<"add" | "edit" | null>(null)
   const [editing,      setEditing]      = useState<Student | null>(null)
-  const [form,         setForm]         = useState({ name: "", grade: "", cls: "", loginId: "", password: "" })
+  const [form,         setForm]         = useState({ name: "", grade: "", cls: "", loginId: "", password: "", allowedCourses: ALL_COURSE_SLUGS as string[] })
   const [saving,       setSaving]       = useState(false)
   const [err,          setErr]          = useState("")
   const [savedOk,      setSavedOk]      = useState(false)
@@ -333,22 +334,33 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
 
   function resetDrawer() {
     setSavedOk(false); setShowPw(false); setErr("")
-    setForm({ name: "", grade: "", cls: "", loginId: "", password: "" })
+    setForm({ name: "", grade: "", cls: "", loginId: "", password: "", allowedCourses: ALL_COURSE_SLUGS })
+  }
+
+  function toggleCourse(slug: CourseSlug) {
+    setForm(p => ({
+      ...p,
+      allowedCourses: p.allowedCourses.includes(slug)
+        ? p.allowedCourses.filter(s => s !== slug)
+        : [...p.allowedCourses, slug],
+    }))
   }
 
   async function handleSave() {
     setSaving(true); setErr("")
+    // 전부 체크된 상태는 "제한 없음"과 같은 의미이므로 null로 저장한다.
+    const allowedCourses = form.allowedCourses.length === ALL_COURSE_SLUGS.length ? null : form.allowedCourses
     if (drawer === "add") {
       const res = await fetch("/api/admin/students", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls, loginId: form.loginId, password: form.password }),
+        body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls, loginId: form.loginId, password: form.password, allowedCourses }),
       })
       if (!res.ok) { const d = await res.json(); setErr(d.error); setSaving(false); return }
       setSavedOk(true)
     } else if (editing) {
       const res = await fetch(`/api/admin/students/${editing.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls }),
+        body: JSON.stringify({ name: form.name, grade: form.grade, cls: form.cls, allowedCourses }),
       })
       if (!res.ok) { const d = await res.json(); setErr(d.error); setSaving(false); return }
       setDrawer(null)
@@ -530,7 +542,7 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                           <button title="수정" className={Btn.ghost}
                             onClick={() => {
                               setEditing(s); resetDrawer()
-                              setForm({ name: s.name, grade: s.grade ?? "", cls: s.class ?? "", loginId: s.login_id ?? "", password: "" })
+                              setForm({ name: s.name, grade: s.grade ?? "", cls: s.class ?? "", loginId: s.login_id ?? "", password: "", allowedCourses: s.allowed_courses ?? ALL_COURSE_SLUGS })
                               setDrawer("edit")
                             }}>
                             <Pencil className="w-3.5 h-3.5" />
@@ -670,7 +682,7 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
               <p className="text-xs text-gray-500">&quot;{form.name}&quot; 학생이 성공적으로 등록되었습니다.</p>
             </div>
             <div className="flex gap-2 w-full">
-              <button onClick={() => { setSavedOk(false); setForm({ name: "", grade: "", cls: "", loginId: "", password: "" }); setShowPw(false); setErr("") }}
+              <button onClick={() => { setSavedOk(false); setForm({ name: "", grade: "", cls: "", loginId: "", password: "", allowedCourses: ALL_COURSE_SLUGS }); setShowPw(false); setErr("") }}
                 className={`${Btn.outline} flex-1 justify-center py-2.5`}>
                 계속 등록하기
               </button>
@@ -704,6 +716,35 @@ function StudentSection({ onRefreshSummary }: { onRefreshSummary: () => void }) 
                   className={inputCls} placeholder="파이썬기초A" />
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={labelCls}>학습 가능 과정</label>
+                <button type="button"
+                  onClick={() => setForm(p => ({
+                    ...p,
+                    allowedCourses: p.allowedCourses.length === ALL_COURSE_SLUGS.length ? [] : ALL_COURSE_SLUGS,
+                  }))}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold">
+                  {form.allowedCourses.length === ALL_COURSE_SLUGS.length ? "전체 해제" : "전체 허용"}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 p-2.5 border border-gray-200 rounded-lg bg-slate-50/60">
+                {ALL_COURSE_SLUGS.map(slug => (
+                  <label key={slug} className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form.allowedCourses.includes(slug)}
+                      onChange={() => toggleCourse(slug)}
+                      className="w-3.5 h-3.5 accent-indigo-600"
+                    />
+                    {COURSE_ACCESS_META[slug].label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">체크 해제한 과정은 이 학생에게 "접근 권한이 없습니다"로 표시됩니다. (코딩 챌린지는 항상 전체 허용)</p>
+            </div>
+
             {drawer === "add" && (
               <>
                 <div>

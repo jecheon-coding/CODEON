@@ -27,11 +27,12 @@ export async function PATCH(
     return NextResponse.json({ success: true })
   }
 
-  const { name, grade, cls } = body
+  const { name, grade, cls, allowedCourses } = body
   const { error } = await supabaseServer.from("users").update({
-    name:  name?.trim()  || undefined,
-    grade: grade?.trim() || null,
-    class: cls?.trim()   || null,
+    name:            name?.trim()  || undefined,
+    grade:           grade?.trim() || null,
+    class:           cls?.trim()   || null,
+    allowed_courses: Array.isArray(allowedCourses) ? allowedCourses : null,
   }).eq("id", id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

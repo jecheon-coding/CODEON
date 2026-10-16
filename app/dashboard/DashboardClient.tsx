@@ -15,10 +15,11 @@ import {
   LogOut, ClipboardList, Award, Star, Zap,
   Code2, BarChart2, Trophy, MessageSquare, Clock,
   Activity, CheckSquare, ArrowRight, Sparkles,
-  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2,
+  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2, Lock,
 } from "lucide-react"
 import { useGoal } from "@/lib/goalContext"
 import { preloadWorker } from "@/lib/pyodideWorker"
+import { isCourseAllowed, problemCategoryToSlug } from "@/lib/courseAccess"
 
 // ── 카테고리 → 표시 라벨 ────────────────────────────────────────────────────
 const CATEGORY_LABEL: Record<string, string> = {
@@ -144,9 +145,9 @@ function GoalDot({ filled }: { filled: boolean }) {
 
 // ── 통합 과정 카드 ────────────────────────────────────────────────────────
 function CourseCard({
-  slug, label, description, stat, isCurrent,
+  slug, label, description, stat, isCurrent, locked,
 }: {
-  slug: string; label: string; description: string; stat: CourseStat; isCurrent: boolean
+  slug: string; label: string; description: string; stat: CourseStat; isCurrent: boolean; locked?: boolean
 }) {
   const { Icon, iconBg, iconColor } = COURSE_ICON_MAP[slug] ?? { Icon: BookOpen, iconBg: "bg-gray-100", iconColor: "text-gray-400" }
   const { progress, completed, total, last_learned } = stat
@@ -176,17 +177,25 @@ function CourseCard({
   return (
     <Link
       href={`/course/${slug}`}
-      className={`group relative block rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${borderCls}`}
+      className={`group relative block rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${borderCls} ${locked ? "opacity-60 grayscale-[40%]" : ""}`}
     >
       {/* 배지 */}
-      {isCurrent && (
-        <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#534AB7] text-white px-2 py-0.5 rounded-full">학습 중</span>
-      )}
-      {isCompetition && !isCurrent && (
-        <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#BA7517] text-white px-2 py-0.5 rounded-full">NEW</span>
-      )}
-      {isChallenge && !isCurrent && (
-        <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#D85A30] text-white px-2 py-0.5 rounded-full">HOT</span>
+      {locked ? (
+        <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold bg-gray-500 text-white px-2 py-0.5 rounded-full">
+          <Lock className="w-2.5 h-2.5" /> 접근 제한
+        </span>
+      ) : (
+        <>
+          {isCurrent && (
+            <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#534AB7] text-white px-2 py-0.5 rounded-full">학습 중</span>
+          )}
+          {isCompetition && !isCurrent && (
+            <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#BA7517] text-white px-2 py-0.5 rounded-full">NEW</span>
+          )}
+          {isChallenge && !isCurrent && (
+            <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#D85A30] text-white px-2 py-0.5 rounded-full">HOT</span>
+          )}
+        </>
       )}
 
       {/* 아이콘 */}
@@ -220,7 +229,7 @@ function CourseCard({
 }
 
 // ── 대시보드 클라이언트 ────────────────────────────────────────────────────
-export default function DashboardClient({ initialProblems }: { initialProblems: Problem[] }) {
+export default function DashboardClient({ initialProblems, allowedCourses }: { initialProblems: Problem[]; allowedCourses: string[] | null }) {
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() { redirect("/login") },
@@ -895,6 +904,7 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
                     description={course.description}
                     stat={courseStats[course.slug] ?? { progress: 0, completed: 0, total: 0, last_learned: null, is_current: false }}
                     isCurrent={!!courseStats[course.slug]?.is_current}
+                    locked={!isCourseAllowed(allowedCourses, problemCategoryToSlug(COURSE_CATEGORY[course.slug]))}
                   />
                 ))}
               </div>
@@ -905,8 +915,13 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
               <Link
                 href="/guide?category=파이썬기초"
                 onMouseDown={() => preloadWorker(true)}
-                className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl hover:from-indigo-100 hover:to-violet-100 transition-colors group"
+                className={`relative flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl hover:from-indigo-100 hover:to-violet-100 transition-colors group ${!isCourseAllowed(allowedCourses, "guide_basic") ? "opacity-60 grayscale-[40%]" : ""}`}
               >
+                {!isCourseAllowed(allowedCourses, "guide_basic") && (
+                  <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[10px] font-bold bg-gray-500 text-white px-2 py-0.5 rounded-full">
+                    <Lock className="w-2.5 h-2.5" /> 접근 제한
+                  </span>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                     <BookOpen className="w-4 h-4 text-white" />
@@ -921,8 +936,13 @@ export default function DashboardClient({ initialProblems }: { initialProblems: 
 
               <Link
                 href="/guide?category=파이썬알고리즘"
-                className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl hover:from-emerald-100 hover:to-teal-100 transition-colors group"
+                className={`relative flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl hover:from-emerald-100 hover:to-teal-100 transition-colors group ${!isCourseAllowed(allowedCourses, "guide_algorithm") ? "opacity-60 grayscale-[40%]" : ""}`}
               >
+                {!isCourseAllowed(allowedCourses, "guide_algorithm") && (
+                  <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[10px] font-bold bg-gray-500 text-white px-2 py-0.5 rounded-full">
+                    <Lock className="w-2.5 h-2.5" /> 접근 제한
+                  </span>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-emerald-600 rounded-xl flex items-center justify-center shrink-0">
                     <BarChart2 className="w-4 h-4 text-white" />

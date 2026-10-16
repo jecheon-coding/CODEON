@@ -2,6 +2,8 @@ import { getServerSession } from "next-auth"
 import { redirect, notFound } from "next/navigation"
 import { authOptions } from "@/lib/authOptions"
 import { supabaseServer } from "@/lib/supabaseServer"
+import { guideCategoryToSlug, isCourseAllowed } from "@/lib/courseAccess"
+import { AccessDeniedScreen } from "@/components/guide/AccessDeniedScreen"
 import GuideChapterClient from "./GuideChapterClient"
 
 export const dynamic = "force-dynamic"
@@ -16,9 +18,10 @@ export default async function GuideChapterPage({
   if ((session.user as any).role === "parent") redirect("/parent")
 
   const userId = (session.user as any).id as string
+  const role   = (session.user as any).role as string
   const { id } = await params
 
-  const [{ data: chapter }, { data: allChaptersRaw }, { data: progressData }] = await Promise.all([
+  const [{ data: chapter }, { data: allChaptersRaw }, { data: progressData }, { data: me }] = await Promise.all([
     supabaseServer
       .from("learning_chapters")
       .select("*")
@@ -35,9 +38,17 @@ export default async function GuideChapterPage({
       .from("learning_progress")
       .select("chapter_id")
       .eq("user_id", userId),
+    role === "student"
+      ? supabaseServer.from("users").select("allowed_courses").eq("id", userId).single()
+      : Promise.resolve({ data: null }),
   ])
 
   if (!chapter) notFound()
+
+  if (role === "student" && !isCourseAllowed(me?.allowed_courses, guideCategoryToSlug((chapter as any).category))) {
+    const slug = guideCategoryToSlug((chapter as any).category)
+    return <AccessDeniedScreen label={slug === "guide_algorithm" ? "알고리즘학습" : "파이썬가이드"} />
+  }
 
   // 같은 카테고리 챕터만 목차에 표시 (null은 파이썬기초로 간주)
   const chapterCat  = (chapter as any).category

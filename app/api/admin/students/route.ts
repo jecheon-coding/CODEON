@@ -15,7 +15,7 @@ export async function GET() {
 
   const [{ data: users }, { data: links }] = await Promise.all([
     supabaseServer.from("users")
-      .select("id, name, grade, class, status, login_id, is_active, last_login_at")
+      .select("id, name, grade, class, status, login_id, is_active, last_login_at, allowed_courses")
       .eq("role", "student")
       .order("name"),
     supabaseServer.from("parent_student_links").select("student_user_id"),
@@ -25,14 +25,15 @@ export async function GET() {
 
   return NextResponse.json(
     (users ?? []).map((s: any) => ({
-      id:            s.id,
-      name:          s.name,
-      grade:         s.grade ?? null,
-      class:         s.class ?? null,
-      status:        s.status,
-      login_id:      s.login_id ?? null,
-      hasParentLink: linkedIds.has(s.id),
-      last_login_at: s.last_login_at ?? null,
+      id:             s.id,
+      name:           s.name,
+      grade:          s.grade ?? null,
+      class:          s.class ?? null,
+      status:         s.status,
+      login_id:       s.login_id ?? null,
+      hasParentLink:  linkedIds.has(s.id),
+      last_login_at:  s.last_login_at ?? null,
+      allowed_courses: s.allowed_courses ?? null,
     }))
   )
 }
@@ -41,7 +42,7 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!await isAdmin()) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { name, grade, cls, loginId, password } = await req.json()
+  const { name, grade, cls, loginId, password, allowedCourses } = await req.json()
   if (!name?.trim() || !loginId?.trim() || !password?.trim())
     return NextResponse.json({ error: "이름, 아이디, 비밀번호는 필수입니다." }, { status: 400 })
 
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
     student_code:         studentCode,
     must_change_password: false,
     auth_provider:        "credentials",
+    allowed_courses:      Array.isArray(allowedCourses) ? allowedCourses : null,
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

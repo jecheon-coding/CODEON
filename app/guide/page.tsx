@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/authOptions"
 import { supabaseServer } from "@/lib/supabaseServer"
 import Link from "next/link"
 import { BookOpen, BarChart2, ArrowLeft, Clock } from "lucide-react"
+import { guideCategoryToSlug, isCourseAllowed } from "@/lib/courseAccess"
+import { AccessDeniedScreen } from "@/components/guide/AccessDeniedScreen"
 
 export const dynamic = "force-dynamic"
 
@@ -33,8 +35,9 @@ export default async function GuidePage({
   if (!category) redirect("/dashboard")
 
   const userId = (session.user as any).id as string
+  const role   = (session.user as any).role as string
 
-  const [{ data: chapters }, { data: progress }] = await Promise.all([
+  const [{ data: chapters }, { data: progress }, { data: me }] = await Promise.all([
     supabaseServer
       .from("learning_chapters")
       .select("id, category, order_index, parent_id")
@@ -45,7 +48,14 @@ export default async function GuidePage({
       .from("learning_progress")
       .select("chapter_id")
       .eq("user_id", userId),
+    role === "student"
+      ? supabaseServer.from("users").select("allowed_courses").eq("id", userId).single()
+      : Promise.resolve({ data: null }),
   ])
+
+  if (role === "student" && !isCourseAllowed(me?.allowed_courses, guideCategoryToSlug(category))) {
+    return <AccessDeniedScreen label={CAT_META[category]?.label ?? category} />
+  }
 
   const allChapters  = chapters ?? []
   const completedIds = new Set((progress ?? []).map((p: any) => p.chapter_id))

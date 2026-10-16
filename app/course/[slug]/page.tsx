@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/authOptions"
 import { supabaseServer } from "@/lib/supabaseServer"
 import { buildProblemStatusMap } from "@/lib/submissionStatus"
 import type { SubmissionSummaryRow } from "@/lib/submissionStatus"
+import { problemCategoryToSlug, isCourseAllowed, COURSE_ACCESS_META } from "@/lib/courseAccess"
+import { AccessDeniedScreen } from "@/components/guide/AccessDeniedScreen"
 import CourseClient from "./CourseClient"
 
 export const dynamic = "force-dynamic"
@@ -30,6 +32,15 @@ export default async function CoursePage({
 
   const category = COURSE_CATEGORY[slug]
   const userId   = (session.user as any).id as string
+  const role     = (session.user as any).role as string
+
+  if (role === "student") {
+    const courseSlug = problemCategoryToSlug(category)
+    const { data: me } = await supabaseServer.from("users").select("allowed_courses").eq("id", userId).single()
+    if (!isCourseAllowed(me?.allowed_courses, courseSlug)) {
+      return <AccessDeniedScreen label={courseSlug ? COURSE_ACCESS_META[courseSlug].label : category} />
+    }
+  }
 
   const baseQuery = supabaseServer
     .from("problems")
