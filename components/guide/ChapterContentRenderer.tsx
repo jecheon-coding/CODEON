@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm"
 import remarkBreaks from "remark-breaks"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
-import { ChevronDown, Lightbulb, ClipboardList, BookOpen, Copy, Check } from "lucide-react"
+import { ChevronDown, Lightbulb, ClipboardList, BookOpen, HelpCircle, Copy, Check } from "lucide-react"
 import { remarkFixKoreanBold } from "@/lib/remarkFixKoreanBold"
 import GraphVisualizer from "@/components/guide/GraphVisualizer"
 import RecursiveDfsVisualizer from "@/components/guide/RecursiveDfsVisualizer"
@@ -56,9 +56,10 @@ const COLLAPSIBLE_CODE_CONFIG = {
   hint:        { label: "힌트 보기",     icon: Lightbulb,     className: "text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200" },
   solution:    { label: "정답 코드 보기", icon: ClipboardList, className: "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200" },
   explanation: { label: "해설 보기",     icon: BookOpen,      className: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200" },
+  answer:      { label: "정답 보기",     icon: HelpCircle,    className: "text-sky-700 bg-sky-50 hover:bg-sky-100 border-sky-200" },
 } as const
 
-function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanation"; code: string }) {
+function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanation" | "answer"; code: string }) {
   const [open, setOpen] = useState(false)
   const { label, icon: Icon, className } = COLLAPSIBLE_CODE_CONFIG[type]
   return (
@@ -72,10 +73,10 @@ function CollapsibleCode({ type, code }: { type: "solution" | "hint" | "explanat
         <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        type === "explanation" ? (
-          // 해설은 코드가 아니라 글(표/굵게 등 마크다운을 포함할 수 있는 설명문)이라
-          // 파이썬 문법 하이라이터가 아닌 마크다운으로 렌더링한다. hint/solution은
-          // 실제 코드이므로 그대로 SyntaxHighlighter를 쓴다.
+        type === "explanation" || type === "answer" ? (
+          // 해설/확인문제 정답은 코드가 아니라 글(표/굵게 등 마크다운을 포함할 수 있는
+          // 설명문)이라 파이썬 문법 하이라이터가 아닌 마크다운으로 렌더링한다.
+          // hint/solution은 실제 코드이므로 그대로 SyntaxHighlighter를 쓴다.
           <div className="mt-1.5 prose prose-sm max-w-none px-4 py-3 rounded-xl border border-gray-200 bg-white
             prose-table:text-sm prose-th:bg-gray-50 prose-p:text-gray-700 prose-headings:text-gray-900">
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkFixKoreanBold]}>
@@ -192,6 +193,10 @@ export default function ChapterContentRenderer({
             if (lang === "python-solution")    return showSolution    ? <CollapsibleCode type="solution"    code={code} /> : null
             if (lang === "python-hint")        return showHint        ? <CollapsibleCode type="hint"         code={code} /> : null
             if (lang === "python-explanation") return showExplanation ? <CollapsibleCode type="explanation" code={code} /> : null
+
+            // 확인 문제 정답 — 채점과 무관한 가벼운 자가 점검이라 관리자 설정 없이
+            // 항상 접힌 채로 시작하는 토글만 제공한다(힌트/정답/해설과 달리 show* 게이트 없음).
+            if (lang === "check-answer") return <CollapsibleCode type="answer" code={code} />
 
             // ── 그래프 시각화 ──
             if (lang === "graph-dfs") return <GraphVisualizer mode="dfs" code={code} />
