@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { supabaseServer } from "@/lib/supabaseServer"
 import { callGemini } from "@/lib/gemini"
+import { checkAiRateLimit, rateLimitResponseBody } from "@/lib/aiRateLimit"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,10 @@ export async function POST(req: NextRequest) {
   if (!problemId || !question || !answer?.trim()) {
     return NextResponse.json({ error: "problemId, question, answer required" }, { status: 400 })
   }
+
+  const userId = (session.user as any).id as string
+  const limitResult = await checkAiRateLimit(userId, "comprehension")
+  if (!limitResult.ok) return NextResponse.json(rateLimitResponseBody(limitResult.limit), { status: 429 })
 
   const { data: problem } = await supabaseServer
     .from("problems")

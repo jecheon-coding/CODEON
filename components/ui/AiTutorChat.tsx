@@ -114,7 +114,7 @@ export default function AiTutorChat({
         }),
       })
       const data = await res.json()
-      const aiText = res.ok ? (data.text || "AI 응답 없음") : "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+      const aiText = res.ok ? (data.text || "AI 응답 없음") : (data.error || "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요.")
       setMessages([...nextMessages, { role: "ai", text: aiText }])
     } catch {
       setMessages([...nextMessages, { role: "ai", text: "연결에 문제가 생겼어요. 잠시 후 다시 시도해 주세요." }])

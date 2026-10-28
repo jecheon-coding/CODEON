@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { callGemini } from "@/lib/gemini"
+import { checkAiRateLimit, rateLimitResponseBody } from "@/lib/aiRateLimit"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,10 @@ export async function POST(req: NextRequest) {
   const { message, history, context } = await req.json()
   const trimmed = typeof message === "string" ? message.trim() : ""
   if (!trimmed) return NextResponse.json({ error: "message required" }, { status: 400 })
+
+  const userId = (session.user as any).id as string
+  const limitResult = await checkAiRateLimit(userId, "tutor")
+  if (!limitResult.ok) return NextResponse.json(rateLimitResponseBody(limitResult.limit), { status: 429 })
 
   const userName     = context?.userName ?? session.user.name ?? "학생"
   const courseLabel  = context?.courseLabel ?? "미정"
