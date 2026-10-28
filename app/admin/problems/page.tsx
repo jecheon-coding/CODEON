@@ -938,17 +938,18 @@ export default function ProblemsPage() {
                   </div>
                   <div>
                     <label className={labelCls}>주제 (topic)</label>
-                    <select
+                    <input
+                      type="text"
+                      list="topic-suggestions"
                       value={form.topic ?? ""}
                       onChange={e => setField("topic", e.target.value)}
+                      placeholder="예: COSPRO3급 모의고사 5차"
                       className={inputCls}
-                    >
-                      <option value="">— 선택 —</option>
-                      {formTopics.map(t => <option key={t} value={t}>{t}</option>)}
-                      {form.topic && !formTopics.includes(form.topic) && (
-                        <option value={form.topic}>{form.topic}</option>
-                      )}
-                    </select>
+                    />
+                    <datalist id="topic-suggestions">
+                      {formTopics.map(t => <option key={t} value={t} />)}
+                    </datalist>
+                    <p className="text-[11px] text-gray-400 mt-1">기존 주제를 고르거나, 목록에 없으면 새 이름을 직접 입력하세요.</p>
                   </div>
                 </div>
               </Section>

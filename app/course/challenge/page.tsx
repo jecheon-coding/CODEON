@@ -23,6 +23,7 @@ type ChallengeProb = Problem & {
   author_name:              string | null;
   created_at:               string | null;
   status?:                  string;
+  reject_reason?:           string | null;
   problem_type?:            string;
   is_solved?:               boolean;
 };
@@ -127,6 +128,10 @@ function CommunityProblemCard({
           {prob.title}
         </p>
       </div>
+
+      {showStatus && prob.status === "hidden" && prob.reject_reason && (
+        <p className="text-[11px] text-rose-500 mb-1.5">반려 사유: {prob.reject_reason}</p>
+      )}
 
       {/* 문제 설명 — 1줄 말줄임 */}
       <p

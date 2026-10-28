@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
   const { data } = await supabaseServer
     .from("teacher_feedback")
-    .select("summary, tip1, tip2, next_plan, month, updated_at")
+    .select("summary, tip1, tip2, next_plan, month, is_draft, updated_at")
     .eq("student_id", studentId)
     .eq("month", month)
     .maybeSingle()
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if ((session?.user as any)?.role !== "admin")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { studentId, month, summary, tip1, tip2, nextPlan } = await req.json()
+  const { studentId, month, summary, tip1, tip2, nextPlan, isDraft } = await req.json()
   if (!studentId || !month)
     return NextResponse.json({ error: "studentId와 month는 필수입니다." }, { status: 400 })
 
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     .eq("month", month)
     .maybeSingle()
 
-  const payload = { summary, tip1, tip2, next_plan: nextPlan, updated_at: now }
+  const payload = { summary, tip1, tip2, next_plan: nextPlan, is_draft: !!isDraft, updated_at: now }
 
   const { error } = existing
     ? await supabaseServer.from("teacher_feedback").update(payload).eq("id", existing.id)

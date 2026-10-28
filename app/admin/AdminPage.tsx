@@ -2478,7 +2478,7 @@ function MonthlyReviewSection() {
     setSaving(true); setSavedAt(null); setErr("")
     const res = await fetch("/api/admin/feedback", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId, month, ...form }),
+      body: JSON.stringify({ studentId, month, ...form, isDraft: type === "draft" }),
     })
     setSaving(false)
     if (res.ok) setSavedAt(type)

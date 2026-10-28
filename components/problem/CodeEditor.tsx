@@ -596,6 +596,7 @@ export default function CodeEditor({
               onAnalyze={handleAnalyze}
               analyzing={analyzing}
               analysis={analysis}
+              problem={problem}
             />
           )}
 
@@ -606,10 +607,91 @@ export default function CodeEditor({
   );
 }
 
+// ── 커뮤니티(도전) 문제 난이도 평가 + 반응 ──
+// /api/challenge/rate, /api/challenge/react는 이미 동작하는 API였지만 어떤 화면도
+// 호출하지 않아 죽어 있던 기능이다. 정답을 맞힌 직후 결과 화면에 연결한다
+// (rate API 자체가 "정답 제출 후에만 평가 가능"을 서버에서 강제하므로 이 위치가 맞다).
+const REACTION_TYPES = ["재밌어요", "설명이 좋아요", "창의적이에요", "헷갈려요"] as const;
+const DIFF_OPTIONS: { score: 1 | 2 | 3; label: string }[] = [
+  { score: 1, label: "쉬웠어요" }, { score: 2, label: "적당해요" }, { score: 3, label: "어려웠어요" },
+];
+
+function CommunityRatingReaction({ problemId }: { problemId: string }) {
+  const [myRating, setMyRating] = useState<1 | 2 | 3 | null>(null);
+  const [myReactions, setMyReactions] = useState<Set<string>>(new Set());
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+
+  async function rate(score: 1 | 2 | 3) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/challenge/rate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ problemId, score }),
+      });
+      if (res.ok) setMyRating(score);
+    } finally { setBusy(false); }
+  }
+
+  async function react(reactionType: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/challenge/react", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ problemId, reactionType }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setMyReactions(prev => {
+          const next = new Set(prev);
+          if (d.reacted) next.add(reactionType); else next.delete(reactionType);
+          return next;
+        });
+        setCounts(d.counts ?? {});
+      }
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 mt-1 px-3 py-2.5 rounded-lg bg-indigo-950/20 border border-indigo-800/30">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] font-semibold text-indigo-300 shrink-0">이 문제 난이도는?</span>
+        {DIFF_OPTIONS.map(({ score, label }) => (
+          <button key={score} onClick={() => rate(score)} disabled={busy}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+              myRating === score
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "bg-transparent border-indigo-700 text-indigo-300 hover:bg-indigo-900/40"
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {REACTION_TYPES.map(type => {
+          const active = myReactions.has(type);
+          return (
+            <button key={type} onClick={() => react(type)} disabled={busy}
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                active
+                  ? "bg-emerald-600/80 border-emerald-500 text-white"
+                  : "bg-transparent border-gray-700 text-gray-400 hover:bg-gray-800/60"
+              }`}>
+              {type}{counts[type] ? ` ${counts[type]}` : ""}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── 제출 결과 뷰 ──
 function ResultView({
   status, caseResults, progress, onNextProblem,
-  onAnalyze, analyzing, analysis,
+  onAnalyze, analyzing, analysis, problem,
 }: {
   status: SubmissionStatus;
   caseResults: CaseResult[] | null;
@@ -618,6 +700,7 @@ function ResultView({
   onAnalyze?: () => void;
   analyzing?: boolean;
   analysis?: string | null;
+  problem?: Problem;
 }) {
   // 채점 중 진행 상황
   if (progress) {
@@ -668,6 +751,11 @@ function ResultView({
         >
           다음 문제 풀기 <ArrowRight size={11} />
         </button>
+      )}
+
+      {/* 정답 + 커뮤니티(도전) 문제: 난이도 평가 + 반응 */}
+      {status === "correct" && problem?.is_community && (
+        <CommunityRatingReaction problemId={problem.id} />
       )}
 
       {/* 오답/오류: 케이스별 상세 */}

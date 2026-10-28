@@ -15,7 +15,7 @@ import {
   LogOut, ClipboardList, Award, Star, Zap,
   Code2, BarChart2, Trophy, MessageSquare, Clock,
   Activity, CheckSquare, ArrowRight, Sparkles,
-  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2, Lock,
+  Play, RefreshCw, KeyRound, X, AlertCircle, Loader2, CheckCheck, Pencil, UserCircle2, Lock, Bell,
 } from "lucide-react"
 import { useGoal } from "@/lib/goalContext"
 import { preloadWorker } from "@/lib/pyodideWorker"
@@ -244,6 +244,7 @@ export default function DashboardClient({ initialProblems, allowedCourses }: { i
   const [wrongSubs,          setWrongSubs]          = useState<{ problem_id: string; created_at: string }[]>([])
   const [homework,           setHomework]           = useState<HomeworkItem[]>([])
   const [loadingHomework,    setLoadingHomework]    = useState(true)
+  const [notices,            setNotices]            = useState<{ id: string; date: string; content: string }[]>([])
   const [hwExpanded,         setHwExpanded]         = useState(false)
   const [totalSubmitCount,   setTotalSubmitCount]   = useState<number | null>(null)
   const [aiChatOpen,         setAiChatOpen]         = useState(false)
@@ -368,6 +369,13 @@ export default function DashboardClient({ initialProblems, allowedCourses }: { i
       .then(data => { setHomework(data); setLoadingHomework(false) })
       .catch(() => { toast.error("과제 정보를 불러오지 못했습니다."); setLoadingHomework(false) })
   }, [userId])
+
+  useEffect(() => {
+    fetch("/api/notices?limit=3")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setNotices(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
 
   // ── 마지막 문제 상세 + 다음 문제 fetch ────────────────────────────────
   const lastSubmittedProblemId = submissions[0]?.problem_id
@@ -1473,6 +1481,31 @@ export default function DashboardClient({ initialProblems, allowedCourses }: { i
                       {hwExpanded ? "접기 ▲" : `${homework.length - 3}개 더 보기 ▾`}
                     </button>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* 4-4. 공지사항 */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+                  <Bell className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                <h2 className="text-sm font-bold text-gray-900">공지사항</h2>
+              </div>
+              {notices.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-3">등록된 공지가 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notices.map(n => (
+                    <div key={n.id} className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold leading-relaxed text-gray-800">{n.content}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{n.date}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

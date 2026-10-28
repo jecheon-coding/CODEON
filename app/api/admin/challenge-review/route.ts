@@ -42,13 +42,13 @@ export async function PATCH(req: Request) {
   if ((session?.user as any)?.role !== "admin")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { problemId, action } = await req.json() as { problemId: string; action: "approve" | "reject"; rejectReason?: string }
+  const { problemId, action, rejectReason } = await req.json() as { problemId: string; action: "approve" | "reject"; rejectReason?: string }
 
   const status = action === "approve" ? "published" : "hidden"
 
   const { error } = await supabaseServer
     .from("problems")
-    .update({ status })
+    .update({ status, reject_reason: action === "reject" ? (rejectReason?.trim() || null) : null })
     .eq("id", problemId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

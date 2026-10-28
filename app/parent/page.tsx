@@ -51,6 +51,7 @@ export default async function ParentPage() {
     .from("teacher_feedback")
     .select("*")
     .eq("student_id", studentId)
+    .eq("is_draft", false)
     .maybeSingle()
 
   const teacherInput: TeacherInput | null = tf ? {
